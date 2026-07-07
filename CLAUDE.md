@@ -37,8 +37,15 @@ agent framework or SDK abstraction layer.
 pnpm start          # run the TUI
 pnpm dev            # file-watch reload
 pnpm typecheck      # tsc --noEmit
+pnpm test           # unit tests (vitest, model mocked — no API key needed)
 pnpm eval           # run prompt evals (needs a real OPENAI_API_KEY)
 ```
+
+Unit tests live in [tests/](tests/) (mirroring `src/`), run by
+[vitest](vitest.config.ts). They mock the model via
+[tests/helpers/mock-openai.ts](tests/helpers/mock-openai.ts) — fast and offline,
+distinct from the live-model prompt evals. UI components are tested with
+`ink-testing-library`.
 
 Model is `gpt-4o-mini` ([src/config/model.ts](src/config/model.ts)); state
 persists to `.chat-state/session.json`.
