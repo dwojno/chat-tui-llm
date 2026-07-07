@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { ResponseUsage } from 'openai/resources/responses/responses.mjs'
+import type { ConversationScope } from './scope'
 
 /**
  * Rough token estimate for accounting only (chars / 4). We use it for the
@@ -51,7 +52,7 @@ const EMPTY_USAGE: UsageTotals = {
  * only a distilled prefix is injected per request. Also accumulates the token
  * accounting used for the savings report.
  */
-export class SessionState {
+export class SessionState implements ConversationScope {
   private summaryText = ''
   private factList: string[] = []
   private usage: UsageTotals = { ...EMPTY_USAGE }

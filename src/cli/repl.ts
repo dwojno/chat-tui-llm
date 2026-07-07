@@ -80,6 +80,7 @@ export async function runRepl({
       const assistantContent = await conversation.completeTurn(
         action.options,
         (delta) => chat.appendStreaming(delta),
+        (status) => chat.setStreaming(status),
       )
       chat.commitStreaming(assistantContent)
     } catch (error) {

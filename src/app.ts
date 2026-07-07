@@ -4,6 +4,7 @@ import { runRepl } from './cli/repl'
 import { STATE_FILE } from './config'
 import { ConversationService } from './conversation/service'
 import { SessionState } from './conversation/state'
+import { mainTools } from './tools'
 import { renderChat } from './ui/chat'
 
 /**
@@ -14,7 +15,9 @@ import { renderChat } from './ui/chat'
 export async function run(): Promise<void> {
   const chat = renderChat([])
   const state = SessionState.load(STATE_FILE)
-  const conversation = new ConversationService(new OpenAI(), state)
+  const conversation = new ConversationService(new OpenAI(), state, {
+    tools: mainTools,
+  })
   const { temperature } = parseCliArgs()
 
   await runRepl({ chat, conversation, state, temperature })

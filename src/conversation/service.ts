@@ -8,7 +8,11 @@ import type {
 import { KEEP_LAST_TURNS, MODEL, SYSTEM_INSTRUCTIONS } from '../config'
 import { formatResponse } from './format'
 import { DEFAULT_TURN_OPTIONS, type TurnOptions } from './options'
-import { executeToolCall, openaiTools } from '../tools'
+import { executeToolCall, mainTools } from '../tools'
+import {
+  DELEGATE_TASK_NAME,
+  parseDelegateTaskArgs,
+} from '../tools/delegate-task'
 import {
   countUserTurns,
   getFunctionCalls,
@@ -17,16 +21,34 @@ import {
   splitAtLastTurns,
   toReplayInputItems,
 } from './items'
-import { estimateTokens, type SessionState } from './state'
+import { runFork } from './fork'
+import type { ConversationScope } from './scope'
+import { estimateTokens } from './state'
 import { summarize } from './summarizer'
+
+type OpenAITool = (typeof mainTools)[number]
+
+export type ServiceOptions = {
+  instructions?: string
+  tools?: OpenAITool[]
+  keepLastTurns?: number
+}
 
 export class ConversationService {
   private conversation: ResponseInputItem[] = []
+  private readonly instructions: string
+  private readonly tools: OpenAITool[]
+  private readonly keepLastTurns: number
 
   constructor(
     private readonly openai: OpenAI,
-    private readonly state: SessionState,
-  ) {}
+    private readonly scope: ConversationScope,
+    options: ServiceOptions = {},
+  ) {
+    this.instructions = options.instructions ?? SYSTEM_INSTRUCTIONS
+    this.tools = options.tools ?? mainTools
+    this.keepLastTurns = options.keepLastTurns ?? KEEP_LAST_TURNS
+  }
 
   get items(): readonly ResponseInputItem[] {
     return this.conversation
@@ -35,8 +57,23 @@ export class ConversationService {
   pushUserMessage(content: string): ResponseInputItem {
     const message = { role: 'user', content } satisfies ResponseInputItem
     this.conversation.push(message)
-    this.state.growNaive(`user: ${content}`)
+    this.scope.growNaive?.(`user: ${content}`)
     return message
+  }
+
+  /** Inject a compressed fork handoff into the main transcript. */
+  injectForkHandoff(task: string, digest: string): void {
+    const content = [
+      '<fork_handoff>',
+      `Task: ${task}`,
+      'Sub-agent completed. Use this as background — do not mention the fork unless asked.',
+      '',
+      digest,
+      '</fork_handoff>',
+    ].join('\n')
+
+    this.conversation.push({ role: 'developer', content } satisfies ResponseInputItem)
+    this.scope.growNaive?.(`fork handoff: ${digest}`)
   }
 
   /**
@@ -47,14 +84,14 @@ export class ConversationService {
    */
   private contextBlock(): ResponseInputItem[] {
     const sections: string[] = []
-    if (this.state.facts.length) {
+    if (this.scope.facts.length) {
       sections.push(
-        `<user_known_facts>\n- ${this.state.facts.join('\n- ')}\n</user_known_facts>`,
+        `<user_known_facts>\n- ${this.scope.facts.join('\n- ')}\n</user_known_facts>`,
       )
     }
-    if (this.state.summary) {
+    if (this.scope.summary) {
       sections.push(
-        `<conversation_summary>\n${this.state.summary}\n</conversation_summary>`,
+        `<conversation_summary>\n${this.scope.summary}\n</conversation_summary>`,
       )
     }
     if (!sections.length) return []
@@ -78,10 +115,8 @@ export class ConversationService {
   private buildRequestParams(options: TurnOptions) {
     return {
       model: MODEL,
-      // Static prefix (instructions + tools) → stable conversation → dynamic
-      // context block last, to maximize prompt-cache prefix hits.
       input: [...this.conversation, ...this.contextBlock()],
-      instructions: SYSTEM_INSTRUCTIONS,
+      instructions: this.instructions,
       text: options.structured_output
         ? {
             format: zodTextFormat(options.structured_output, 'response_schema'),
@@ -92,10 +127,8 @@ export class ConversationService {
       temperature: options.temperature,
       max_output_tokens: options.max_output_tokens,
       store: false as const,
-      tools: openaiTools,
-      // Stable prefix (instructions + tools + facts/summary) + stable key keep
-      // prompt-cache hit rates high across turns.
-      prompt_cache_key: this.state.cacheKey,
+      tools: this.tools,
+      prompt_cache_key: this.scope.cacheKey,
     }
   }
 
@@ -111,42 +144,53 @@ export class ConversationService {
         stream.on('response.output_text.delta', (event) => onDelta(event.delta))
       }
       const final = await stream.finalResponse()
-      this.state.addResponseUsage(final.usage)
+      this.scope.addResponseUsage(final.usage)
       return final
     }
 
     const response = await this.openai.responses.parse(params)
-    this.state.addResponseUsage(response.usage)
+    this.scope.addResponseUsage(response.usage)
     return response
+  }
+
+  private async runDelegateFork(task: string): Promise<string> {
+    return runFork(this.openai, this.scope, task)
   }
 
   async completeTurn(
     options: TurnOptions = DEFAULT_TURN_OPTIONS,
     onDelta?: (delta: string) => void,
+    onForkStart?: (status: string) => void,
   ): Promise<string> {
-    // What a naive append-everything bot would have sent as input this turn.
-    const naiveInput = this.state.snapshotNaiveInput(
-      estimateTokens(SYSTEM_INSTRUCTIONS),
-    )
+    const naiveInput =
+      this.scope.snapshotNaiveInput?.(estimateTokens(this.instructions)) ?? 0
 
     let response = await this.fetchResponse(options, onDelta)
 
-    // The model may emit tool calls before its final answer. Each round keeps
-    // the same `options` (streaming + structured/json format) so the answer
-    // that ends the loop is still formatted and streamed to the UI.
     while (hasFunctionCalls(response.output)) {
       const replay = toReplayInputItems(response.output)
       this.conversation.push(...replay)
-      this.state.growNaive(renderItemsText(replay))
+      this.scope.growNaive?.(renderItemsText(replay))
 
       for (const call of getFunctionCalls(response.output)) {
-        const output = await executeToolCall(call.name, call.arguments)
+        let output: string
+
+        if (call.name === DELEGATE_TASK_NAME) {
+          const { task } = parseDelegateTaskArgs(call.arguments)
+          onForkStart?.(`Delegating: ${task}...`)
+          const digest = await this.runDelegateFork(task)
+          this.injectForkHandoff(task, digest)
+          output = digest
+        } else {
+          output = await executeToolCall(call.name, call.arguments)
+        }
+
         this.conversation.push({
           type: 'function_call_output',
           call_id: call.call_id,
           output,
         })
-        this.state.growNaive(`tool result: ${output}`)
+        this.scope.growNaive?.(`tool result: ${output}`)
       }
 
       response = await this.fetchResponse(options, onDelta)
@@ -154,27 +198,27 @@ export class ConversationService {
 
     const finalItems = toResponseInputItems(response.output)
     this.conversation.push(...finalItems)
-    this.state.growNaive(renderItemsText(finalItems))
+    this.scope.growNaive?.(renderItemsText(finalItems))
 
-    this.state.finishTurn(naiveInput)
+    this.scope.finishTurn?.(naiveInput)
     await this.maintainWindow()
 
     return formatResponse(response, options)
   }
 
   /**
-   * Deterministic truncation: keep only the last `KEEP_LAST_TURNS` turns in the
+   * Deterministic truncation: keep only the last `keepLastTurns` turns in the
    * window and fold everything older into the rolling summary (out-of-window
    * state). Runs once per turn, after the answer is committed.
    */
   private async maintainWindow(): Promise<void> {
-    if (countUserTurns(this.conversation) <= KEEP_LAST_TURNS) {
+    if (countUserTurns(this.conversation) <= this.keepLastTurns) {
       return
     }
 
     const { evicted, kept } = splitAtLastTurns(
       this.conversation,
-      KEEP_LAST_TURNS,
+      this.keepLastTurns,
     )
     if (!evicted.length) {
       return
@@ -182,11 +226,11 @@ export class ConversationService {
 
     const { text, usage } = await summarize(
       this.openai,
-      this.state.summary,
+      this.scope.summary,
       evicted,
     )
-    this.state.addSummarizerUsage(usage)
-    this.state.setSummary(text)
+    this.scope.addSummarizerUsage(usage)
+    this.scope.setSummary(text)
     this.conversation = kept
   }
 }
