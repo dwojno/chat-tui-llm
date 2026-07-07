@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(OPENAI_API_KEY=sk-test perl -e 'alarm 8; exec @ARGV' ./node_modules/.bin/tsx cli.ts)",
+      "Read(//tmp/**)"
+    ]
+  }
+}
