@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { render, Box, Text, Static, type TextProps } from 'ink'
 import Markdown from './markdown'
 
@@ -11,12 +11,64 @@ export interface Message {
 
 interface RoleMeta {
   label: string
+  icon: string
   color: TextProps['color']
 }
 
 const ROLE_META: Record<Role, RoleMeta> = {
-  user: { label: 'You', color: 'cyan' },
-  assistant: { label: 'AI', color: 'green' },
+  user: { label: 'You', icon: '🧑', color: 'cyan' },
+  assistant: { label: 'AI', icon: '🤖', color: 'green' },
+}
+
+/**
+ * A frame-cycling animation primitive. Owns its own timer via `useEffect`, so it
+ * keeps ticking across the imperative `rerender`s that drive the chat — Ink
+ * preserves component state as long as the element stays mounted.
+ */
+function useAnimationFrame(length: number, intervalMs: number): number {
+  const [frame, setFrame] = useState(0)
+  useEffect(() => {
+    const id = setInterval(
+      () => setFrame((f) => (f + 1) % length),
+      intervalMs,
+    )
+    return () => clearInterval(id)
+  }, [length, intervalMs])
+  return frame
+}
+
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+
+/** A braille spinner with a trailing label, e.g. `⠹ thinking…`. */
+function Spinner({
+  label,
+  color,
+}: {
+  label: string
+  color: TextProps['color']
+}): React.JSX.Element {
+  const frame = useAnimationFrame(SPINNER_FRAMES.length, 80)
+  return (
+    <Text color={color}>
+      {SPINNER_FRAMES[frame]} <Text dimColor>{label}</Text>
+    </Text>
+  )
+}
+
+/** A blinking block cursor, to signal the assistant is still typing. */
+function Cursor({ color }: { color: TextProps['color'] }): React.JSX.Element {
+  const frame = useAnimationFrame(2, 450)
+  return <Text color={color}>{frame === 0 ? '▋' : ' '}</Text>
+}
+
+/** The role header: a colored avatar dot, icon, and name. */
+function MessageHeader({ role }: { role: Role }): React.JSX.Element {
+  const { label, icon, color } = ROLE_META[role]
+  return (
+    <Text color={color} bold>
+      ● {icon} {label}
+    </Text>
+  )
 }
 
 interface ChatMessageProps {
@@ -24,17 +76,68 @@ interface ChatMessageProps {
 }
 
 function ChatMessage({ message }: ChatMessageProps): React.JSX.Element {
-  const { label, color } = ROLE_META[message.role]
   return (
     <Box flexDirection="column" marginBottom={1}>
-      <Text color={color} bold>
-        {label}
+      <MessageHeader role={message.role} />
+      <Box paddingLeft={2}>
+        {message.role === 'assistant' ? (
+          <Markdown>{message.content}</Markdown>
+        ) : (
+          <Text>{message.content}</Text>
+        )}
+      </Box>
+    </Box>
+  )
+}
+
+/** The live assistant bubble: a spinner while waiting, then text + cursor. */
+function StreamingMessage({ content }: { content: string }): React.JSX.Element {
+  const { color } = ROLE_META.assistant
+  return (
+    <Box flexDirection="column" marginBottom={1}>
+      <MessageHeader role="assistant" />
+      <Box paddingLeft={2}>
+        {content === '' ? (
+          <Spinner label="thinking…" color={color} />
+        ) : (
+          <Box>
+            <Markdown>{content}</Markdown>
+            <Cursor color={color} />
+          </Box>
+        )}
+      </Box>
+    </Box>
+  )
+}
+
+/**
+ * Friendly empty state, shown until the first message lands.
+ *
+ * Deliberately static: it renders while the user is at the readline prompt, and
+ * any animated rerender here would make Ink erase and redraw over the line the
+ * user is typing. Animation is reserved for the streaming bubble, which only
+ * shows once the prompt has been submitted.
+ */
+function Welcome(): React.JSX.Element {
+  const sparkle = '✦'
+  return (
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      borderColor="magenta"
+      paddingX={2}
+      marginBottom={1}
+    >
+      <Text color="magenta" bold>
+        {sparkle} Welcome to Chat CLI {sparkle}
       </Text>
-      {message.role === 'assistant' ? (
-        <Markdown>{message.content}</Markdown>
-      ) : (
-        <Text>{message.content}</Text>
-      )}
+      <Text dimColor>Type a message and press Enter to start chatting.</Text>
+      <Text dimColor>
+        Commands: <Text color="yellow">/remember</Text>{' '}
+        <Text color="yellow">/json</Text>{' '}
+        <Text color="yellow">/structured</Text> · type{' '}
+        <Text color="yellow">exit</Text> or Ctrl+C to quit.
+      </Text>
     </Box>
   )
 }
@@ -46,17 +149,16 @@ interface ChatProps {
 
 /** The chat view: finished messages stay static, the streaming one updates live. */
 function Chat({ messages, streaming }: ChatProps): React.JSX.Element {
+  const empty = messages.length === 0 && streaming === undefined
   return (
     <Box flexDirection="column" padding={1}>
       <Static items={messages}>
         {(message, index) => <ChatMessage key={index} message={message} />}
       </Static>
 
-      {streaming !== undefined && (
-        <ChatMessage
-          message={{ role: 'assistant', content: streaming || '…' }}
-        />
-      )}
+      {empty && <Welcome />}
+
+      {streaming !== undefined && <StreamingMessage content={streaming} />}
     </Box>
   )
 }
