@@ -31,14 +31,14 @@ src/eval/
   suites/         the tests, one *.eval.ts per prompt
 ```
 
-| Suite | Prompt under test | Scores |
-| --- | --- | --- |
-| `suites/delegation.eval.ts` | `<delegation>` in `SYSTEM_INSTRUCTIONS` | multi-step work → `delegate_task` with a concise `title`; simple asks → direct |
-| `suites/fork-tools.eval.ts` | `FORK_INSTRUCTIONS` + `forkTools` | a sub-agent uses `web_search` for research, `get_weather_data` for weather, and forces neither when none fits |
-| `suites/weather-routing.eval.ts` | `<tool_use>` | single-city asks call `get_weather_data` with the right city |
-| `suites/context-discretion.eval.ts` | `buildContextBlock` rules | stored facts stay quiet unless the message calls for them |
-| `suites/structured-output.eval.ts` | `/structured` `ResponseSchema` | output validates as `{ answer, sources[] }` |
-| `suites/summarizer.eval.ts` | `summarizer.ts` | rolling summary stays short and keeps the facts |
+| Suite                               | Prompt under test                       | Scores                                                                                                        |
+| ----------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `suites/delegation.eval.ts`         | `<delegation>` in `SYSTEM_INSTRUCTIONS` | multi-step work → `delegate_task` with a concise `title`; simple asks → direct                                |
+| `suites/fork-tools.eval.ts`         | `FORK_INSTRUCTIONS` + `forkTools`       | a sub-agent uses `web_search` for research, `get_weather_data` for weather, and forces neither when none fits |
+| `suites/weather-routing.eval.ts`    | `<tool_use>`                            | single-city asks call `get_weather_data` with the right city                                                  |
+| `suites/context-discretion.eval.ts` | `buildContextBlock` rules               | stored facts stay quiet unless the message calls for them                                                     |
+| `suites/structured-output.eval.ts`  | `/structured` `ResponseSchema`          | output validates as `{ answer, sources[] }`                                                                   |
+| `suites/summarizer.eval.ts`         | `summarizer.ts`                         | rolling summary stays short and keeps the facts                                                               |
 
 ## How it fits together
 
@@ -47,10 +47,10 @@ Evalite's model is `data → task → scorers`:
 - **`data`** — the rows. Each is `{ input, expected }`. `input` is a
   [`ProbeSpec`](harness/probe.ts) (prompt + optional context/schema); `expected`
   is an [`Expected`](harness/scorers.ts) describing what a good answer does.
-- **`task`** — [`probePrompt`](harness/probe.ts) runs *one* model turn against
+- **`task`** — [`probePrompt`](harness/probe.ts) runs _one_ model turn against
   the real system prompt + tools and returns the observable surface (`text`,
   `toolCalls`, `parsed`). It does **not** execute tools or run the loop, so it
-  captures the model's *decision* — exactly what routing evals score.
+  captures the model's _decision_ — exactly what routing evals score.
 - **`scorers`** — one file each under [`harness/scorers/`](harness/scorers/),
   shared bits in [`common.ts`](harness/scorers/common.ts). The deterministic
   checks (`routing`, `toolArgument`, `conciseArg`, `avoidsTools`,
@@ -84,6 +84,6 @@ any `*.eval.ts` file automatically.
 ## A note on non-determinism
 
 These call a real model, so a single failure isn't proof of a broken prompt —
-re-run, and treat a row that flips as a signal the prompt is *ambiguous* on that
+re-run, and treat a row that flips as a signal the prompt is _ambiguous_ on that
 input. Probes use `temperature: 0` to keep runs as stable as possible; set
 `trialCount` on an eval to run each row several times.

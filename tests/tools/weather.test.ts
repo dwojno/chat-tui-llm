@@ -1,24 +1,24 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { weatherTool } from '../../src/tools/weather'
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { weatherTool } from "../../src/tools/weather";
 
 afterEach(() => {
-  vi.useRealTimers()
-})
+  vi.useRealTimers();
+});
 
-describe('weatherTool', () => {
-  it('returns a sunny report for the city (after its simulated latency)', async () => {
-    vi.useFakeTimers()
-    const pending = weatherTool.execute({ city: 'Paris' })
-    await vi.advanceTimersByTimeAsync(1000)
-    expect(await pending).toBe('The weather in Paris is sunny')
-  })
+describe("weatherTool", () => {
+  it("returns a sunny report for the city (after its simulated latency)", async () => {
+    vi.useFakeTimers();
+    const pending = weatherTool.execute({ city: "Paris" });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(await pending).toBe("The weather in Paris is sunny");
+  });
 
-  it('summarizes a call to the city name', () => {
-    expect(weatherTool.summarize?.({ city: 'Tokyo' })).toBe('Tokyo')
-  })
+  it("summarizes a call to the city name", () => {
+    expect(weatherTool.summarize?.({ city: "Tokyo" })).toBe("Tokyo");
+  });
 
-  it('exposes its display label and name', () => {
-    expect(weatherTool.name).toBe('get_weather_data')
-    expect(weatherTool.label).toBe('Fetching weather data')
-  })
-})
+  it("exposes its display label and name", () => {
+    expect(weatherTool.name).toBe("get_weather_data");
+    expect(weatherTool.label).toBe("Fetching weather data");
+  });
+});

@@ -1,0 +1,40 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "import", "promise", "react", "node"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "env": {
+    "builtin": true,
+    "node": true,
+    "es2024": true
+  },
+  "rules": {
+    "no-console": "off",
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+    "no-await-in-loop": "off",
+    "typescript/no-explicit-any": "warn",
+    "typescript/no-non-null-assertion": "warn",
+    "import/no-cycle": "warn",
+    "promise/no-return-wrap": "warn",
+    "unicorn/no-array-for-each": "off",
+    "unicorn/prefer-node-protocol": "warn",
+    "react/react-in-jsx-scope": "off"
+  },
+  "ignorePatterns": ["node_modules", "dist", ".chat-state", "**/*.d.ts", "demo.tape"],
+  "overrides": [
+    {
+      "files": ["tests/**/*.ts", "tests/**/*.tsx", "src/eval/**/*.ts"],
+      "plugins": ["vitest"],
+      "env": { "vitest": true },
+      "rules": {
+        "typescript/no-explicit-any": "off",
+        "typescript/no-non-null-assertion": "off",
+        "vitest/require-mock-type-parameters": "off",
+        "vitest/require-to-throw-message": "off"
+      }
+    }
+  ]
+}

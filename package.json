@@ -2,26 +2,23 @@
   "name": "chat-cli",
   "version": "1.0.0",
   "description": "",
+  "keywords": [],
+  "license": "ISC",
+  "author": "",
+  "type": "module",
   "main": "src/cli.ts",
   "scripts": {
     "start": "tsx src/cli.ts",
     "dev": "tsx watch src/cli.ts",
     "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
     "test": "vitest run",
     "test:watch": "vitest",
     "eval": "evalite run",
     "eval:watch": "evalite watch"
-  },
-  "keywords": [],
-  "author": "",
-  "type": "module",
-  "license": "ISC",
-  "packageManager": "pnpm@10.33.0",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "better-sqlite3"
-    ]
   },
   "dependencies": {
     "dotenv": "^17.4.2",
@@ -35,8 +32,17 @@
     "@types/react": "^19.2.17",
     "evalite": "^0.19.0",
     "ink-testing-library": "^4.0.0",
+    "oxfmt": "^0.58.0",
+    "oxlint": "^1.73.0",
     "tsx": "^4.22.5",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "better-sqlite3"
+    ]
   }
 }

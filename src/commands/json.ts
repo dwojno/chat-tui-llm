@@ -1,7 +1,7 @@
-import { DEFAULT_TURN_OPTIONS } from '../conversation/options'
-import type { Command } from './types'
+import { DEFAULT_TURN_OPTIONS } from "../conversation/options";
+import type { Command } from "./types";
 
-const PREFIX = '/json '
+const PREFIX = "/json ";
 
 /**
  * `/json <prompt>` — run a turn in the model's JSON output mode. We also append
@@ -9,20 +9,20 @@ const PREFIX = '/json '
  * in the prompt.
  */
 export const jsonCommand: Command = {
-  name: 'json',
+  name: "json",
   completion: PREFIX,
-  hint: 'answer in raw JSON mode',
+  hint: "answer in raw JSON mode",
   matches: (input) => input.startsWith(PREFIX),
   run: (input, { temperature }) => {
-    const prompt = input.slice(PREFIX.length).trim()
+    const prompt = input.slice(PREFIX.length).trim();
     return {
-      kind: 'turn',
+      kind: "turn",
       content: `${prompt}\n\nRespond in JSON format.`,
       options: {
         ...DEFAULT_TURN_OPTIONS,
         temperature,
         json_mode: true,
       },
-    }
+    };
   },
-}
+};

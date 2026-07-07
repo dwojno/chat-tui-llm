@@ -1,4 +1,4 @@
-import { forkTools, mainTools } from '../tools'
+import { forkTools, mainTools } from "../tools";
 
 /**
  * Human-friendly labels for the raw tool names the harness emits. The event
@@ -9,13 +9,13 @@ import { forkTools, mainTools } from '../tools'
  */
 const TOOL_LABELS: Record<string, string> = [...mainTools, ...forkTools].reduce(
   (acc, tool) => {
-    acc[tool.name] = tool.label
-    return acc
+    acc[tool.name] = tool.label;
+    return acc;
   },
   {} as Record<string, string>,
-)
+);
 
 /** Map a tool name to the label shown in the thinking trace. */
 export function toolStepLabel(name: string): string {
-  return TOOL_LABELS[name] ?? `Running ${name}`
+  return TOOL_LABELS[name] ?? `Running ${name}`;
 }

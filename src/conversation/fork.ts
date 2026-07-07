@@ -1,25 +1,21 @@
-import type { OpenAI } from 'openai'
-import { FORK_INSTRUCTIONS } from '../config'
-import type { TurnEvent } from './events'
-import { DEFAULT_TURN_OPTIONS } from './options'
-import { ConversationService } from './service'
-import { EphemeralScope, type ConversationScope } from './scope'
-import { compressHandoff } from './handoff'
-import { forkTools } from '../tools'
+import type { OpenAI } from "openai";
+import { FORK_INSTRUCTIONS } from "../config";
+import type { TurnEvent } from "./events";
+import { DEFAULT_TURN_OPTIONS } from "./options";
+import { ConversationService } from "./service";
+import { EphemeralScope, type ConversationScope } from "./scope";
+import { compressHandoff } from "./handoff";
+import { forkTools } from "../tools";
 
-const FORK_KEEP_LAST_TURNS = 2
+const FORK_KEEP_LAST_TURNS = 2;
 
-function buildForkBrief(
-  summary: string,
-  facts: readonly string[],
-  task: string,
-): string {
+function buildForkBrief(summary: string, facts: readonly string[], task: string): string {
   const parts = [
-    summary ? `Parent context:\n${summary}` : '',
-    facts.length ? `Known facts:\n- ${facts.join('\n- ')}` : '',
+    summary ? `Parent context:\n${summary}` : "",
+    facts.length ? `Known facts:\n- ${facts.join("\n- ")}` : "",
     `Your task:\n${task}`,
-  ].filter(Boolean)
-  return parts.join('\n\n')
+  ].filter(Boolean);
+  return parts.join("\n\n");
 }
 
 /**
@@ -36,24 +32,24 @@ export async function* runFork(
   task: string,
   label: string,
 ): AsyncGenerator<TurnEvent, string> {
-  const childScope = new EphemeralScope(parent)
+  const childScope = new EphemeralScope(parent);
   const child = new ConversationService(openai, childScope, {
     instructions: FORK_INSTRUCTIONS,
     tools: forkTools,
     keepLastTurns: FORK_KEEP_LAST_TURNS,
-  })
+  });
 
-  const brief = buildForkBrief(parent.summary, parent.facts, task)
+  const brief = buildForkBrief(parent.summary, parent.facts, task);
   for await (const event of child.run(brief, {
     ...DEFAULT_TURN_OPTIONS,
     stream: false,
   })) {
-    if (event.type === 'tool' || event.type === 'status') {
-      yield { ...event, fork: label }
+    if (event.type === "tool" || event.type === "status") {
+      yield { ...event, fork: label };
     }
   }
 
-  const { text, usage } = await compressHandoff(openai, child.items, childScope.summary)
-  parent.addSummarizerUsage(usage)
-  return text
+  const { text, usage } = await compressHandoff(openai, child.items, childScope.summary);
+  parent.addSummarizerUsage(usage);
+  return text;
 }

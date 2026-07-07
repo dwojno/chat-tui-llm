@@ -1,4 +1,4 @@
-export const MODEL = 'gpt-4o-mini'
+export const MODEL = "gpt-4o-mini";
 
 /**
  * Static system prompt. Kept fully constant (no interpolation) so it forms a
@@ -28,7 +28,7 @@ You are a helpful assistant that can answer questions and help with tasks.
 - For delegate_task, provide a short \`title\` (a few words describing the sub-task, shown to the user) and a clear, self-contained \`task\` brief (the sub-agent sees only that brief, not the full chat). Keep the title concise — do not just repeat the user's message.
 - After delegate_task returns, synthesize the digest into your reply to the user.
 - Do not mention forks, sub-agents, or delegation unless the user asks how you work.
-</delegation>`
+</delegation>`;
 
 /**
  * Instructions for forked sub-agents. Separate from the main prompt so child
@@ -50,4 +50,4 @@ for a parent assistant.
 - Use a tool ONLY when it is directly relevant to the task. If no available tool fits, answer from your own knowledge — never force an unrelated tool (e.g. do not call get_weather_data for a non-weather task).
 - Prefer web_search for research, facts, and background you are unsure about.
 - After tools return, incorporate their results into your answer.
-</tool_use>`
+</tool_use>`;

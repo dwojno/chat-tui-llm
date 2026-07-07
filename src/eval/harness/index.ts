@@ -6,8 +6,8 @@
  * - scorers — score a {@link ProbeResult} against a row's `Expected`.
  * - `openai` — the shared lazy client.
  */
-export { openai } from './client'
-export { probePrompt, type ProbeResult, type ProbeSpec } from './probe'
+export { openai } from "./client";
+export { probePrompt, type ProbeResult, type ProbeSpec } from "./probe";
 export {
   avoidsForbidden,
   avoidsTools,
@@ -19,4 +19,4 @@ export {
   toolArgument,
   withinWordLimit,
   type Expected,
-} from './scorers'
+} from "./scorers";

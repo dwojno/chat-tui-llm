@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig } from "vitest/config";
 
 /**
  * Unit-test config. Distinct from the prompt evals (`*.eval.ts`, run by evalite
@@ -7,7 +7,7 @@ import { defineConfig } from 'vitest/config'
  */
 export default defineConfig({
   test: {
-    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
-    environment: 'node',
+    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
+    environment: "node",
   },
-})
+});

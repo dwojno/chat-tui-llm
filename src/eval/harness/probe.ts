@@ -1,54 +1,54 @@
-import { zodTextFormat } from 'openai/helpers/zod'
-import type { ResponseUsage } from 'openai/resources/responses/responses.mjs'
-import type { ZodType } from 'zod'
-import { MODEL, SYSTEM_INSTRUCTIONS } from '../../config'
-import { buildContextBlock } from '../../conversation/context'
-import { getFunctionCalls } from '../../conversation/items'
-import { forkTools, mainTools } from '../../tools'
-import { openai } from './client'
+import { zodTextFormat } from "openai/helpers/zod";
+import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
+import type { ZodType } from "zod";
+import { MODEL, SYSTEM_INSTRUCTIONS } from "../../config";
+import { buildContextBlock } from "../../conversation/context";
+import { getFunctionCalls } from "../../conversation/items";
+import { forkTools, mainTools } from "../../tools";
+import { openai } from "./client";
 
-type OpenAITool = (typeof mainTools)[number] | (typeof forkTools)[number]
+type OpenAITool = (typeof mainTools)[number] | (typeof forkTools)[number];
 
 /** A tool call the model emitted, with arguments parsed for convenience. */
 export interface ProbeToolCall {
-  name: string
-  arguments: string
+  name: string;
+  arguments: string;
   /** `arguments` parsed to an object (`{}` if it failed to parse). */
-  args: Record<string, unknown>
+  args: Record<string, unknown>;
 }
 
 /** The observable surface of one model turn — all a scorer may inspect. */
 export interface ProbeResult {
   /** Plain-text output (`output_text`), trimmed. */
-  text: string
+  text: string;
   /** Every `function_call` item the model emitted this turn. */
-  toolCalls: ProbeToolCall[]
+  toolCalls: ProbeToolCall[];
   /** Structured `output_parsed`, when a structured/JSON format was requested. */
-  parsed: unknown
-  usage: ResponseUsage | undefined
+  parsed: unknown;
+  usage: ResponseUsage | undefined;
 }
 
 /** What to send the model for one probe. */
 export interface ProbeSpec {
   /** The user message. */
-  prompt: string
+  prompt: string;
   /** Defaults to the production system prompt. */
-  instructions?: string
+  instructions?: string;
   /** Defaults to the production tool set (weather + delegate_task). */
-  tools?: OpenAITool[]
+  tools?: OpenAITool[];
   /** Out-of-window memory injected as the trailing developer message. */
-  context?: { facts?: string[]; summary?: string }
+  context?: { facts?: string[]; summary?: string };
   /** Structured-output schema (mirrors the `/structured` command). */
-  structuredOutput?: ZodType
-  temperature?: number
+  structuredOutput?: ZodType;
+  temperature?: number;
 }
 
 function parseArgs(json: string): Record<string, unknown> {
   try {
-    const value = JSON.parse(json)
-    return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+    const value = JSON.parse(json);
+    return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   } catch {
-    return {}
+    return {};
   }
 }
 
@@ -62,34 +62,32 @@ function parseArgs(json: string): Record<string, unknown> {
 export async function probePrompt(spec: ProbeSpec): Promise<ProbeResult> {
   const contextItems = buildContextBlock({
     facts: spec.context?.facts ?? [],
-    summary: spec.context?.summary ?? '',
-  })
+    summary: spec.context?.summary ?? "",
+  });
 
   const response = await openai().responses.parse({
     model: MODEL,
-    input: [{ role: 'user', content: spec.prompt }, ...contextItems],
+    input: [{ role: "user", content: spec.prompt }, ...contextItems],
     instructions: spec.instructions ?? SYSTEM_INSTRUCTIONS,
     text: spec.structuredOutput
-      ? { format: zodTextFormat(spec.structuredOutput, 'response_schema') }
+      ? { format: zodTextFormat(spec.structuredOutput, "response_schema") }
       : undefined,
     temperature: spec.temperature ?? 0,
     max_output_tokens: 1000,
     store: false,
     tools: spec.tools ?? mainTools,
-  })
+  });
 
-  const toolCalls: ProbeToolCall[] = getFunctionCalls(response.output).map(
-    (call) => ({
-      name: call.name,
-      arguments: call.arguments,
-      args: parseArgs(call.arguments),
-    }),
-  )
+  const toolCalls: ProbeToolCall[] = getFunctionCalls(response.output).map((call) => ({
+    name: call.name,
+    arguments: call.arguments,
+    args: parseArgs(call.arguments),
+  }));
 
   return {
     text: response.output_text.trim(),
     toolCalls,
     parsed: response.output_parsed,
     usage: response.usage,
-  }
+  };
 }

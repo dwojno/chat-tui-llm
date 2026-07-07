@@ -8,7 +8,7 @@ hand-built on the **raw OpenAI SDK**. No LangChain, no agent framework — the s
 LLM dependency in `package.json` is `openai`.
 
 This project exists to expose the machinery frameworks hide — to show what an
-agent *actually is* underneath the magic: a request loop, a token budget, and
+agent _actually is_ underneath the magic: a request loop, a token budget, and
 tools you wire up yourself. Every layer an agent framework abstracts away is
 here in plain sight and under direct control. So favour clarity and correctness
 over cleverness, and keep the "frameworkless" claim true — don't introduce an
@@ -51,6 +51,8 @@ agent framework or SDK abstraction layer.
 pnpm start          # run the TUI
 pnpm dev            # file-watch reload
 pnpm typecheck      # tsc --noEmit
+pnpm lint           # oxlint (fast Rust linter; --fix to autofix)
+pnpm format         # oxfmt --write (format:check for CI, no writes)
 pnpm test           # unit tests (vitest, model mocked — no API key needed)
 pnpm eval           # run prompt evals (needs a real OPENAI_API_KEY)
 ```

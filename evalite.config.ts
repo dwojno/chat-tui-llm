@@ -1,4 +1,4 @@
-import { defineConfig } from 'evalite/config'
+import { defineConfig } from "evalite/config";
 
 /**
  * Evalite config for the prompt evals (`pnpm eval` / `pnpm eval:watch`).
@@ -7,6 +7,6 @@ import { defineConfig } from 'evalite/config'
  * LLM-judge scorer makes another).
  */
 export default defineConfig({
-  setupFiles: ['dotenv/config'],
+  setupFiles: ["dotenv/config"],
   testTimeout: 60_000,
-})
+});

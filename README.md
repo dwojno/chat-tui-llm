@@ -14,7 +14,7 @@ The point isn't the chat — it's the machinery underneath. Every layer an agent
 
 - **Agent loop** — runs the model → tool-call → tool-result cycle by hand until the model stops asking for tools, then streams the answer. Independent tool calls in a single turn run in parallel. [`service.ts`](src/conversation/service.ts)
 - **Context-window management** — only the last 4 turns are kept verbatim; older turns fold into a rolling summary and are dropped, keeping a stable, cacheable prompt prefix. [`summarizer.ts`](src/conversation/summarizer.ts)
-- **Prompt caching** — out-of-window state (facts + summary) is pinned to the *end* of the input so a `/remember` or a re-summarization never invalidates the cached prefix above it.
+- **Prompt caching** — out-of-window state (facts + summary) is pinned to the _end_ of the input so a `/remember` or a re-summarization never invalidates the cached prefix above it.
 - **Sub-agent delegation** — the model can spin up ephemeral child agents for multi-step work — several in parallel — each with its own context and tools, handing back a compressed digest. The sub-agent's tool activity streams back live under a short, model-chosen label. [`fork.ts`](src/conversation/fork.ts), [`handoff.ts`](src/conversation/handoff.ts)
 - **Live activity trace** — every tool call and delegation surfaces as a streaming, Gemini-style "thinking" step (with its target — the city, the search query, the sub-task) that freezes above the final answer instead of vanishing. [`chat.tsx`](src/ui/chat.tsx)
 - **Tool calling** — typed, Zod-validated tools the model can invoke: a demo weather lookup and a keyless, Wikipedia-backed web search that sub-agents use for research. Add your own under [src/tools/](src/tools/).
@@ -43,12 +43,12 @@ pnpm start -- --temperature 0.2   # -t for short; default 0.7
 
 At the `>` prompt, type a message for a streaming reply, or use a command:
 
-| Command | Description |
-| --- | --- |
-| `/remember <fact>` | Pin a fact; injected into every later turn (survives truncation) |
-| `/json <prompt>` | Reply in JSON output mode |
-| `/structured <prompt>` | Reply validated against a Zod schema (answer + sources) |
-| `exit` | Leave the REPL (Ctrl+C / Ctrl+D also work) |
+| Command                | Description                                                      |
+| ---------------------- | ---------------------------------------------------------------- |
+| `/remember <fact>`     | Pin a fact; injected into every later turn (survives truncation) |
+| `/json <prompt>`       | Reply in JSON output mode                                        |
+| `/structured <prompt>` | Reply validated against a Zod schema (answer + sources)          |
+| `exit`                 | Leave the REPL (Ctrl+C / Ctrl+D also work)                       |
 
 On exit, a token-savings report compares actual input tokens against a naive "re-send everything" baseline — the payoff of the context management above.
 

@@ -1,6 +1,6 @@
-import { OpenAI } from 'openai'
+import { OpenAI } from "openai";
 
-let client: OpenAI | undefined
+let client: OpenAI | undefined;
 
 /**
  * One lazily-created OpenAI client shared by every task and scorer. Lazy so
@@ -8,5 +8,5 @@ let client: OpenAI | undefined
  * a key) until a case actually runs.
  */
 export function openai(): OpenAI {
-  return (client ??= new OpenAI())
+  return (client ??= new OpenAI());
 }

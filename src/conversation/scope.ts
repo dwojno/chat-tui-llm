@@ -1,20 +1,20 @@
-import { randomUUID } from 'node:crypto'
-import type { ResponseUsage } from 'openai/resources/responses/responses.mjs'
+import { randomUUID } from "node:crypto";
+import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
 
 /**
  * Narrow state surface used by {@link ConversationService}. Main sessions use
  * {@link SessionState}; forked child sessions use {@link EphemeralScope}.
  */
 export interface ConversationScope {
-  readonly summary: string
-  readonly facts: readonly string[]
-  readonly cacheKey: string
-  setSummary(summary: string): void
-  addResponseUsage(usage: ResponseUsage | undefined): void
-  addSummarizerUsage(usage: ResponseUsage | undefined): void
-  growNaive?(text: string): void
-  finishTurn?(naiveInput: number): void
-  snapshotNaiveInput?(instructionsTokens: number): number
+  readonly summary: string;
+  readonly facts: readonly string[];
+  readonly cacheKey: string;
+  setSummary(summary: string): void;
+  addResponseUsage(usage: ResponseUsage | undefined): void;
+  addSummarizerUsage(usage: ResponseUsage | undefined): void;
+  growNaive?(text: string): void;
+  finishTurn?(naiveInput: number): void;
+  snapshotNaiveInput?(instructionsTokens: number): number;
 }
 
 /**
@@ -22,32 +22,32 @@ export interface ConversationScope {
  * rolls up to the parent so the session token report stays accurate.
  */
 export class EphemeralScope implements ConversationScope {
-  private summaryText = ''
-  private readonly forkId = randomUUID()
+  private summaryText = "";
+  private readonly forkId = randomUUID();
 
   constructor(private readonly parent: ConversationScope) {}
 
   get summary(): string {
-    return this.summaryText
+    return this.summaryText;
   }
 
   get facts(): readonly string[] {
-    return this.parent.facts
+    return this.parent.facts;
   }
 
   get cacheKey(): string {
-    return `chat-cli:fork:${this.forkId}`
+    return `chat-cli:fork:${this.forkId}`;
   }
 
   setSummary(summary: string): void {
-    this.summaryText = summary
+    this.summaryText = summary;
   }
 
   addResponseUsage(usage: ResponseUsage | undefined): void {
-    this.parent.addResponseUsage(usage)
+    this.parent.addResponseUsage(usage);
   }
 
   addSummarizerUsage(usage: ResponseUsage | undefined): void {
-    this.parent.addSummarizerUsage(usage)
+    this.parent.addSummarizerUsage(usage);
   }
 }

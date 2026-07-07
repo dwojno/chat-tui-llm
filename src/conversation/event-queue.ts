@@ -11,37 +11,37 @@
  * `yield*`s {@link drain}.
  */
 export class EventQueue<T> {
-  private readonly buffer: T[] = []
-  private openProducers = 0
-  private wake?: () => void
+  private readonly buffer: T[] = [];
+  private openProducers = 0;
+  private wake?: () => void;
 
   /** Register a producer; keeps {@link drain} alive until it {@link close}s. */
   open(): void {
-    this.openProducers += 1
+    this.openProducers += 1;
   }
 
   /** Mark a producer done; when the last one closes, {@link drain} can finish. */
   close(): void {
-    this.openProducers -= 1
-    this.wake?.()
+    this.openProducers -= 1;
+    this.wake?.();
   }
 
   push(item: T): void {
-    this.buffer.push(item)
-    this.wake?.()
+    this.buffer.push(item);
+    this.wake?.();
   }
 
   async *drain(): AsyncGenerator<T> {
     while (this.openProducers > 0 || this.buffer.length > 0) {
       if (this.buffer.length > 0) {
-        yield this.buffer.shift() as T
-        continue
+        yield this.buffer.shift() as T;
+        continue;
       }
       // Buffer empty but producers still open — sleep until one pushes or closes.
       await new Promise<void>((resolve) => {
-        this.wake = resolve
-      })
-      this.wake = undefined
+        this.wake = resolve;
+      });
+      this.wake = undefined;
     }
   }
 }

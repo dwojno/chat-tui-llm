@@ -1,0 +1,3 @@
+{
+  "ignorePatterns": ["node_modules", "dist", ".chat-state", "pnpm-lock.yaml", "demo.tape"]
+}

@@ -1,11 +1,11 @@
-import { OpenAI } from 'openai'
-import { parseCliArgs } from './cli/args'
-import { runRepl } from './cli/repl'
-import { STATE_FILE } from './config'
-import { ConversationService } from './conversation/service'
-import { SessionState } from './conversation/state'
-import { mainTools } from './tools'
-import { renderChat } from './ui/chat'
+import { OpenAI } from "openai";
+import { parseCliArgs } from "./cli/args";
+import { runRepl } from "./cli/repl";
+import { STATE_FILE } from "./config";
+import { ConversationService } from "./conversation/service";
+import { SessionState } from "./conversation/state";
+import { mainTools } from "./tools";
+import { renderChat } from "./ui/chat";
 
 /**
  * Composition root: build every dependency once and hand them to the REPL.
@@ -15,13 +15,13 @@ import { renderChat } from './ui/chat'
 export async function run(): Promise<void> {
   // A TTY lets the Ink prompt own stdin (raw-mode editing + autocomplete); when
   // input is piped we fall back to line-buffered readline.
-  const interactive = process.stdin.isTTY === true
-  const chat = renderChat([], { interactive })
-  const state = SessionState.load(STATE_FILE)
+  const interactive = process.stdin.isTTY === true;
+  const chat = renderChat([], { interactive });
+  const state = SessionState.load(STATE_FILE);
   const conversation = new ConversationService(new OpenAI(), state, {
     tools: mainTools,
-  })
-  const { temperature } = parseCliArgs()
+  });
+  const { temperature } = parseCliArgs();
 
-  await runRepl({ chat, conversation, state, temperature, interactive })
+  await runRepl({ chat, conversation, state, temperature, interactive });
 }
