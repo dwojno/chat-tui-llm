@@ -7,11 +7,12 @@ context-window management, tool calling, and sub-agent delegation are all
 hand-built on the **raw OpenAI SDK**. No LangChain, no agent framework — the sole
 LLM dependency in `package.json` is `openai`.
 
-The value of the project is showing what an agent *is* once the framework is
-removed: a request loop, a token budget, and tools you wire up yourself. It's a
-learning/showcase project (LLM-engineering coursework), so favour clarity and
-correctness over cleverness, and keep the "frameworkless" claim true — don't
-introduce an agent framework or SDK abstraction layer.
+This project exists to expose the machinery frameworks hide — to show what an
+agent *actually is* underneath the magic: a request loop, a token budget, and
+tools you wire up yourself. Every layer an agent framework abstracts away is
+here in plain sight and under direct control. So favour clarity and correctness
+over cleverness, and keep the "frameworkless" claim true — don't introduce an
+agent framework or SDK abstraction layer.
 
 ## Key pieces
 

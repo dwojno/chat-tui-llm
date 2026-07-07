@@ -2,7 +2,7 @@
 
 A **frameworkless AI agent** in your terminal — the agent loop, context management, tool calling, and sub-agent delegation are all hand-built on the raw OpenAI SDK. No agent framework, nothing hiding the mechanics. Streaming replies land in an [Ink](https://github.com/vadimdemedes/ink) (React) TUI.
 
-The point isn't the chat — it's showing what an agent actually *is* once you take the framework away: a request loop, a token budget, and a set of tools you wire up yourself.
+The point isn't the chat — it's the machinery underneath. Every layer an agent framework hides behind its magic is here in plain sight and under direct control: the request loop, the token budget, the tool wiring, the sub-agent handoffs. If you've ever wanted to see what actually happens when an "agent" thinks, this is the whole thing, unabstracted.
 
 ## What it does
 
