@@ -150,6 +150,23 @@ export function createMockOpenAI(
   }
 }
 
+/**
+ * A client whose every Responses call rejects — models a transient API failure
+ * (network/5xx) so tests can assert the REPL recovers instead of crashing.
+ */
+export function createThrowingOpenAI(message = 'API unavailable'): OpenAI {
+  const fail = () => {
+    throw new Error(message)
+  }
+  return {
+    responses: {
+      stream: fail,
+      parse: async () => fail(),
+      create: async () => fail(),
+    },
+  } as unknown as OpenAI
+}
+
 /** A recording {@link ConversationScope} for exercising service/fork in isolation. */
 export function createRecordingScope(
   init: { summary?: string; facts?: string[] } = {},

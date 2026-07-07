@@ -20,7 +20,7 @@ export interface ReplDeps {
  * Run one input line: resolve it to a command and either run a model turn or
  * apply the command's side effect. Returns `'exit'` when the loop should stop.
  */
-async function processLine(
+export async function processLine(
   input: string,
   ctx: CommandContext,
   chat: ChatHandle,
