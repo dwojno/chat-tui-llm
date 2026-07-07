@@ -7,10 +7,7 @@ import type {
 } from 'openai/resources/responses/responses.mjs'
 import { KEEP_LAST_TURNS, MODEL, SYSTEM_INSTRUCTIONS } from '../config'
 import { formatResponse } from './format'
-import {
-  DEFAULT_GET_RESPONSE_OPTIONS,
-  type GetResponseOptions,
-} from './schemas'
+import { DEFAULT_TURN_OPTIONS, type TurnOptions } from './options'
 import { executeToolCall, openaiTools } from '../tools'
 import {
   countUserTurns,
@@ -73,7 +70,7 @@ export class ConversationService {
     return [{ role: 'developer', content } satisfies ResponseInputItem]
   }
 
-  private buildRequestParams(options: GetResponseOptions) {
+  private buildRequestParams(options: TurnOptions) {
     return {
       model: MODEL,
       // Static prefix (instructions + tools) → stable conversation → dynamic
@@ -98,7 +95,7 @@ export class ConversationService {
   }
 
   private async fetchResponse(
-    options: GetResponseOptions,
+    options: TurnOptions,
     onDelta?: (delta: string) => void,
   ): Promise<ParsedResponse<unknown>> {
     const params = this.buildRequestParams(options)
@@ -119,7 +116,7 @@ export class ConversationService {
   }
 
   async completeTurn(
-    options: GetResponseOptions = DEFAULT_GET_RESPONSE_OPTIONS,
+    options: TurnOptions = DEFAULT_TURN_OPTIONS,
     onDelta?: (delta: string) => void,
   ): Promise<string> {
     // What a naive append-everything bot would have sent as input this turn.
@@ -170,7 +167,10 @@ export class ConversationService {
       return
     }
 
-    const { evicted, kept } = splitAtLastTurns(this.conversation, KEEP_LAST_TURNS)
+    const { evicted, kept } = splitAtLastTurns(
+      this.conversation,
+      KEEP_LAST_TURNS,
+    )
     if (!evicted.length) {
       return
     }

@@ -11,7 +11,7 @@ async function execute({ city }: z.infer<typeof parameters>): Promise<string> {
 }
 
 export const weatherTool: ToolDefinition<typeof parameters> = {
-  name: 'get_weather_data',
+  name: 'get_weather_data' as const,
   description: 'Get the weather data for a city',
   parameters,
   execute,

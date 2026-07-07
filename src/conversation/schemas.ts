@@ -1,24 +1,14 @@
-import { z, ZodSchema } from 'zod'
+import { z } from 'zod'
 
+/**
+ * Structured-output schema for the `/structured` command: an answer plus the
+ * sources that support it. Passed to the model as a response format and parsed
+ * back out in {@link ../conversation/format}.
+ */
 export const ResponseSchema = z.object({
   answer: z.string(),
   sources: z.array(z.string()),
 })
 
-export type ParsedResponse = z.infer<typeof ResponseSchema>
-
-export type GetResponseOptions = {
-  stream: boolean
-  temperature: number
-  max_output_tokens: number
-  structured_output: ZodSchema | undefined
-  json_mode: boolean
-}
-
-export const DEFAULT_GET_RESPONSE_OPTIONS = {
-  stream: true,
-  temperature: 0.7,
-  max_output_tokens: 1000,
-  structured_output: undefined,
-  json_mode: false,
-} satisfies GetResponseOptions
+/** Parsed shape of a {@link ResponseSchema} response. */
+export type StructuredResponse = z.infer<typeof ResponseSchema>

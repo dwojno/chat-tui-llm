@@ -1,5 +1,6 @@
 import type { ParsedResponse } from 'openai/resources/responses/responses.mjs'
-import type { GetResponseOptions, ParsedResponse as StructuredResponse } from './schemas'
+import type { TurnOptions } from './options'
+import type { StructuredResponse } from './schemas'
 
 export function formatAssistantContent(
   answer: string | undefined,
@@ -13,7 +14,7 @@ export function formatAssistantContent(
 
 export function formatResponse(
   response: ParsedResponse<unknown>,
-  options: Pick<GetResponseOptions, 'structured_output' | 'json_mode'>,
+  options: Pick<TurnOptions, 'structured_output' | 'json_mode'>,
 ): string {
   if (options.structured_output) {
     const parsed = response.output_parsed as StructuredResponse | null
