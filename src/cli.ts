@@ -1,8 +1,11 @@
 import 'dotenv/config'
 import { OpenAI } from 'openai'
+import { writeSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
 import { renderChat } from './ui/chat'
 import { ConversationService } from './conversation/service'
+import { SessionState } from './conversation/state'
+import { STATE_FILE } from './config'
 import {
   DEFAULT_GET_RESPONSE_OPTIONS,
   ResponseSchema,
@@ -11,6 +14,7 @@ import {
 
 const STRUCTURED_PREFIX = '/structured '
 const JSON_MODE_PREFIX = '/json '
+const REMEMBER_PREFIX = '/remember '
 
 function parseTemperature(): number {
   for (const flag of ['--temperature', '-t']) {
@@ -69,6 +73,7 @@ function resolveTurnOptions(userInput: string): {
 }
 
 const chat = renderChat([])
+const state = SessionState.load(STATE_FILE)
 const sigint = new AbortController()
 
 process.on('SIGINT', () => sigint.abort())
@@ -76,6 +81,10 @@ process.on('SIGINT', () => sigint.abort())
 sigint.signal.addEventListener('abort', () => {
   readline.close()
   chat.unmount()
+  // Report token savings once the UI has torn down. Write straight to fd 1:
+  // Ink patches `console.log` while mounted, so a normal log would be swallowed
+  // in the unmount/exit race. `writeSync` bypasses that and flushes before exit.
+  writeSync(1, `\n${state.report()}\n`)
   process.exit(0)
 })
 
@@ -89,8 +98,12 @@ const readline = createInterface({
 // leave `question()` rejecting on every subsequent loop iteration).
 readline.on('SIGINT', () => sigint.abort())
 
+// On EOF (Ctrl+D / end of piped input) a pending `question()` never settles,
+// so hook 'close' to drive the same clean shutdown as `exit`.
+readline.on('close', () => sigint.abort())
+
 async function main() {
-  const conversation = new ConversationService(new OpenAI())
+  const conversation = new ConversationService(new OpenAI(), state)
 
   while (!sigint.signal.aborted) {
     let userInput: string
@@ -104,6 +117,18 @@ async function main() {
 
     if (userInput === 'exit') {
       break
+    }
+
+    // Deterministic out-of-window state: pin a fact to disk without spending a
+    // model turn. It's injected as a stable prefix on every later request.
+    if (userInput.startsWith(REMEMBER_PREFIX)) {
+      const fact = userInput.slice(REMEMBER_PREFIX.length).trim()
+      if (fact) {
+        state.addFact(fact)
+        chat.push({ role: 'user', content: userInput })
+        chat.push({ role: 'assistant', content: `📌 Remembered: ${fact}` })
+      }
+      continue
     }
 
     const { content, options } = resolveTurnOptions(userInput)

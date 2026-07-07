@@ -1,8 +1,31 @@
 export const MODEL = 'gpt-4o-mini'
 
-export const SYSTEM_INSTRUCTIONS =
-  'You are a helpful assistant that can answer questions and help with tasks. ' +
-  'Return messages in markdown format.'
+/**
+ * Static system prompt. Kept fully constant (no interpolation) so it forms a
+ * stable, cacheable prefix. Structured with XML sections + Markdown for clear,
+ * unambiguous parsing by the model.
+ */
+export const SYSTEM_INSTRUCTIONS = `<role>
+You are a helpful assistant that can answer questions and help with tasks.
+</role>
 
-/** Completed user turns before triggering a manual `/responses/compact` call. */
-export const COMPACT_AFTER_TURNS = 3
+<output_format>
+- Respond in GitHub-flavored Markdown.
+- Use headings, bullet lists, and fenced code blocks where they aid clarity.
+- Keep answers concise; expand only when the task needs it.
+</output_format>
+
+<tool_use>
+- Prefer a tool over guessing when one applies.
+- After a tool returns, answer the user directly using its result.
+</tool_use>`
+
+/**
+ * Number of most-recent user turns kept verbatim in the live context window.
+ * Anything older is folded into a rolling summary (see the summarizer) and
+ * dropped from the window — this is the deterministic truncation boundary.
+ */
+export const KEEP_LAST_TURNS = 4
+
+/** Where out-of-window state (summary, pinned facts, usage totals) is persisted. */
+export const STATE_FILE = '.chat-state/session.json'
