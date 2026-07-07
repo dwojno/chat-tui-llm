@@ -29,6 +29,28 @@ const chatCommand: Command = {
   }),
 }
 
+/** A user-typeable slash command, surfaced to the `/` autocomplete menu. */
+export interface SlashCommandInfo {
+  /** Text to insert on completion, e.g. `'/json '`. */
+  completion: string
+  /** One-line description shown beside it. */
+  hint: string
+}
+
+/**
+ * The slash commands offered by the input's `/` autocomplete, in match order.
+ * Sourced from the registry so the menu never drifts from what actually runs.
+ */
+export function slashCommandCatalog(): SlashCommandInfo[] {
+  return COMMANDS.filter(
+    (command): command is Command & { completion: string } =>
+      command.completion?.startsWith('/') ?? false,
+  ).map((command) => ({
+    completion: command.completion,
+    hint: command.hint ?? '',
+  }))
+}
+
 /** Resolve a raw input line to the command that will handle it. */
 export function resolveCommand(input: string): Command {
   return COMMANDS.find((command) => command.matches(input)) ?? chatCommand

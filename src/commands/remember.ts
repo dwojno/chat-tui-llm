@@ -9,6 +9,8 @@ const PREFIX = '/remember '
  */
 export const rememberCommand: Command = {
   name: 'remember',
+  completion: PREFIX,
+  hint: 'pin a fact to long-term memory',
   matches: (input) => input.startsWith(PREFIX),
   run: (input, { state, chat }) => {
     const fact = input.slice(PREFIX.length).trim()

@@ -11,38 +11,68 @@ export interface ReplDeps {
   conversation: ConversationService
   state: SessionState
   temperature: number
+  /** True when stdin is a TTY and the Ink prompt drives input directly. */
+  interactive: boolean
 }
 
 /**
- * The read-eval-print loop: read a line, resolve it to a command, and either
- * run a model turn or apply the command's side effect. Owns readline setup and
- * the Ctrl+C / Ctrl+D / EOF shutdown path.
+ * Run one input line: resolve it to a command and either run a model turn or
+ * apply the command's side effect. Returns `'exit'` when the loop should stop.
+ */
+async function processLine(
+  input: string,
+  ctx: CommandContext,
+  chat: ChatHandle,
+  conversation: ConversationService,
+): Promise<'exit' | 'continue'> {
+  const action = await runCommand(input, ctx)
+
+  if (action.kind === 'exit') {
+    return 'exit'
+  }
+  if (action.kind === 'handled' || !action.content) {
+    return 'continue'
+  }
+
+  try {
+    conversation.pushUserMessage(action.content)
+    chat.push({ role: 'user', content: action.content })
+
+    chat.setStreaming('')
+    const assistantContent = await conversation.completeTurn(
+      action.options,
+      (delta) => chat.appendStreaming(delta),
+      (status) => chat.setStreaming(status),
+    )
+    chat.commitStreaming(assistantContent)
+  } catch (error) {
+    // Keep the REPL alive on turn-level failures (e.g. transient API errors).
+    // Surface the error in the transcript instead of tearing down the UI.
+    const message = error instanceof Error ? error.message : String(error)
+    chat.commitStreaming(`⚠️ ${message}`)
+  }
+  return 'continue'
+}
+
+/**
+ * The read-eval-print loop. In interactive mode the Ink prompt owns input and
+ * Ctrl+C / Ctrl+D; when stdin is piped we fall back to line-buffered readline.
+ * Owns the clean shutdown path either way.
  */
 export async function runRepl({
   chat,
   conversation,
   state,
   temperature,
+  interactive,
 }: ReplDeps): Promise<void> {
   const sigint = new AbortController()
-  const readline = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  })
 
-  process.on('SIGINT', () => sigint.abort())
-
-  // When stdin is a TTY, readline owns Ctrl+C — route it to the same abort path
-  // instead of letting it silently close the interface (which would otherwise
-  // leave `question()` rejecting on every subsequent loop iteration).
-  readline.on('SIGINT', () => sigint.abort())
-
-  // On EOF (Ctrl+D / end of piped input) a pending `question()` never settles,
-  // so hook 'close' to drive the same clean shutdown as `exit`.
-  readline.on('close', () => sigint.abort())
+  const shutdown = (): void => {
+    if (!sigint.signal.aborted) sigint.abort()
+  }
 
   sigint.signal.addEventListener('abort', () => {
-    readline.close()
     chat.unmount()
     // Report token savings once the UI has torn down. Write straight to fd 1:
     // Ink patches `console.log` while mounted, so a normal log would be swallowed
@@ -51,46 +81,39 @@ export async function runRepl({
     process.exit(0)
   })
 
+  // Backstop for an external SIGINT (e.g. `kill -INT`); in interactive mode the
+  // terminal's own Ctrl+C is delivered through the Ink prompt's `onExit`.
+  process.on('SIGINT', shutdown)
+
   const ctx: CommandContext = { temperature, state, chat }
 
-  while (!sigint.signal.aborted) {
-    let input: string
-    try {
-      input = (await readline.question('> ', { signal: sigint.signal })).trim()
-    } catch {
-      // The prompt was aborted or the interface closed (Ctrl+C / Ctrl+D / EOF).
-      // Stop reading rather than spinning on a dead readline.
-      break
+  if (interactive) {
+    chat.onExit(shutdown)
+    while (!sigint.signal.aborted) {
+      const input = (await chat.question()).trim()
+      if ((await processLine(input, ctx, chat, conversation)) === 'exit') break
     }
+  } else {
+    const readline = createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    })
+    // On EOF (Ctrl+D / end of piped input) a pending `question()` never settles,
+    // so hook 'close' to drive the same clean shutdown.
+    readline.on('close', shutdown)
 
-    const action = await runCommand(input, ctx)
-
-    if (action.kind === 'exit') {
-      break
-    }
-    if (action.kind === 'handled' || !action.content) {
-      continue
-    }
-
-    try {
-      conversation.pushUserMessage(action.content)
-      chat.push({ role: 'user', content: action.content })
-
-      chat.setStreaming('')
-      const assistantContent = await conversation.completeTurn(
-        action.options,
-        (delta) => chat.appendStreaming(delta),
-        (status) => chat.setStreaming(status),
-      )
-      chat.commitStreaming(assistantContent)
-    } catch (error) {
-      // Keep the REPL alive on turn-level failures (e.g. transient API errors).
-      // Surface the error in the transcript instead of tearing down the UI.
-      const message = error instanceof Error ? error.message : String(error)
-      chat.commitStreaming(`⚠️ ${message}`)
+    while (!sigint.signal.aborted) {
+      let input: string
+      try {
+        input = (await readline.question('> ', { signal: sigint.signal })).trim()
+      } catch {
+        // The prompt was aborted or the interface closed (Ctrl+C / Ctrl+D / EOF).
+        break
+      }
+      if ((await processLine(input, ctx, chat, conversation)) === 'exit') break
     }
   }
 
   // Reached via `exit` or EOF; unmount and quit through the abort handler.
-  sigint.abort()
+  shutdown()
 }

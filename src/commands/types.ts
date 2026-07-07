@@ -27,6 +27,13 @@ export type CommandAction =
 export interface Command {
   /** Identifier for help/debugging (e.g. the slash keyword). */
   name: string
+  /**
+   * Text inserted when this command is autocompleted, e.g. `'/json '`. Present
+   * only for user-typeable slash commands; it also drives the `/` menu.
+   */
+  completion?: string
+  /** One-line, user-facing description shown in the autocomplete menu. */
+  hint?: string
   /** Whether this command claims the given raw input line. */
   matches(input: string): boolean
   /** Run the command, optionally via `ctx`, and say what happens next. */

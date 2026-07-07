@@ -10,6 +10,8 @@ const PREFIX = '/json '
  */
 export const jsonCommand: Command = {
   name: 'json',
+  completion: PREFIX,
+  hint: 'answer in raw JSON mode',
   matches: (input) => input.startsWith(PREFIX),
   run: (input, { temperature }) => {
     const prompt = input.slice(PREFIX.length).trim()

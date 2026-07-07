@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { render, Box, Text, Static, type TextProps } from 'ink'
+import { render, Box, Text, Static, useInput, type TextProps } from 'ink'
+import {
+  slashCommandCatalog,
+  type SlashCommandInfo,
+} from '../commands/registry'
 import Markdown from './markdown'
 
 export type Role = 'user' | 'assistant'
@@ -28,10 +32,7 @@ const ROLE_META: Record<Role, RoleMeta> = {
 function useAnimationFrame(length: number, intervalMs: number): number {
   const [frame, setFrame] = useState(0)
   useEffect(() => {
-    const id = setInterval(
-      () => setFrame((f) => (f + 1) % length),
-      intervalMs,
-    )
+    const id = setInterval(() => setFrame((f) => (f + 1) % length), intervalMs)
     return () => clearInterval(id)
   }, [length, intervalMs])
   return frame
@@ -111,15 +112,10 @@ function StreamingMessage({ content }: { content: string }): React.JSX.Element {
 }
 
 /**
- * Friendly empty state, shown until the first message lands.
- *
- * Deliberately static: it renders while the user is at the readline prompt, and
- * any animated rerender here would make Ink erase and redraw over the line the
- * user is typing. Animation is reserved for the streaming bubble, which only
- * shows once the prompt has been submitted.
+ * Friendly empty state, shown until the first message lands. Deliberately
+ * static so it doesn't rerender while the user is composing their first line.
  */
 function Welcome(): React.JSX.Element {
-  const sparkle = '✦'
   return (
     <Box
       flexDirection="column"
@@ -129,15 +125,162 @@ function Welcome(): React.JSX.Element {
       marginBottom={1}
     >
       <Text color="magenta" bold>
-        {sparkle} Welcome to Chat CLI {sparkle}
+        ✦ Welcome to Chat CLI ✦
       </Text>
       <Text dimColor>Type a message and press Enter to start chatting.</Text>
       <Text dimColor>
-        Commands: <Text color="yellow">/remember</Text>{' '}
-        <Text color="yellow">/json</Text>{' '}
-        <Text color="yellow">/structured</Text> · type{' '}
-        <Text color="yellow">exit</Text> or Ctrl+C to quit.
+        Press <Text color="yellow">/</Text> for commands · <Text color="yellow">exit</Text>{' '}
+        or Ctrl+C to quit.
       </Text>
+    </Box>
+  )
+}
+
+const SLASH_COMMANDS: SlashCommandInfo[] = slashCommandCatalog()
+
+/**
+ * Which slash commands match the current line. Only offered while the user is
+ * still typing the command token itself — a leading `/` with no space yet.
+ */
+function matchSuggestions(value: string): SlashCommandInfo[] {
+  if (!/^\/\S*$/.test(value)) return []
+  return SLASH_COMMANDS.filter((command) => command.completion.startsWith(value))
+}
+
+interface PromptInputProps {
+  /** When false, the field is hidden but still listens for Ctrl+C / Ctrl+D. */
+  active: boolean
+  onSubmit(line: string): void
+  onExit(): void
+}
+
+/**
+ * The interactive prompt: a text field with a movable block cursor and a live
+ * `/` autocomplete menu. Owns the whole input line (no readline), so Ink can
+ * repaint freely without clobbering what the user has typed.
+ */
+function PromptInput({
+  active,
+  onSubmit,
+  onExit,
+}: PromptInputProps): React.JSX.Element | null {
+  const [value, setValue] = useState('')
+  const [cursor, setCursor] = useState(0)
+  const [selected, setSelected] = useState(0)
+
+  const suggestions = active ? matchSuggestions(value) : []
+  const menuOpen = suggestions.length > 0
+  const sel = menuOpen ? Math.min(selected, suggestions.length - 1) : 0
+
+  const accept = (command: SlashCommandInfo): void => {
+    setValue(command.completion)
+    setCursor(command.completion.length)
+    setSelected(0)
+  }
+
+  useInput((input, key) => {
+    // Interrupts work whether or not the field is currently accepting input.
+    // Terminals disagree on how Ctrl+C/D surface (with or without `key.ctrl`),
+    // so match the raw control bytes too.
+    const ctrlC = (key.ctrl && input === 'c') || input === '\u0003'
+    const ctrlD = (key.ctrl && input === 'd') || input === '\u0004'
+    if (ctrlC) return onExit()
+    if (ctrlD && value === '') return onExit()
+    if (!active) return
+
+    if (key.upArrow) {
+      if (menuOpen) {
+        setSelected((s) => (s - 1 + suggestions.length) % suggestions.length)
+      }
+      return
+    }
+    if (key.downArrow) {
+      if (menuOpen) setSelected((s) => (s + 1) % suggestions.length)
+      return
+    }
+    if (key.tab) {
+      if (menuOpen) accept(suggestions[sel])
+      return
+    }
+    if (key.return) {
+      // With the menu open, Enter accepts the highlighted command; otherwise it
+      // submits the line.
+      if (menuOpen) {
+        accept(suggestions[sel])
+        return
+      }
+      const line = value
+      setValue('')
+      setCursor(0)
+      setSelected(0)
+      onSubmit(line)
+      return
+    }
+    if (key.leftArrow) {
+      setCursor((c) => Math.max(0, c - 1))
+      return
+    }
+    if (key.rightArrow) {
+      setCursor((c) => Math.min(value.length, c + 1))
+      return
+    }
+    if (key.ctrl && input === 'a') {
+      setCursor(0)
+      return
+    }
+    if (key.ctrl && input === 'e') {
+      setCursor(value.length)
+      return
+    }
+    // Backspace and Delete both erase the character before the cursor — the
+    // common case in a single-line prompt, and robust across terminals that
+    // disagree on which key code they send.
+    if (key.backspace || key.delete) {
+      if (cursor > 0) {
+        setValue(value.slice(0, cursor - 1) + value.slice(cursor))
+        setCursor((c) => c - 1)
+        setSelected(0)
+      }
+      return
+    }
+    // Any other printable input (including pasted text) inserts at the cursor.
+    // Control characters (stray escape sequences, unmapped chords) are dropped
+    // so they never pollute the line.
+    if (input && !key.ctrl && !key.meta && !/[\u0000-\u001f]/.test(input)) {
+      setValue(value.slice(0, cursor) + input + value.slice(cursor))
+      setCursor((c) => c + input.length)
+      setSelected(0)
+    }
+  })
+
+  if (!active) return null
+
+  const before = value.slice(0, cursor)
+  const atCursor = value.slice(cursor, cursor + 1) || ' '
+  const after = value.slice(cursor + 1)
+
+  return (
+    <Box flexDirection="column">
+      <Box>
+        <Text color="cyan" bold>
+          {'❯ '}
+        </Text>
+        <Text>{before}</Text>
+        <Text inverse>{atCursor}</Text>
+        <Text>{after}</Text>
+      </Box>
+      {menuOpen && (
+        <Box flexDirection="column" paddingLeft={2}>
+          {suggestions.map((command, i) => (
+            <Text key={command.completion} color={i === sel ? 'cyan' : 'gray'}>
+              {i === sel ? '❯ ' : '  '}
+              <Text bold={i === sel}>{command.completion.trim()}</Text>
+              <Text dimColor> — {command.hint}</Text>
+            </Text>
+          ))}
+          <Text dimColor>{'  '}↑↓ to select · Tab/Enter to complete</Text>
+        </Box>
+      )}
     </Box>
   )
 }
@@ -145,10 +288,21 @@ function Welcome(): React.JSX.Element {
 interface ChatProps {
   messages: Message[]
   streaming?: string
+  interactive: boolean
+  inputActive: boolean
+  onSubmit(line: string): void
+  onExit(): void
 }
 
 /** The chat view: finished messages stay static, the streaming one updates live. */
-function Chat({ messages, streaming }: ChatProps): React.JSX.Element {
+function Chat({
+  messages,
+  streaming,
+  interactive,
+  inputActive,
+  onSubmit,
+  onExit,
+}: ChatProps): React.JSX.Element {
   const empty = messages.length === 0 && streaming === undefined
   return (
     <Box flexDirection="column" padding={1}>
@@ -159,6 +313,10 @@ function Chat({ messages, streaming }: ChatProps): React.JSX.Element {
       {empty && <Welcome />}
 
       {streaming !== undefined && <StreamingMessage content={streaming} />}
+
+      {interactive && (
+        <PromptInput active={inputActive} onSubmit={onSubmit} onExit={onExit} />
+      )}
     </Box>
   )
 }
@@ -179,6 +337,14 @@ export interface ChatHandle {
    * Resolves with the full text.
    */
   stream(deltas: AsyncIterable<string>): Promise<string>
+  /**
+   * Activate the interactive prompt and resolve with the next submitted line.
+   * Only meaningful in interactive (TTY) mode; the REPL reads lines elsewhere
+   * otherwise.
+   */
+  question(): Promise<string>
+  /** Register the handler run on Ctrl+C / Ctrl+D from the interactive prompt. */
+  onExit(handler: () => void): void
   /** Snapshot of the committed messages so far. */
   readonly messages: readonly Message[]
   /** Unmount the Ink app. */
@@ -192,20 +358,49 @@ export interface ChatHandle {
  *
  *   const chat = renderChat()
  *   chat.push({ role: 'user', content: 'hi' })
- *   chat.setStreaming('thinking...')   // live-updating assistant bubble
- *   chat.commitStreaming()             // freeze it into the message list
+ *   const line = await chat.question()   // interactive prompt (TTY)
+ *   chat.setStreaming('')                // live-updating assistant bubble
+ *   chat.commitStreaming('done')         // freeze it into the message list
  *   chat.unmount()
  */
-export function renderChat(initial: readonly Message[] = []): ChatHandle {
+export function renderChat(
+  initial: readonly Message[] = [],
+  { interactive = false }: { interactive?: boolean } = {},
+): ChatHandle {
   let messages: Message[] = [...initial]
   let streaming: string | undefined
+  let inputActive = false
+  let submit: ((line: string) => void) | null = null
+  let exitHandler: (() => void) | null = null
 
-  // Don't let Ink put stdin in raw mode — readline needs line-buffered input
-  // so `question()` resolves on Enter. Ctrl+C is handled by the caller's SIGINT.
-  const instance = render(<Chat messages={messages} />, { exitOnCtrlC: false })
+  const handleSubmit = (line: string): void => {
+    inputActive = false
+    const resolve = submit
+    submit = null
+    update()
+    resolve?.(line)
+  }
 
-  const update = (): void =>
-    instance.rerender(<Chat messages={messages} streaming={streaming} />)
+  const handleExit = (): void => {
+    exitHandler?.()
+  }
+
+  const view = (): React.JSX.Element => (
+    <Chat
+      messages={messages}
+      streaming={streaming}
+      interactive={interactive}
+      inputActive={inputActive}
+      onSubmit={handleSubmit}
+      onExit={handleExit}
+    />
+  )
+
+  // In interactive mode Ink owns stdin (raw mode) and drives editing via
+  // `useInput`; Ctrl+C is routed through `onExit` rather than exiting Ink.
+  const instance = render(view(), { exitOnCtrlC: false })
+
+  const update = (): void => instance.rerender(view())
 
   const commitAssistant = (content: string): void => {
     messages = [...messages, { role: 'assistant', content }]
@@ -243,6 +438,16 @@ export function renderChat(initial: readonly Message[] = []): ChatHandle {
       }
       commitAssistant(content)
       return content
+    },
+    question(): Promise<string> {
+      return new Promise((resolve) => {
+        submit = resolve
+        inputActive = true
+        update()
+      })
+    },
+    onExit(handler: () => void): void {
+      exitHandler = handler
     },
     get messages(): readonly Message[] {
       return messages

@@ -13,12 +13,15 @@ import { renderChat } from './ui/chat'
  * commands, and the conversation service can all be driven with test doubles.
  */
 export async function run(): Promise<void> {
-  const chat = renderChat([])
+  // A TTY lets the Ink prompt own stdin (raw-mode editing + autocomplete); when
+  // input is piped we fall back to line-buffered readline.
+  const interactive = process.stdin.isTTY === true
+  const chat = renderChat([], { interactive })
   const state = SessionState.load(STATE_FILE)
   const conversation = new ConversationService(new OpenAI(), state, {
     tools: mainTools,
   })
   const { temperature } = parseCliArgs()
 
-  await runRepl({ chat, conversation, state, temperature })
+  await runRepl({ chat, conversation, state, temperature, interactive })
 }

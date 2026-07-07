@@ -72,27 +72,30 @@ export function splitAtLastTurns(
   return { evicted: items.slice(0, cut), kept: items.slice(cut) }
 }
 
+/**
+ * Extract the plain-text of a message's `content`, which may be a bare string
+ * or an array of parts (text parts contribute their `text`; others are empty).
+ */
+function contentToText(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content
+    .map((part) => {
+      if (typeof part === 'string') return part
+      return part && typeof part === 'object' && 'text' in part
+        ? String(part.text)
+        : ''
+    })
+    .join('')
+}
+
 /** Flatten items into plain text for feeding the summarizer. */
 export function renderItemsText(items: ResponseInputItem[]): string {
   const lines: string[] = []
 
   for (const item of items) {
     if ('role' in item && 'content' in item) {
-      const { content } = item
-      const text =
-        typeof content === 'string'
-          ? content
-          : Array.isArray(content)
-            ? content
-                .map((part) =>
-                  typeof part === 'string'
-                    ? part
-                    : 'text' in part
-                      ? part.text
-                      : '',
-                )
-                .join('')
-            : ''
+      const text = contentToText(item.content)
       if (text) lines.push(`${item.role}: ${text}`)
       continue
     }
