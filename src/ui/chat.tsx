@@ -499,6 +499,31 @@ export function renderChat(
     />
   )
 
+  // Run in the terminal's alternate screen buffer (like vim / less): take over
+  // the whole screen on launch, and restore the user's previous terminal
+  // contents on quit. Only when we actually own an interactive TTY — piped or
+  // test runs leave the primary screen untouched.
+  const useAltScreen = interactive && process.stdout.isTTY === true
+  let altScreenActive = false
+  const enterAltScreen = (): void => {
+    if (useAltScreen && !altScreenActive) {
+      // `?1049h`: save cursor, switch to (cleared) alt buffer; then home.
+      process.stdout.write('\x1b[?1049h\x1b[H')
+      altScreenActive = true
+    }
+  }
+  const leaveAltScreen = (): void => {
+    if (altScreenActive) {
+      process.stdout.write('\x1b[?1049l') // restore the primary screen + cursor
+      altScreenActive = false
+    }
+  }
+
+  enterAltScreen()
+  // Safety net: restore the primary screen even if we exit without a clean
+  // unmount (crash / uncaught signal), so the terminal is never left stuck.
+  if (useAltScreen) process.on('exit', leaveAltScreen)
+
   // In interactive mode Ink owns stdin (raw mode) and drives editing via
   // `useInput`; Ctrl+C is routed through `onExit` rather than exiting Ink.
   const instance = render(view(), { exitOnCtrlC: false })
@@ -564,7 +589,13 @@ export function renderChat(
     get messages(): readonly Message[] {
       return messages
     },
-    unmount: instance.unmount,
+    unmount: () => {
+      // Tear down Ink first (its final cleanup writes to the alt buffer), then
+      // restore the primary screen so anything printed afterwards (e.g. the
+      // token report) lands on the user's original terminal.
+      instance.unmount()
+      leaveAltScreen()
+    },
     waitUntilExit: () => instance.waitUntilExit().then(() => undefined),
   }
 }
