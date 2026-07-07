@@ -4,6 +4,12 @@ A **frameworkless AI agent** in your terminal — the agent loop, context manage
 
 The point isn't the chat — it's the machinery underneath. Every layer an agent framework hides behind its magic is here in plain sight and under direct control: the request loop, the token budget, the tool wiring, the sub-agent handoffs. If you've ever wanted to see what actually happens when an "agent" thinks, this is the whole thing, unabstracted.
 
+<p align="center">
+  <img src="docs/demo.gif" alt="chat-cli in action: a streamed answer, a live tool-call trace, and a delegated sub-agent" width="800">
+</p>
+
+<sub>Demo recorded with [VHS](https://github.com/charmbracelet/vhs) — run `vhs demo.tape` to regenerate [`docs/demo.gif`](docs/demo.gif).</sub>
+
 ## What it does
 
 - **Agent loop** — runs the model → tool-call → tool-result cycle by hand until the model stops asking for tools, then streams the answer. Independent tool calls in a single turn run in parallel. [`service.ts`](src/conversation/service.ts)
