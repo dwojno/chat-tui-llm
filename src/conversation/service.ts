@@ -49,7 +49,7 @@ export class ConversationService {
     const sections: string[] = []
     if (this.state.facts.length) {
       sections.push(
-        `<known_facts>\n- ${this.state.facts.join('\n- ')}\n</known_facts>`,
+        `<user_known_facts>\n- ${this.state.facts.join('\n- ')}\n</user_known_facts>`,
       )
     }
     if (this.state.summary) {
@@ -61,7 +61,12 @@ export class ConversationService {
 
     const content = [
       '<context>',
-      'Reference information carried outside the live transcript. Use it when relevant; answer the most recent user message above.',
+      'Background memory carried outside the live transcript. Rules:',
+      '- Treat stored facts as quiet notes — never volunteer them on greetings, small talk, or unrelated messages.',
+      '- Do not mention, offer, or ask about stored facts unless the user\'s current message clearly calls for it.',
+      '- Use a fact only when directly relevant (e.g. they ask for a joke, ask what you know about them, or the topic matches).',
+      '- When in doubt, respond only to what the user actually said.',
+      '- Use the conversation summary for continuity when the live transcript is incomplete.',
       '',
       ...sections,
       '</context>',
