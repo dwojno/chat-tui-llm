@@ -7,7 +7,9 @@
     "start": "tsx src/cli.ts",
     "dev": "tsx watch src/cli.ts",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "eval": "evalite run",
+    "eval:watch": "evalite watch"
   },
   "keywords": [],
   "author": "",
@@ -16,12 +18,11 @@
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
     "onlyBuiltDependencies": [
-      "esbuild"
+      "esbuild",
+      "better-sqlite3"
     ]
   },
   "dependencies": {
-    "@ai-sdk/openai": "^4.0.8",
-    "ai": "^7.0.15",
     "dotenv": "^17.4.2",
     "ink": "^7.1.0",
     "openai": "^6.45.0",
@@ -31,7 +32,9 @@
   "devDependencies": {
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
+    "evalite": "^0.19.0",
     "tsx": "^4.22.5",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
   }
 }

@@ -4,7 +4,9 @@
       "Bash(./node_modules/.bin/tsc --noEmit)",
       "Bash(echo \"exit: $?\")",
       "Bash(OPENAI_API_KEY=sk-test perl -e 'alarm 8; exec @ARGV' ./node_modules/.bin/tsx cli.ts)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(pnpm approve-builds *)",
+      "Bash(./node_modules/.bin/evalite --help)"
     ]
   }
 }

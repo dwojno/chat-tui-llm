@@ -6,6 +6,7 @@ import type {
   ResponseInputItem,
 } from 'openai/resources/responses/responses.mjs'
 import { KEEP_LAST_TURNS, MODEL, SYSTEM_INSTRUCTIONS } from '../config'
+import { buildContextBlock } from './context'
 import { formatResponse } from './format'
 import { DEFAULT_TURN_OPTIONS, type TurnOptions } from './options'
 import { executeToolCall, mainTools } from '../tools'
@@ -86,33 +87,10 @@ export class ConversationService {
    * changes only the tail and never invalidates the cached prefix above it.
    */
   private contextBlock(): ResponseInputItem[] {
-    const sections: string[] = []
-    if (this.scope.facts.length) {
-      sections.push(
-        `<user_known_facts>\n- ${this.scope.facts.join('\n- ')}\n</user_known_facts>`,
-      )
-    }
-    if (this.scope.summary) {
-      sections.push(
-        `<conversation_summary>\n${this.scope.summary}\n</conversation_summary>`,
-      )
-    }
-    if (!sections.length) return []
-
-    const content = [
-      '<context>',
-      'Background memory carried outside the live transcript. Rules:',
-      '- Treat stored facts as quiet notes — never volunteer them on greetings, small talk, or unrelated messages.',
-      "- Do not mention, offer, or ask about stored facts unless the user's current message clearly calls for it.",
-      '- Use a fact only when directly relevant (e.g. they ask for a joke, ask what you know about them, or the topic matches).',
-      '- When in doubt, respond only to what the user actually said.',
-      '- Use the conversation summary for continuity when the live transcript is incomplete.',
-      '',
-      ...sections,
-      '</context>',
-    ].join('\n')
-
-    return [{ role: 'developer', content } satisfies ResponseInputItem]
+    return buildContextBlock({
+      facts: this.scope.facts,
+      summary: this.scope.summary,
+    })
   }
 
   private buildRequestParams(options: TurnOptions) {
