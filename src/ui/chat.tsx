@@ -8,9 +8,25 @@ import Markdown from './markdown'
 
 export type Role = 'user' | 'assistant'
 
+/** One entry in the "thinking" trace: a tool call or a status update. */
+export interface Step {
+  /** Human-readable, already-localized description (e.g. "Fetching weather data"). */
+  label: string
+  /** Per-call detail drawn from the tool's arguments (e.g. the query or city). */
+  detail?: string
+  /** When set, this step is a delegated sub-agent's activity under the named task. */
+  fork?: string
+}
+
 export interface Message {
   role: Role
   content: string
+  /**
+   * The activity trace for an assistant turn that called tools — one entry per
+   * step. Kept on the committed message so the "thinking" steps stay visible
+   * above the answer instead of vanishing once it streams in.
+   */
+  steps?: Step[]
 }
 
 interface RoleMeta {
@@ -72,15 +88,78 @@ function MessageHeader({ role }: { role: Role }): React.JSX.Element {
   )
 }
 
+/** Trim a string to a short tag for the trace, e.g. "compare SSR vs SS…". */
+function truncate(text: string, max: number): string {
+  const trimmed = text.trim()
+  return trimmed.length > max ? `${trimmed.slice(0, max - 1)}…` : trimmed
+}
+
+/**
+ * The text after a step's marker: `label — detail · forkTag`. `detail` is the
+ * specific call (query/city); the fork tag names the sub-agent so parallel
+ * forks stay distinguishable.
+ */
+function stepText(step: Step): string {
+  const detail = step.detail ? ` — ${truncate(step.detail, 48)}` : ''
+  const tag = step.fork ? ` · ${truncate(step.fork, 32)}` : ''
+  return `${step.label}${detail}${tag}`
+}
+
+/** One trace row: a spinner while running, a dim `✓` once done. Sub-agent steps
+ * (`step.fork`) are indented so nested activity reads as nested. */
+function StepRow({
+  step,
+  active,
+}: {
+  step: Step
+  active: boolean
+}): React.JSX.Element {
+  return (
+    <Box paddingLeft={step.fork ? 2 : 0}>
+      {active ? (
+        <Spinner label={stepText(step)} color="green" />
+      ) : (
+        <Text dimColor>✓ {stepText(step)}</Text>
+      )}
+    </Box>
+  )
+}
+
+/**
+ * The "thinking" trace: one line per step the turn took. When `active` the
+ * steps are still running, so each spins — a round of tool calls launched
+ * together thus spins together, reflecting that they ran in parallel. Once the
+ * answer streams in (or the turn commits) they freeze to a dim `✓` and stay
+ * rendered above the answer (à la Gemini's thinking summary).
+ */
+function StepList({
+  steps,
+  active,
+}: {
+  steps: Step[]
+  active: boolean
+}): React.JSX.Element | null {
+  if (steps.length === 0) return null
+  return (
+    <Box flexDirection="column">
+      {steps.map((step, index) => (
+        <StepRow key={index} step={step} active={active} />
+      ))}
+    </Box>
+  )
+}
+
 interface ChatMessageProps {
   message: Message
 }
 
 function ChatMessage({ message }: ChatMessageProps): React.JSX.Element {
+  const steps = message.role === 'assistant' ? message.steps : undefined
   return (
     <Box flexDirection="column" marginBottom={1}>
       <MessageHeader role={message.role} />
-      <Box paddingLeft={2}>
+      <Box flexDirection="column" paddingLeft={2}>
+        {steps && <StepList steps={steps} active={false} />}
         {message.role === 'assistant' ? (
           <Markdown>{message.content}</Markdown>
         ) : (
@@ -91,21 +170,32 @@ function ChatMessage({ message }: ChatMessageProps): React.JSX.Element {
   )
 }
 
-/** The live assistant bubble: a spinner while waiting, then text + cursor. */
-function StreamingMessage({ content }: { content: string }): React.JSX.Element {
+/**
+ * The live assistant bubble: the running step trace, then the streamed answer
+ * with a cursor. Before any step or token lands it's a lone `thinking…` spinner.
+ */
+function StreamingMessage({
+  steps,
+  content,
+}: {
+  steps: Step[]
+  content: string
+}): React.JSX.Element {
   const { color } = ROLE_META.assistant
+  const answering = content !== ''
   return (
     <Box flexDirection="column" marginBottom={1}>
       <MessageHeader role="assistant" />
-      <Box paddingLeft={2}>
-        {content === '' ? (
-          <Spinner label="thinking…" color={color} />
-        ) : (
+      <Box flexDirection="column" paddingLeft={2}>
+        <StepList steps={steps} active={!answering} />
+        {answering ? (
           <Box>
             <Markdown>{content}</Markdown>
             <Cursor color={color} />
           </Box>
-        )}
+        ) : steps.length === 0 ? (
+          <Spinner label="thinking…" color={color} />
+        ) : null}
       </Box>
     </Box>
   )
@@ -285,25 +375,31 @@ function PromptInput({
   )
 }
 
+/** A turn in flight: its accumulated step trace and streamed answer text. */
+interface LiveTurn {
+  steps: Step[]
+  content: string
+}
+
 interface ChatProps {
   messages: Message[]
-  streaming?: string
+  live?: LiveTurn
   interactive: boolean
   inputActive: boolean
   onSubmit(line: string): void
   onExit(): void
 }
 
-/** The chat view: finished messages stay static, the streaming one updates live. */
+/** The chat view: finished messages stay static, the live turn updates. */
 function Chat({
   messages,
-  streaming,
+  live,
   interactive,
   inputActive,
   onSubmit,
   onExit,
 }: ChatProps): React.JSX.Element {
-  const empty = messages.length === 0 && streaming === undefined
+  const empty = messages.length === 0 && live === undefined
   return (
     <Box flexDirection="column" padding={1}>
       <Static items={messages}>
@@ -312,7 +408,9 @@ function Chat({
 
       {empty && <Welcome />}
 
-      {streaming !== undefined && <StreamingMessage content={streaming} />}
+      {live !== undefined && (
+        <StreamingMessage steps={live.steps} content={live.content} />
+      )}
 
       {interactive && (
         <PromptInput active={inputActive} onSubmit={onSubmit} onExit={onExit} />
@@ -325,11 +423,16 @@ function Chat({
 export interface ChatHandle {
   /** Append a completed message. */
   push(message: Message): void
-  /** Replace the live assistant bubble's full content. */
+  /** Open a fresh live assistant bubble (clears any prior step trace). */
   setStreaming(content: string): void
+  /** Append one step to the live bubble's thinking trace (e.g. a tool call). */
+  addStep(step: Step): void
   /** Append a token delta to the live assistant bubble. */
   appendStreaming(delta: string): void
-  /** Clear the live assistant bubble, committing `content` when provided. */
+  /**
+   * Clear the live assistant bubble, committing `content` when provided. Any
+   * accumulated step trace is preserved on the committed message.
+   */
   commitStreaming(content?: string): void
   /**
    * Consume an async iterable of token deltas, rendering them live in the
@@ -368,7 +471,7 @@ export function renderChat(
   { interactive = false }: { interactive?: boolean } = {},
 ): ChatHandle {
   let messages: Message[] = [...initial]
-  let streaming: string | undefined
+  let live: LiveTurn | undefined
   let inputActive = false
   let submit: ((line: string) => void) | null = null
   let exitHandler: (() => void) | null = null
@@ -388,7 +491,7 @@ export function renderChat(
   const view = (): React.JSX.Element => (
     <Chat
       messages={messages}
-      streaming={streaming}
+      live={live}
       interactive={interactive}
       inputActive={inputActive}
       onSubmit={handleSubmit}
@@ -402,9 +505,12 @@ export function renderChat(
 
   const update = (): void => instance.rerender(view())
 
-  const commitAssistant = (content: string): void => {
-    messages = [...messages, { role: 'assistant', content }]
-    streaming = undefined
+  const commitAssistant = (content: string, steps?: Step[]): void => {
+    messages = [
+      ...messages,
+      { role: 'assistant', content, steps: steps?.length ? steps : undefined },
+    ]
+    live = undefined
     update()
   }
 
@@ -414,29 +520,35 @@ export function renderChat(
       update()
     },
     setStreaming(content: string): void {
-      streaming = content
+      live = { steps: [], content }
+      update()
+    },
+    addStep(step: Step): void {
+      const base = live ?? { steps: [], content: '' }
+      live = { ...base, steps: [...base.steps, step] }
       update()
     },
     appendStreaming(delta: string): void {
-      streaming = (streaming ?? '') + delta
+      const base = live ?? { steps: [], content: '' }
+      live = { ...base, content: base.content + delta }
       update()
     },
     commitStreaming(content?: string): void {
-      const finalContent = content ?? streaming
+      const finalContent = content ?? live?.content
       if (finalContent !== undefined) {
-        commitAssistant(finalContent)
+        commitAssistant(finalContent, live?.steps)
       }
     },
     async stream(deltas: AsyncIterable<string>): Promise<string> {
       let content = ''
-      streaming = ''
+      live = { steps: [], content: '' }
       update()
       for await (const delta of deltas) {
         content += delta
-        streaming = content
+        live = { steps: live?.steps ?? [], content }
         update()
       }
-      commitAssistant(content)
+      commitAssistant(content, live?.steps)
       return content
     },
     question(): Promise<string> {

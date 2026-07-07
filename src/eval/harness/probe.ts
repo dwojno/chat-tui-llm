@@ -4,10 +4,10 @@ import type { ZodType } from 'zod'
 import { MODEL, SYSTEM_INSTRUCTIONS } from '../../config'
 import { buildContextBlock } from '../../conversation/context'
 import { getFunctionCalls } from '../../conversation/items'
-import { mainTools } from '../../tools'
+import { forkTools, mainTools } from '../../tools'
 import { openai } from './client'
 
-type OpenAITool = (typeof mainTools)[number]
+type OpenAITool = (typeof mainTools)[number] | (typeof forkTools)[number]
 
 /** A tool call the model emitted, with arguments parsed for convenience. */
 export interface ProbeToolCall {

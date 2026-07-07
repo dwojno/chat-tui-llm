@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import type { ToolDefinition } from './types'
 
+export const WEATHER_TOOL_NAME = 'get_weather_data' as const
+
 const parameters = z.object({
   city: z.string(),
 })
@@ -11,8 +13,10 @@ async function execute({ city }: z.infer<typeof parameters>): Promise<string> {
 }
 
 export const weatherTool: ToolDefinition<typeof parameters> = {
-  name: 'get_weather_data' as const,
+  name: WEATHER_TOOL_NAME,
+  label: 'Fetching weather data',
   description: 'Get the weather data for a city',
   parameters,
   execute,
+  summarize: ({ city }) => city,
 }

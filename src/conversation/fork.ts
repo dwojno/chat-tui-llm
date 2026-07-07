@@ -1,5 +1,6 @@
 import type { OpenAI } from 'openai'
 import { FORK_INSTRUCTIONS } from '../config'
+import type { TurnEvent } from './events'
 import { DEFAULT_TURN_OPTIONS } from './options'
 import { ConversationService } from './service'
 import { EphemeralScope, type ConversationScope } from './scope'
@@ -22,14 +23,19 @@ function buildForkBrief(
 }
 
 /**
- * Run an ephemeral child conversation for `task`, compress it, and return a
- * digest suitable for injection into the main thread.
+ * Run an ephemeral child conversation for `task`: a generator that yields the
+ * sub-agent's tool/status activity (tagged with the short `label` via the
+ * `fork` field, so the trace stays concise) as it happens, then returns a
+ * compressed digest suitable for injection into the main thread. The child's
+ * answer tokens stay internal — the result comes back as the digest, folded in
+ * through the handoff.
  */
-export async function runFork(
+export async function* runFork(
   openai: OpenAI,
   parent: ConversationScope,
   task: string,
-): Promise<string> {
+  label: string,
+): AsyncGenerator<TurnEvent, string> {
   const childScope = new EphemeralScope(parent)
   const child = new ConversationService(openai, childScope, {
     instructions: FORK_INSTRUCTIONS,
@@ -37,8 +43,15 @@ export async function runFork(
     keepLastTurns: FORK_KEEP_LAST_TURNS,
   })
 
-  child.pushUserMessage(buildForkBrief(parent.summary, parent.facts, task))
-  await child.completeTurn({ ...DEFAULT_TURN_OPTIONS, stream: false })
+  const brief = buildForkBrief(parent.summary, parent.facts, task)
+  for await (const event of child.run(brief, {
+    ...DEFAULT_TURN_OPTIONS,
+    stream: false,
+  })) {
+    if (event.type === 'tool' || event.type === 'status') {
+      yield { ...event, fork: label }
+    }
+  }
 
   const { text, usage } = await compressHandoff(openai, child.items, childScope.summary)
   parent.addSummarizerUsage(usage)

@@ -1,12 +1,16 @@
 import { evalite } from 'evalite'
 import { DELEGATE_TASK_NAME } from '../../tools/delegate-task'
 import {
+  conciseArg,
   probePrompt,
   routing,
   type Expected,
   type ProbeResult,
   type ProbeSpec,
 } from '../harness'
+
+/** When delegating, the `title` must be a short label, not a copy of the prompt. */
+const CONCISE_TITLE = { key: 'title', maxWords: 10 } as const
 
 /**
  * Delegation routing (see the <delegation> block of SYSTEM_INSTRUCTIONS).
@@ -24,7 +28,7 @@ evalite<ProbeSpec, ProbeResult, Expected>('delegation routing', {
           'Compare the cost of living, climate, and job market across Berlin, ' +
           'Lisbon, and Austin, and recommend one for a remote software engineer.',
       },
-      expected: { route: DELEGATE_TASK_NAME },
+      expected: { route: DELEGATE_TASK_NAME, conciseArg: CONCISE_TITLE },
     },
     {
       input: {
@@ -33,7 +37,7 @@ evalite<ProbeSpec, ProbeResult, Expected>('delegation routing', {
           'site generation, gather current best practices, and summarize when to ' +
           'use each.',
       },
-      expected: { route: DELEGATE_TASK_NAME },
+      expected: { route: DELEGATE_TASK_NAME, conciseArg: CONCISE_TITLE },
     },
     {
       input: {
@@ -41,7 +45,7 @@ evalite<ProbeSpec, ProbeResult, Expected>('delegation routing', {
           'Plan a product launch for me: research three competitors, draft a ' +
           'rollout timeline, and outline a marketing plan.',
       },
-      expected: { route: DELEGATE_TASK_NAME },
+      expected: { route: DELEGATE_TASK_NAME, conciseArg: CONCISE_TITLE },
     },
     // ── Should be direct: simple, despite comparison/research-sounding words
     {
@@ -82,5 +86,5 @@ evalite<ProbeSpec, ProbeResult, Expected>('delegation routing', {
     },
   ],
   task: (spec) => probePrompt(spec),
-  scorers: [routing],
+  scorers: [routing, conciseArg],
 })

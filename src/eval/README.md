@@ -33,7 +33,8 @@ src/eval/
 
 | Suite | Prompt under test | Scores |
 | --- | --- | --- |
-| `suites/delegation.eval.ts` | `<delegation>` in `SYSTEM_INSTRUCTIONS` | multi-step work → `delegate_task`; simple asks → direct |
+| `suites/delegation.eval.ts` | `<delegation>` in `SYSTEM_INSTRUCTIONS` | multi-step work → `delegate_task` with a concise `title`; simple asks → direct |
+| `suites/fork-tools.eval.ts` | `FORK_INSTRUCTIONS` + `forkTools` | a sub-agent uses `web_search` for research, `get_weather_data` for weather, and forces neither when none fits |
 | `suites/weather-routing.eval.ts` | `<tool_use>` | single-city asks call `get_weather_data` with the right city |
 | `suites/context-discretion.eval.ts` | `buildContextBlock` rules | stored facts stay quiet unless the message calls for them |
 | `suites/structured-output.eval.ts` | `/structured` `ResponseSchema` | output validates as `{ answer, sources[] }` |
@@ -52,9 +53,10 @@ Evalite's model is `data → task → scorers`:
   captures the model's *decision* — exactly what routing evals score.
 - **`scorers`** — one file each under [`harness/scorers/`](harness/scorers/),
   shared bits in [`common.ts`](harness/scorers/common.ts). The deterministic
-  checks (`routing`, `toolArgument`, `mentionsRequired`, `avoidsForbidden`,
-  `matchesSchema`, `withinWordLimit`) inspect structured tool-call data or free
-  text. The LLM judge (`judged`) grades open-ended criteria via our own shared
+  checks (`routing`, `toolArgument`, `conciseArg`, `avoidsTools`,
+  `mentionsRequired`, `avoidsForbidden`, `matchesSchema`, `withinWordLimit`)
+  inspect structured tool-call data or free text. The LLM judge (`judged`)
+  grades open-ended criteria via our own shared
   `openai()` client (1–5, scaled to 0–1). Each reads the row's `expected` and
   returns 0–1.
 

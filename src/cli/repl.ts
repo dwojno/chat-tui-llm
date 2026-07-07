@@ -5,6 +5,7 @@ import type { CommandContext } from '../commands/types'
 import type { ConversationService } from '../conversation/service'
 import type { SessionState } from '../conversation/state'
 import type { ChatHandle } from '../ui/chat'
+import { toolStepLabel } from '../ui/labels'
 
 export interface ReplDeps {
   chat: ChatHandle
@@ -35,16 +36,29 @@ async function processLine(
   }
 
   try {
-    conversation.pushUserMessage(action.content)
     chat.push({ role: 'user', content: action.content })
 
     chat.setStreaming('')
-    const assistantContent = await conversation.completeTurn(
-      action.options,
-      (delta) => chat.appendStreaming(delta),
-      (status) => chat.setStreaming(status),
-    )
-    chat.commitStreaming(assistantContent)
+    for await (const event of conversation.run(action.content, action.options)) {
+      switch (event.type) {
+        case 'delta':
+          chat.appendStreaming(event.text)
+          break
+        case 'tool':
+          chat.addStep({
+            label: toolStepLabel(event.name),
+            detail: event.detail,
+            fork: event.fork,
+          })
+          break
+        case 'status':
+          chat.addStep({ label: event.text, fork: event.fork })
+          break
+        case 'answer':
+          chat.commitStreaming(event.content)
+          break
+      }
+    }
   } catch (error) {
     // Keep the REPL alive on turn-level failures (e.g. transient API errors).
     // Surface the error in the transcript instead of tearing down the UI.

@@ -13,6 +13,10 @@ export interface Expected {
   route?: 'direct' | (string & {})
   /** A called tool's argument that must contain a substring. */
   toolArg?: { key: string; contains: string }
+  /** A called tool's arg must be present and within a word budget (e.g. a concise title). */
+  conciseArg?: { key: string; maxWords: number }
+  /** Tools that must NOT be called this turn. */
+  forbidTools?: string[]
   /** Substrings the answer must include (case-insensitive). */
   mustContain?: string[]
   /** Substrings the answer must NOT include — used to catch leaked facts. */
