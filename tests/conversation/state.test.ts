@@ -28,7 +28,17 @@ describe("SessionState persistence", () => {
     const state = SessionState.load(stateFile());
     expect(state.summary).toBe("");
     expect(state.facts).toEqual([]);
+    expect(state.sources).toEqual([]);
     expect(state.report()).toContain("No turns recorded");
+  });
+
+  it("persists sources across reloads", () => {
+    const state = SessionState.load(stateFile());
+    expect(state.addSources(["src/a.ts", "src/b.ts"])).toEqual(["src/a.ts", "src/b.ts"]);
+    expect(state.addSources(["src/b.ts", "src/c.ts"])).toEqual(["src/c.ts"]);
+
+    const reloaded = SessionState.load(stateFile());
+    expect(reloaded.sources).toEqual(["src/a.ts", "src/b.ts", "src/c.ts"]);
   });
 
   it("persists facts and summary across reloads (creating the dir)", () => {

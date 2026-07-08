@@ -1,4 +1,4 @@
-import { readFile, realpath } from "node:fs/promises";
+import { readFile, realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 
 const MENTION_RE = /(?:^|\s)@([\w./-]+)/g;
@@ -33,6 +33,22 @@ function decodeFileContent(buffer: Buffer): string {
 }
 
 async function resolveReadableFile(root: string, mentionPath: string): Promise<Buffer | null> {
+  const canonical = await resolveMentionFile(root, mentionPath);
+  if (!canonical) return null;
+
+  try {
+    return await readFile(canonical);
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve an `@path` to a canonical file path inside `cwd`, or null if invalid. */
+export async function resolveMentionFile(
+  cwd: string,
+  mentionPath: string,
+): Promise<string | null> {
+  const root = resolve(cwd);
   const absolute = resolve(root, mentionPath);
   if (!isWithinRoot(root, absolute)) return null;
 
@@ -53,13 +69,17 @@ async function resolveReadableFile(root: string, mentionPath: string): Promise<B
   if (!isWithinRoot(rootCanonical, canonical)) return null;
 
   try {
-    return await readFile(canonical);
+    const info = await stat(canonical);
+    if (!info.isFile()) return null;
   } catch {
     return null;
   }
+
+  return canonical;
 }
 
-function collectMentionPaths(text: string): string[] {
+/** Extract unique `@path` tokens from a line of text. */
+export function parseFileMentions(text: string): string[] {
   const paths: string[] = [];
   const seen = new Set<string>();
 
@@ -82,7 +102,7 @@ export async function expandFileMentions(
   text: string,
   cwd = process.cwd(),
 ): Promise<string> {
-  const paths = collectMentionPaths(text);
+  const paths = parseFileMentions(text);
   if (!paths.length) return text;
 
   const root = resolve(cwd);

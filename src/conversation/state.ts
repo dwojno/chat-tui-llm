@@ -34,6 +34,7 @@ interface UsageTotals {
 interface PersistedState {
   summary: string;
   facts: string[];
+  sources: string[];
   usage: UsageTotals;
 }
 
@@ -55,6 +56,7 @@ const EMPTY_USAGE: UsageTotals = {
 export class SessionState implements ConversationScope {
   private summaryText = "";
   private factList: string[] = [];
+  private sourceList: string[] = [];
   private usage: UsageTotals = { ...EMPTY_USAGE };
 
   /**
@@ -73,6 +75,7 @@ export class SessionState implements ConversationScope {
         const data = JSON.parse(readFileSync(filePath, "utf8")) as PersistedState;
         state.summaryText = data.summary ?? "";
         state.factList = data.facts ?? [];
+        state.sourceList = data.sources ?? [];
         state.usage = { ...EMPTY_USAGE, ...data.usage };
       } catch {
         // Corrupt state file — ignore and start clean rather than crash.
@@ -89,6 +92,11 @@ export class SessionState implements ConversationScope {
     return this.factList;
   }
 
+  /** cwd-relative source files indexed for RAG (via `/learn`). */
+  get sources(): readonly string[] {
+    return this.sourceList;
+  }
+
   /** Stable per-conversation key so repeated prefixes route to the same cache. */
   get cacheKey(): string {
     return `chat-cli:${process.pid}`;
@@ -102,6 +110,20 @@ export class SessionState implements ConversationScope {
   addFact(fact: string): void {
     this.factList.push(fact);
     this.save();
+  }
+
+  /** Add unique source paths; returns only the paths that were newly added. */
+  addSources(paths: readonly string[]): string[] {
+    const added: string[] = [];
+    const known = new Set(this.sourceList);
+    for (const path of paths) {
+      if (known.has(path)) continue;
+      known.add(path);
+      this.sourceList.push(path);
+      added.push(path);
+    }
+    if (added.length) this.save();
+    return added;
   }
 
   /** Grow the naive-transcript estimate as items are appended to history. */
@@ -139,6 +161,7 @@ export class SessionState implements ConversationScope {
     const data: PersistedState = {
       summary: this.summaryText,
       facts: this.factList,
+      sources: this.sourceList,
       usage: this.usage,
     };
     mkdirSync(dirname(this.filePath), { recursive: true });

@@ -1,7 +1,9 @@
 import { DEFAULT_TURN_OPTIONS } from "../conversation/options";
 import { exitCommand } from "./exit";
 import { jsonCommand } from "./json";
+import { learnCommand } from "./learn";
 import { rememberCommand } from "./remember";
+import { sourcesCommand } from "./sources";
 import { structuredCommand } from "./structured";
 import type { Command, CommandAction, CommandContext } from "./types";
 
@@ -11,7 +13,14 @@ import type { Command, CommandAction, CommandContext } from "./types";
  * Prefix commands are mutually exclusive, so order only matters for the exact
  * `exit` match ahead of the catch-all below.
  */
-const COMMANDS: Command[] = [exitCommand, rememberCommand, structuredCommand, jsonCommand];
+const COMMANDS: Command[] = [
+  exitCommand,
+  rememberCommand,
+  learnCommand,
+  sourcesCommand,
+  structuredCommand,
+  jsonCommand,
+];
 
 /** Fallback for any plain line: a default streaming chat turn. */
 const chatCommand: Command = {

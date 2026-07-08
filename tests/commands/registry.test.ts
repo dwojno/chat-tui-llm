@@ -5,21 +5,31 @@ import type { ChatHandle } from "../../src/ui/chat";
 import { resolveCommand, runCommand, slashCommandCatalog } from "../../src/commands/registry";
 import type { CommandContext } from "../../src/commands/types";
 
-function makeCtx() {
+function makeCtx(overrides: Partial<CommandContext> = {}) {
   const addFact = vi.fn();
+  const addSources = vi.fn().mockReturnValue([]);
   const push = vi.fn();
   const ctx: CommandContext = {
     temperature: 0.5,
-    state: { addFact } as unknown as SessionState,
-    chat: { push } as unknown as ChatHandle,
+    state: {
+      addFact,
+      addSources,
+      sources: [],
+      ...overrides.state,
+    } as unknown as SessionState,
+    chat: { push, ...overrides.chat } as unknown as ChatHandle,
+    ...overrides,
   };
-  return { ctx, addFact, push };
+  return { ctx, addFact, addSources, push };
 }
 
 describe("resolveCommand", () => {
   it.each([
     ["exit", "exit"],
     ["/remember something", "remember"],
+    ["/learn", "learn"],
+    ["/learn @src/foo.ts", "learn"],
+    ["/sources", "sources"],
     ["/structured q", "structured"],
     ["/json q", "json"],
     ["just chatting", "chat"],
@@ -76,12 +86,41 @@ describe("runCommand", () => {
     expect(await runCommand("/remember   ", ctx)).toEqual({ kind: "handled" });
     expect(addFact).not.toHaveBeenCalled();
   });
+
+  it("/learn without @mentions shows usage", async () => {
+    const { ctx, addSources, push } = makeCtx();
+    const action = await runCommand("/learn", ctx);
+    expect(action).toEqual({ kind: "handled" });
+    expect(addSources).not.toHaveBeenCalled();
+    expect(push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: "assistant",
+        content: expect.stringContaining("Usage:"),
+      }),
+    );
+  });
+
+  it("/sources lists indexed files", async () => {
+    const { ctx, push } = makeCtx({
+      state: { sources: ["src/a.ts", "tests/b.ts"] } as unknown as SessionState,
+    });
+    const action = await runCommand("/sources", ctx);
+    expect(action).toEqual({ kind: "handled" });
+    expect(push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: "assistant",
+        content: expect.stringMatching(/src\/a\.ts[\s\S]*tests\/b\.ts/),
+      }),
+    );
+  });
 });
 
 describe("slashCommandCatalog", () => {
   it("lists the user-typeable slash commands only", () => {
     const completions = slashCommandCatalog().map((c) => c.completion);
-    expect(completions).toEqual(expect.arrayContaining(["/remember ", "/structured ", "/json "]));
+    expect(completions).toEqual(
+      expect.arrayContaining(["/remember ", "/learn ", "/sources", "/structured ", "/json "]),
+    );
     // `exit` and the `chat` fallback are not slash commands.
     expect(completions.some((c) => c.includes("exit") || c.includes("chat"))).toBe(false);
     expect(slashCommandCatalog().every((c) => c.hint.length > 0)).toBe(true);
