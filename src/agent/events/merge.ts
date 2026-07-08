@@ -1,53 +1,45 @@
-class EventQueue<T> {
-  private readonly buffer: T[] = [];
-  private openProducers = 0;
-  private wake?: () => void;
+import merge from "it-merge";
 
-  open(): void {
-    this.openProducers += 1;
-  }
-
-  close(): void {
-    this.openProducers -= 1;
-    this.wake?.();
-  }
-
-  push(item: T): void {
-    this.buffer.push(item);
-    this.wake?.();
-  }
-
-  async *drain(): AsyncGenerator<T> {
-    while (this.openProducers > 0 || this.buffer.length > 0) {
-      if (this.buffer.length > 0) {
-        yield this.buffer.shift() as T;
-        continue;
-      }
-      await new Promise<void>((resolve) => {
-        this.wake = resolve;
-      });
-      this.wake = undefined;
+function fanOut<T, R>(
+  generator: AsyncGenerator<T, R>,
+  onReturn: (value: R) => void,
+): AsyncGenerator<T, void> {
+  async function* bridge() {
+    let step = await generator.next();
+    while (!step.done) {
+      yield step.value;
+      step = await generator.next();
     }
+    onReturn(step.value);
   }
+
+  return bridge();
 }
 
-export async function* merge<T, R>(generators: AsyncGenerator<T, R>[]): AsyncGenerator<T, R[]> {
-  const queue = new EventQueue<T>();
-
-  const results = generators.map(async (generator) => {
-    queue.open();
-    try {
-      let step = await generator.next();
-      while (!step.done) {
-        queue.push(step.value);
-        step = await generator.next();
-      }
-      return step.value;
-    } finally {
-      queue.close();
-    }
+export function mergeGenerators<T, R>(
+  generators: AsyncGenerator<T, R>[],
+): { events: AsyncIterable<T>; results: Promise<R[]> } {
+  const slots: R[] = Array.from({ length: generators.length });
+  let pending = generators.length;
+  let resolveAll!: () => void;
+  const allDone = new Promise<void>((resolve) => {
+    resolveAll = resolve;
   });
 
-  yield* queue.drain();
-  return await Promise.all(results);
+  const onReturn = (index: number, value: R) => {
+    slots[index] = value;
+    pending -= 1;
+    if (pending === 0) {
+      resolveAll();
+    }
+  };
+
+  const bridges = generators.map((generator, index) =>
+    fanOut(generator, (value) => onReturn(index, value)),
+  );
+
+  return {
+    events: merge(...bridges),
+    results: pending === 0 ? Promise.resolve([]) : allDone.then(() => slots),
+  };
 }

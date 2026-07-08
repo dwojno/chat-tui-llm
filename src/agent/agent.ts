@@ -4,7 +4,7 @@ import { toResponseInputItems } from "openai/lib/responses/ResponseInputItems.mj
 import type { ParsedResponse, ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { buildContextBlock } from "./dynamicContext/context";
 import type { TurnEvent } from "./events/events";
-import { merge } from "./events/merge";
+import { mergeGenerators } from "./events/merge";
 import { formatResponse } from "./conversation/format";
 import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "./conversation/options";
 import { describeToolCall, executeToolCall, mainTools } from "./tools";
@@ -137,7 +137,13 @@ export class AgentService {
         };
       }
 
-      const outputs = yield* merge(calls.map((call) => this.executeCall(call, context)));
+      const { events, results } = mergeGenerators(
+        calls.map((call) => this.executeCall(call, context)),
+      );
+      for await (const event of events) {
+        yield event;
+      }
+      const outputs = await results;
 
       for (const [index, call] of calls.entries()) {
         const outputItem: ResponseInputItem = {
