@@ -69,18 +69,25 @@ Every tool's `execute(args, ctx)` is an **async generator**: it `yield`s
 (e.g. a sub-agent's activity).
 
 A round of tool calls runs concurrently, so the loop hands all their generators
-to `merge` ([src/agent/events/merge.ts](../src/agent/events/merge.ts)):
+to `mergeGenerators` ([src/agent/events/merge.ts](../src/agent/events/merge.ts)),
+which uses [`it-merge`](https://www.npmjs.com/package/it-merge) to interleave
+events:
 
 ```ts
-const outputs = yield * merge(calls.map((call) => this.executeCall(call, context)));
+const { events, results } = mergeGenerators(
+  calls.map((call) => this.executeCall(call, context)),
+);
+for await (const event of events) {
+  yield event;
+}
+const outputs = await results;
 ```
 
-`merge(generators)` drives them concurrently, `yield`s their events interleaved
-as they arrive, and returns the outputs in input order (each becomes a
-`function_call_output`). There is no `emit` callback and no per-tool special case
-in the loop — every call is treated the same way. (`merge` uses a small internal
-buffer to fan several producers into one stream; that's the only reason the
-queue exists.)
+`mergeGenerators` drives tool generators concurrently, streams their events
+interleaved as they arrive, and resolves outputs in input order (each becomes a
+`function_call_output`). A thin bridge adapter captures each generator's return
+value — `it-merge` only merges yielded values. There is no `emit` callback and
+no per-tool special case in the loop — every call is treated the same way.
 
 ## The Session (integration owns state)
 
