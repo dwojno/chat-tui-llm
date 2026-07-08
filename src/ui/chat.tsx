@@ -100,24 +100,6 @@ export function renderChat(
     />
   );
 
-  const useAltScreen = interactive && process.stdout.isTTY === true;
-  let altScreenActive = false;
-  const enterAltScreen = (): void => {
-    if (useAltScreen && !altScreenActive) {
-      process.stdout.write("\x1b[?1049h\x1b[H");
-      altScreenActive = true;
-    }
-  };
-  const leaveAltScreen = (): void => {
-    if (altScreenActive) {
-      process.stdout.write("\x1b[?1049l");
-      altScreenActive = false;
-    }
-  };
-
-  enterAltScreen();
-  if (useAltScreen) process.on("exit", leaveAltScreen);
-
   const instance = render(view(), { exitOnCtrlC: false });
 
   const update = (): void => instance.rerender(view());
@@ -187,7 +169,6 @@ export function renderChat(
     },
     unmount: () => {
       instance.unmount();
-      leaveAltScreen();
     },
     waitUntilExit: () => instance.waitUntilExit().then(() => undefined),
   };
