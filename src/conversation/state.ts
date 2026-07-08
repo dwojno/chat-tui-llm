@@ -13,6 +13,10 @@ export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
+const formatNumber = (value: number): string => value.toLocaleString("en-US");
+const formatPercent = (part: number, whole: number): string =>
+  whole > 0 ? `${Math.round((part / whole) * 100)}%` : "0%";
+
 interface UsageTotals {
   /** Input tokens the API actually billed us for (windowed + summary prefix). */
   actualInput: number;
@@ -29,6 +33,27 @@ interface UsageTotals {
   baselineInput: number;
   /** Completed user turns. */
   turns: number;
+}
+
+/** Cumulative session token counters exposed to the UI. */
+export type UsageSnapshot = Omit<UsageTotals, "baselineInput">;
+
+/** One-line status bar text for cumulative session token usage. */
+export function formatUsageBar(snapshot: UsageSnapshot): string {
+  if (snapshot.turns === 0) return "No usage yet";
+
+  const total = snapshot.actualInput + snapshot.output + snapshot.summarizer;
+  const cached =
+    snapshot.cachedInput > 0
+      ? ` (${formatNumber(snapshot.cachedInput)} cached)`
+      : "";
+
+  return [
+    `↑ ${formatNumber(snapshot.actualInput)} in${cached}`,
+    `↓ ${formatNumber(snapshot.output)} out`,
+    `${formatNumber(total)} total`,
+    `${formatNumber(snapshot.turns)} turn${snapshot.turns === 1 ? "" : "s"}`,
+  ].join(" · ");
 }
 
 interface PersistedState {
@@ -72,7 +97,9 @@ export class SessionState implements ConversationScope {
     const state = new SessionState(filePath);
     if (existsSync(filePath)) {
       try {
-        const data = JSON.parse(readFileSync(filePath, "utf8")) as PersistedState;
+        const data = JSON.parse(
+          readFileSync(filePath, "utf8"),
+        ) as PersistedState;
         state.summaryText = data.summary ?? "";
         state.factList = data.facts ?? [];
         state.sourceList = data.sources ?? [];
@@ -95,6 +122,12 @@ export class SessionState implements ConversationScope {
   /** cwd-relative source files indexed for RAG (via `/learn`). */
   get sources(): readonly string[] {
     return this.sourceList;
+  }
+
+  /** Cumulative token counters for the live session status bar. */
+  get usageTotals(): UsageSnapshot {
+    const { actualInput, cachedInput, output, summarizer, turns } = this.usage;
+    return { actualInput, cachedInput, output, summarizer, turns };
   }
 
   /** Stable per-conversation key so repeated prefixes route to the same cache. */
@@ -173,10 +206,6 @@ export class SessionState implements ConversationScope {
     const u = this.usage;
     if (u.turns === 0) return "No turns recorded — nothing to report.";
 
-    const n = (value: number): string => value.toLocaleString("en-US");
-    const pct = (part: number, whole: number): string =>
-      whole > 0 ? `${Math.round((part / whole) * 100)}%` : "0%";
-
     // Net input tokens paid vs. what naive append-everything would have cost,
     // charging the summarizer overhead against our strategy.
     const netInput = u.actualInput + u.summarizer;
@@ -184,12 +213,12 @@ export class SessionState implements ConversationScope {
 
     return [
       `Context report — ${u.turns} turn${u.turns === 1 ? "" : "s"}`,
-      `  Input sent (actual):     ${n(u.actualInput)} tok`,
-      `    └ served from cache:   ${n(u.cachedInput)} tok (${pct(u.cachedInput, u.actualInput)})`,
-      `  Summarizer overhead:     ${n(u.summarizer)} tok`,
-      `  Naive append-all input:  ${n(u.baselineInput)} tok`,
-      `  Saved vs naive:          ${n(saved)} tok (${pct(saved, u.baselineInput)})`,
-      `  Output generated:        ${n(u.output)} tok`,
+      `  Input sent (actual):     ${formatNumber(u.actualInput)} tok`,
+      `    └ served from cache:   ${formatNumber(u.cachedInput)} tok (${formatPercent(u.cachedInput, u.actualInput)})`,
+      `  Summarizer overhead:     ${formatNumber(u.summarizer)} tok`,
+      `  Naive append-all input:  ${formatNumber(u.baselineInput)} tok`,
+      `  Saved vs naive:          ${formatNumber(saved)} tok (${formatPercent(saved, u.baselineInput)})`,
+      `  Output generated:        ${formatNumber(u.output)} tok`,
     ].join("\n");
   }
 }

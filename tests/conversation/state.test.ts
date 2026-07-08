@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { estimateTokens, SessionState } from "../../src/conversation/state";
+import { estimateTokens, formatUsageBar, SessionState } from "../../src/conversation/state";
 import { usage } from "../helpers/mock-openai";
 
 let dir: string;
@@ -63,6 +63,38 @@ describe("SessionState persistence", () => {
   });
 });
 
+describe("formatUsageBar", () => {
+  it("shows a placeholder when no turns have completed", () => {
+    expect(formatUsageBar({ actualInput: 0, cachedInput: 0, output: 0, summarizer: 0, turns: 0 })).toBe(
+      "No usage yet",
+    );
+  });
+
+  it("formats input, output, total, cache hint, and turn count", () => {
+    expect(
+      formatUsageBar({
+        actualInput: 95277,
+        cachedInput: 9728,
+        output: 11898,
+        summarizer: 14992,
+        turns: 49,
+      }),
+    ).toBe("↑ 95,277 in (9,728 cached) · ↓ 11,898 out · 122,167 total · 49 turns");
+  });
+
+  it("omits the cache parenthetical when nothing was cached", () => {
+    expect(
+      formatUsageBar({
+        actualInput: 200,
+        cachedInput: 0,
+        output: 50,
+        summarizer: 30,
+        turns: 1,
+      }),
+    ).toBe("↑ 200 in · ↓ 50 out · 280 total · 1 turn");
+  });
+});
+
 describe("SessionState token accounting", () => {
   it("accumulates response + summarizer usage and reports savings vs naive", () => {
     const state = SessionState.load(stateFile());
@@ -101,5 +133,22 @@ describe("SessionState token accounting", () => {
     const persisted = JSON.parse(readFileSync(path, "utf8"));
     expect(persisted.usage.actualInput).toBe(10);
     expect(persisted.usage.turns).toBe(1);
+  });
+
+  it("exposes a usage snapshot for the live status bar", () => {
+    const state = SessionState.load(stateFile());
+    state.addResponseUsage(
+      usage({ input_tokens: 100, output_tokens: 25, input_tokens_details: { cached_tokens: 40 } }),
+    );
+    state.addSummarizerUsage(usage({ total_tokens: 15 }));
+    state.finishTurn(500);
+
+    expect(state.usageTotals).toEqual({
+      actualInput: 100,
+      cachedInput: 40,
+      output: 25,
+      summarizer: 15,
+      turns: 1,
+    });
   });
 });

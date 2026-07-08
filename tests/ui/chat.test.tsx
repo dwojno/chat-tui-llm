@@ -82,4 +82,17 @@ describe("renderChat handle", () => {
     expect(text).toBe("abc");
     expect(chat.messages.at(-1)).toMatchObject({ role: "assistant", content: "abc" });
   });
+
+  it("setUsage updates the cumulative session token snapshot", () => {
+    const chat = renderChat();
+    expect(() =>
+      chat.setUsage({
+        actualInput: 100,
+        cachedInput: 20,
+        output: 50,
+        summarizer: 10,
+        turns: 3,
+      }),
+    ).not.toThrow();
+  });
 });

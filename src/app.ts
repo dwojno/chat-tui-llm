@@ -16,8 +16,8 @@ export async function run(): Promise<void> {
   // A TTY lets the Ink prompt own stdin (raw-mode editing + autocomplete); when
   // input is piped we fall back to line-buffered readline.
   const interactive = process.stdin.isTTY === true;
-  const chat = renderChat([], { interactive });
   const state = SessionState.load(STATE_FILE);
+  const chat = renderChat([], { interactive, initialUsage: state.usageTotals });
   const conversation = new ConversationService(new OpenAI(), state, {
     tools: mainTools,
   });

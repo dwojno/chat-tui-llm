@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { render, Box, Text, Static, useInput, type TextProps } from "ink";
 import { slashCommandCatalog, type SlashCommandInfo } from "../commands/registry";
+import { formatUsageBar, type UsageSnapshot } from "../conversation/state";
 import {
   matchFileMentionToken,
   suggestFilesAtCursor,
@@ -419,11 +420,21 @@ interface LiveTurn {
   content: string;
 }
 
+/** Pinned footer showing cumulative session token usage. */
+function UsageBar({ usage }: { usage: UsageSnapshot }): React.JSX.Element {
+  return (
+    <Box borderStyle="single" borderColor="gray" paddingX={1}>
+      <Text dimColor>{formatUsageBar(usage)}</Text>
+    </Box>
+  );
+}
+
 interface ChatProps {
   messages: Message[];
   live?: LiveTurn;
   interactive: boolean;
   inputActive: boolean;
+  usage?: UsageSnapshot;
   onSubmit(line: string): void;
   onExit(): void;
 }
@@ -434,6 +445,7 @@ function Chat({
   live,
   interactive,
   inputActive,
+  usage,
   onSubmit,
   onExit,
 }: ChatProps): React.JSX.Element {
@@ -449,6 +461,8 @@ function Chat({
       {live !== undefined && <StreamingMessage steps={live.steps} content={live.content} />}
 
       {interactive && <PromptInput active={inputActive} onSubmit={onSubmit} onExit={onExit} />}
+
+      {usage !== undefined && <UsageBar usage={usage} />}
     </Box>
   );
 }
@@ -484,6 +498,8 @@ export interface ChatHandle {
   onExit(handler: () => void): void;
   /** Snapshot of the committed messages so far. */
   readonly messages: readonly Message[];
+  /** Update the cumulative session token usage shown in the bottom bar. */
+  setUsage(usage: UsageSnapshot): void;
   /** Unmount the Ink app. */
   unmount(): void;
   /** Resolves when the Ink app exits. */
@@ -502,11 +518,15 @@ export interface ChatHandle {
  */
 export function renderChat(
   initial: readonly Message[] = [],
-  { interactive = false }: { interactive?: boolean } = {},
+  {
+    interactive = false,
+    initialUsage,
+  }: { interactive?: boolean; initialUsage?: UsageSnapshot } = {},
 ): ChatHandle {
   let messages: Message[] = [...initial];
   let live: LiveTurn | undefined;
   let inputActive = false;
+  let usage: UsageSnapshot | undefined = initialUsage;
   let submit: ((line: string) => void) | null = null;
   let exitHandler: (() => void) | null = null;
 
@@ -528,6 +548,7 @@ export function renderChat(
       live={live}
       interactive={interactive}
       inputActive={inputActive}
+      usage={usage}
       onSubmit={handleSubmit}
       onExit={handleExit}
     />
@@ -622,6 +643,10 @@ export function renderChat(
     },
     get messages(): readonly Message[] {
       return messages;
+    },
+    setUsage(next: UsageSnapshot): void {
+      usage = next;
+      update();
     },
     unmount: () => {
       // Tear down Ink first (its final cleanup writes to the alt buffer), then

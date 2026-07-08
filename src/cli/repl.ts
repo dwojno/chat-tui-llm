@@ -52,12 +52,15 @@ export async function processLine(
             detail: event.detail,
             fork: event.fork,
           });
+          chat.setUsage(ctx.state.usageTotals);
           break;
         case "status":
           chat.addStep({ label: event.text, fork: event.fork });
+          chat.setUsage(ctx.state.usageTotals);
           break;
         case "answer":
           chat.commitStreaming(event.content);
+          chat.setUsage(ctx.state.usageTotals);
           break;
       }
     }
@@ -102,6 +105,8 @@ export async function runRepl({
   process.on("SIGINT", shutdown);
 
   const ctx: CommandContext = { temperature, state, chat };
+
+  chat.setUsage(state.usageTotals);
 
   if (interactive) {
     chat.onExit(shutdown);
