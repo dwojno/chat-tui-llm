@@ -17,12 +17,17 @@ vi.mock("ink", () => ({
   useInput: () => {},
 }));
 
-import { processLine } from "../../src/cli/repl";
-import type { CommandContext } from "../../src/commands/types";
-import { ConversationService } from "../../src/conversation/service";
-import { SessionState } from "../../src/conversation/state";
+import { processLine } from "../../src/integration/repl";
+import type { CommandContext } from "../../src/integration/commands/types";
+import { AgentService } from "../../src/agent/agent";
+import { Session } from "../../src/integration/session";
 import { renderChat, type ChatHandle, type Message } from "../../src/ui/chat";
-import { createMockOpenAI, createThrowingOpenAI, type MockTurn } from "../helpers/mock-openai";
+import {
+  createMemoryStore,
+  createMockOpenAI,
+  createThrowingOpenAI,
+  type MockTurn,
+} from "../helpers/mock-openai";
 import type { OpenAI } from "openai";
 
 /**
@@ -36,29 +41,26 @@ let dir: string;
 
 interface Harness {
   chat: ChatHandle;
-  service: ConversationService;
+  session: Session;
   ctx: CommandContext;
-  state: SessionState;
   run: (line: string) => Promise<"exit" | "continue">;
   lastAssistant: () => Message | undefined;
   toolOutputs: () => string[];
 }
 
 function setup(client: OpenAI): Harness {
-  const state = SessionState.load(join(dir, "session.json"));
-  const service = new ConversationService(client, state);
+  const session = new Session(new AgentService(client), client, createMemoryStore(), 4);
   const chat = renderChat([], { interactive: false });
-  const ctx: CommandContext = { temperature: 0.7, state, chat };
+  const ctx: CommandContext = { temperature: 0.7, session, chat };
   return {
     chat,
-    service,
+    session,
     ctx,
-    state,
-    run: (line) => processLine(line, ctx, chat, service),
+    run: (line) => processLine(line, ctx, chat, session),
     lastAssistant: () => [...chat.messages].toReversed().find((m) => m.role === "assistant"),
     // The transcript's function_call_output entries carry tool results/errors.
     toolOutputs: () =>
-      (service.items as unknown as Record<string, string>[])
+      (session.transcript as unknown as Record<string, string>[])
         .filter((i) => i.type === "function_call_output")
         .map((i) => i.output),
   };
@@ -101,7 +103,7 @@ describe("E2E: happy paths", () => {
     const h = mocked([]);
     const result = await h.run("/remember I like tea");
     expect(result).toBe("continue");
-    expect(h.state.facts).toContain("I like tea");
+    expect(h.session.facts).toContain("I like tea");
     expect(h.lastAssistant()?.content).toContain("Remembered");
   });
 
@@ -128,11 +130,11 @@ describe("E2E: happy paths", () => {
       role: "user",
       content: `summarize @${fixture}`,
     });
-    expect(h.service.items[0]).toMatchObject({
+    expect(h.session.transcript[0]).toMatchObject({
       role: "user",
       content: expect.stringContaining('<file path="tests/fixtures/small.txt">'),
     });
-    expect(h.service.items[0]).toMatchObject({
+    expect(h.session.transcript[0]).toMatchObject({
       content: expect.stringContaining("hello from fixture"),
     });
     expect(h.lastAssistant()?.content).toBe("summarized");
@@ -331,10 +333,8 @@ describe("E2E: delegation", () => {
 
     expect(h.lastAssistant()?.content).toBe("combined answer");
     // Both delegations surfaced as steps, and both forks were compressed.
-    const stepLabels = (h.lastAssistant()?.steps ?? []).map((s) => s.label);
-    expect(stepLabels).toEqual(
-      expect.arrayContaining(["Delegating: Task A", "Delegating: Task B"]),
-    );
+    const delegations = (h.lastAssistant()?.steps ?? []).filter((s) => s.label === "Delegating");
+    expect(delegations.map((s) => s.detail)).toEqual(expect.arrayContaining(["Task A", "Task B"]));
     expect(mock.calls.create).toHaveLength(2);
   });
 });

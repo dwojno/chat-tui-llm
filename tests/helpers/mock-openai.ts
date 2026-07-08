@@ -1,9 +1,17 @@
 import type { OpenAI } from "openai";
 import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
+import type { ConversationStore, PersistedState } from "../../src/integration/store/types";
+
+/** Drive an async generator to completion and return its final value. */
+export async function drainToReturn<R>(gen: AsyncGenerator<unknown, R>): Promise<R> {
+  let next = await gen.next();
+  while (!next.done) next = await gen.next();
+  return next.value;
+}
 
 /**
  * Test doubles for the OpenAI Responses API. The app injects the client
- * everywhere (ConversationService, summarize, compressHandoff), so a fake that
+ * everywhere (AgentService, summarize, compressHandoff), so a fake that
  * shapes just the fields the code reads — `output`, `output_text`,
  * `output_parsed`, `usage` — is enough to drive the whole agent loop offline.
  *
@@ -164,45 +172,19 @@ export function createThrowingOpenAI(message = "API unavailable"): OpenAI {
   } as unknown as OpenAI;
 }
 
-/** A recording {@link ConversationScope} for exercising service/fork in isolation. */
-export function createRecordingScope(init: { summary?: string; facts?: string[] } = {}) {
-  const state = {
-    summary: init.summary ?? "",
-    facts: init.facts ?? [],
-    cacheKey: "chat-cli:test",
-    responseUsage: [] as (ResponseUsage | undefined)[],
-    summarizerUsage: [] as (ResponseUsage | undefined)[],
-    naive: [] as string[],
-    finishedTurns: [] as number[],
+/**
+ * An in-memory {@link ConversationStore} for exercising a Session offline. Holds
+ * one snapshot; `saved` exposes the last persisted state for assertions.
+ */
+export function createMemoryStore(initial: PersistedState | null = null): ConversationStore & {
+  saved: () => PersistedState | null;
+} {
+  let current = initial;
+  return {
+    load: () => current,
+    save: (state: PersistedState) => {
+      current = structuredClone(state);
+    },
+    saved: () => current,
   };
-  const scope = {
-    get summary() {
-      return state.summary;
-    },
-    get facts() {
-      return state.facts as readonly string[];
-    },
-    get cacheKey() {
-      return state.cacheKey;
-    },
-    setSummary(s: string) {
-      state.summary = s;
-    },
-    addResponseUsage(u: ResponseUsage | undefined) {
-      state.responseUsage.push(u);
-    },
-    addSummarizerUsage(u: ResponseUsage | undefined) {
-      state.summarizerUsage.push(u);
-    },
-    growNaive(text: string) {
-      state.naive.push(text);
-    },
-    finishTurn(n: number) {
-      state.finishedTurns.push(n);
-    },
-    snapshotNaiveInput() {
-      return 0;
-    },
-  };
-  return { scope, state };
 }

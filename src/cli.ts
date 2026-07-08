@@ -1,4 +1,6 @@
-import "dotenv/config";
-import { run } from "./app";
+import { config } from "dotenv";
+import { run } from "./main";
+
+config();
 
 run().catch(console.error);

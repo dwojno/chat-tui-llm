@@ -2,9 +2,7 @@ import { readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 
 export interface FileSuggestion {
-  /** cwd-relative path, e.g. "src/cli/repl.ts" */
   path: string;
-  /** Display label (same as path for now). */
   label: string;
 }
 
@@ -15,7 +13,6 @@ const SUGGESTION_LIMIT = 5;
 
 interface FileIndex {
   files: string[];
-  /** Files within SHALLOW_DEPTH path segments — fast default for bare `@`. */
   shallow: string[];
 }
 
@@ -34,7 +31,6 @@ function toPosixPath(root: string, full: string): string {
   return relative(root, full).split("\\").join("/");
 }
 
-/** Recursively collect cwd-relative file paths under `root`. */
 export function buildFileIndex(root: string): FileIndex {
   const files: string[] = [];
 
@@ -68,7 +64,6 @@ export function buildFileIndex(root: string): FileIndex {
   return { files, shallow };
 }
 
-/** Return the cached file index for `root`, rebuilding when the root changes. */
 export function getFileIndex(root: string): FileIndex {
   if (cachedRoot !== root || cachedIndex === null) {
     cachedRoot = root;
@@ -97,9 +92,12 @@ function scoreMatch(path: string, query: string): number {
   return -1;
 }
 
-/** Filter and rank files matching `query`; empty query returns shallow paths first. */
 export function searchFiles(index: FileIndex, query: string, limit?: number): FileSuggestion[];
-export function searchFiles(index: readonly string[], query: string, limit?: number): FileSuggestion[];
+export function searchFiles(
+  index: readonly string[],
+  query: string,
+  limit?: number,
+): FileSuggestion[];
 export function searchFiles(
   index: FileIndex | readonly string[],
   query: string,
@@ -124,10 +122,6 @@ export function searchFiles(
   return ranked.map(({ path }) => ({ path, label: path }));
 }
 
-/**
- * If the cursor sits inside an `@` mention token, return the query and where
- * the `@` starts in `value`.
- */
 export function matchFileMentionToken(
   value: string,
   cursor: number,
@@ -138,7 +132,6 @@ export function matchFileMentionToken(
   return { query: match[1], start: match.index };
 }
 
-/** Search cwd files for autocomplete at the cursor. */
 export function suggestFilesAtCursor(
   value: string,
   cursor: number,
@@ -149,7 +142,6 @@ export function suggestFilesAtCursor(
   return searchFiles(getFileIndex(root), token.query);
 }
 
-/** Reset the cached index (for tests). */
 export function resetFileIndexCache(): void {
   cachedRoot = null;
   cachedIndex = null;

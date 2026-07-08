@@ -1,26 +1,12 @@
 import React from "react";
 import { Box, Text } from "ink";
 
-/**
- * A small, dependency-free markdown renderer for the terminal.
- *
- * It covers the subset an assistant realistically emits — headings, bold /
- * italic / inline-code / strikethrough spans, fenced code blocks, ordered and
- * unordered lists, blockquotes, and horizontal rules — by mapping each
- * construct onto Ink components so styling composes with Ink's layout. Anything
- * it doesn't recognize falls through as plain text, so output is never worse
- * than the raw string.
- */
-
 interface MarkdownProps {
   children: string;
 }
 
-// Inline spans, in precedence order. Code is matched first so markdown syntax
-// inside `code` is left untouched.
 const INLINE_PATTERN = /(`[^`]+`)|(\*\*[^*]+\*\*)|(__[^_]+__)|(~~[^~]+~~)|(\*[^*]+\*)|(_[^_]+_)/g;
 
-/** Render a single line of text, resolving inline markdown spans. */
 function renderInline(text: string): React.ReactNode {
   const nodes: React.ReactNode[] = [];
   let lastIndex = 0;
@@ -53,7 +39,6 @@ function renderInline(text: string): React.ReactNode {
         </Text>,
       );
     } else {
-      // *italic* or _italic_
       nodes.push(
         <Text key={key++} italic>
           {token.slice(1, -1)}
@@ -78,7 +63,6 @@ const BLOCKQUOTE = /^>\s?(.*)$/;
 const RULE = /^(?:-{3,}|\*{3,}|_{3,})$/;
 const FENCE = /^\s*```/;
 
-/** Split markdown into block-level Ink elements. */
 function renderBlocks(source: string): React.ReactNode[] {
   const lines = source.split("\n");
   const blocks: React.ReactNode[] = [];
@@ -87,7 +71,6 @@ function renderBlocks(source: string): React.ReactNode[] {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Fenced code block — consume until the closing fence (or end of input).
     if (FENCE.test(line)) {
       const code: string[] = [];
       i++;
@@ -172,7 +155,6 @@ function renderBlocks(source: string): React.ReactNode[] {
   return blocks;
 }
 
-/** Render markdown text using Ink components. */
 export default function Markdown({ children }: MarkdownProps): React.JSX.Element {
   return <Box flexDirection="column">{renderBlocks(children)}</Box>;
 }

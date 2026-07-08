@@ -12,14 +12,14 @@ The point isn't the chat — it's the machinery underneath. Every layer an agent
 
 ## What it does
 
-- **Agent loop** — runs the model → tool-call → tool-result cycle by hand until the model stops asking for tools, then streams the answer. Independent tool calls in a single turn run in parallel. [`service.ts`](src/conversation/service.ts)
-- **Context-window management** — only the last 4 turns are kept verbatim; older turns fold into a rolling summary and are dropped, keeping a stable, cacheable prompt prefix. [`summarizer.ts`](src/conversation/summarizer.ts)
+- **Stateless agent loop** — runs the model → tool-call → tool-result cycle by hand until the model stops asking for tools, then streams the answer. Takes the transcript in, keeps nothing after the turn. Independent tool calls in a single turn run in parallel. [`agent.ts`](src/agent/agent.ts)
+- **Context-window management** — only the last 4 turns are kept verbatim; older turns fold into a rolling summary and are dropped, keeping a stable, cacheable prompt prefix. Owned by the session, not the agent. [`summarizer.ts`](src/agent/tokens/summarizer.ts), [`session.ts`](src/integration/session.ts)
 - **Prompt caching** — out-of-window state (facts + summary) is pinned to the _end_ of the input so a `/remember` or a re-summarization never invalidates the cached prefix above it.
-- **Sub-agent delegation** — the model can spin up ephemeral child agents for multi-step work — several in parallel — each with its own context and tools, handing back a compressed digest. The sub-agent's tool activity streams back live under a short, model-chosen label. [`fork.ts`](src/conversation/fork.ts), [`handoff.ts`](src/conversation/handoff.ts)
-- **Live activity trace** — every tool call and delegation surfaces as a streaming, Gemini-style "thinking" step (with its target — the city, the search query, the sub-task) that freezes above the final answer instead of vanishing. [`chat.tsx`](src/ui/chat.tsx)
-- **Tool calling** — typed, Zod-validated tools the model can invoke: a demo weather lookup and a keyless, Wikipedia-backed web search that sub-agents use for research. Add your own under [src/tools/](src/tools/).
+- **Sub-agent delegation** — the model can spin up ephemeral child agents for multi-step work — several in parallel — each with its own context and tools, handing back a compressed digest. The sub-agent's tool activity streams back live under a short, model-chosen label. [`delegate-task.ts`](src/agent/tools/delegate-task.ts), [`handoff.ts`](src/agent/tools/utils/handoff.ts)
+- **Live activity trace** — every tool call and delegation surfaces as a streaming, Gemini-style "thinking" step (with its target — the city, the search query, the sub-task) that freezes above the final answer instead of vanishing. [`ui/`](src/ui/)
+- **Tool calling** — typed, Zod-validated tools the model can invoke: a demo weather lookup and a keyless, Wikipedia-backed web search that sub-agents use for research. Add your own under [src/agent/tools/](src/agent/tools/).
 - **Structured output** — replies validated against a Zod schema, plus a raw JSON mode.
-- **Prompt evals** — behavioural tests that grade the prompts and tools against the live model. See [src/eval/](src/eval/).
+- **Prompt evals** — behavioural tests that grade the prompts and tools against the live model. See [evals/](evals/).
 - **Tests** — a Vitest suite (unit + end-to-end) that mocks the model, covering the agent loop, tool failures, delegation, and the UI — fast and fully offline. See [tests/](tests/).
 
 ## Setup
@@ -62,13 +62,14 @@ After each answer, the window is trimmed deterministically: keep the last 4 turn
 
 ```
 src/
-  app.ts            composition root — build every dependency once
-  cli/              arg parsing + REPL loop
-  commands/         slash/keyword commands
-  conversation/     agent loop, summarizer, fork/handoff, event stream, state
-  config/           model + session settings, system prompts
-  tools/            function-calling tools (weather, web search, delegate)
-  ui/               Ink chat + activity trace + markdown rendering
-  eval/             prompt evals (see src/eval/README.md)
-tests/              vitest unit + e2e suites (model mocked; see tests/helpers)
+  main.ts           composition root — build every dependency once
+  agent/            PURE core: loop, summarizer, fork/handoff, events, tools, prompts
+  ui/               Ink chat + activity trace + markdown (components/hooks/input)
+  integration/      adapters + wiring: session, store, OpenAI client, REPL,
+                    CLI args, file-mentions, slash/keyword commands
+tests/              vitest unit + e2e suites (model mocked; mirrors src/)
+evals/              prompt evals against the live model (evalite)
+docs/               architecture notes (see docs/architecture.md)
 ```
+
+See [docs/architecture.md](docs/architecture.md) for how the layers fit together.

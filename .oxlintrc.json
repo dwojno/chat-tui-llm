@@ -13,6 +13,7 @@
   },
   "rules": {
     "no-console": "off",
+    "require-yield": "off",
     "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
     "no-await-in-loop": "off",
     "typescript/no-explicit-any": "warn",
@@ -26,7 +27,7 @@
   "ignorePatterns": ["node_modules", "dist", ".chat-state", "**/*.d.ts", "demo.tape"],
   "overrides": [
     {
-      "files": ["tests/**/*.ts", "tests/**/*.tsx", "src/eval/**/*.ts"],
+      "files": ["tests/**/*.ts", "tests/**/*.tsx", "evals/**/*.ts"],
       "plugins": ["vitest"],
       "env": { "vitest": true },
       "rules": {
