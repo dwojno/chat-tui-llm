@@ -56,7 +56,7 @@ On exit, a token-savings report compares actual input tokens against a naive "re
 
 Each turn, the service sends the trimmed conversation plus a context block (pinned facts + rolling summary) to the model. If the response contains tool calls, it executes them — independent calls in the same turn run concurrently — appends the results, and asks again, looping until the model answers with no further calls. A tool that throws or rejects — a bad argument, a failed request, a timeout — becomes an error result fed back to the model rather than aborting the turn, so it can recover. A `delegate_task` call is special-cased: instead of running inline, it forks a fresh child agent with its own tools and window (and the model can fan out to several forks at once), streams that sub-agent's tool activity back live, then folds a short handoff into the main thread.
 
-After each answer, the window is trimmed deterministically: keep the last 4 turns, summarize and evict the rest. State (summary, pinned facts, usage totals) persists to `.chat-state/session.json` between runs.
+After each answer, the window is trimmed deterministically: keep the last 4 turns, summarize and evict the rest. State (full transcript, summary, pinned facts, sources, usage) persists to `.chat-state/chat.db` between runs.
 
 ## Structure
 

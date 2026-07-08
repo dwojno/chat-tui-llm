@@ -50,8 +50,8 @@ Code is split into three independent layers plus a thin composition root
 - **Session owns state** — [src/integration/session.ts](src/integration/session.ts):
   holds the transcript, rolling summary, pinned facts, sources, usage totals, and
   context-window management; drives the agent and persists via a
-  `ConversationStore` port ([src/integration/store/](src/integration/store/) —
-  file now, SQLite/API later).
+  `Store` facade ([src/store/](src/store/)) with `conversation` / `fact` /
+  `sources` namespaces — SQLite today, a remote/Postgres bundle tomorrow.
 - **Context management** — last `KEEP_LAST_TURNS` (4) turns kept verbatim; older
   turns fold into a rolling summary via the pure `summarize`
   ([summarizer.ts](src/agent/tokens/summarizer.ts)), invoked by the Session.
@@ -97,4 +97,4 @@ distinct from the live-model prompt evals. UI components are tested with
 `import.meta.vitest` inline testing can't do the `vi.mock` the suite relies on).
 
 Model is `gpt-4o-mini` ([src/agent/config/index.ts](src/agent/config/index.ts)); state
-persists to `.chat-state/session.json` via the file store.
+persists to `.chat-state/chat.db` via `LocalStore` → the SQLite namespace clients.

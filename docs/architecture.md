@@ -29,7 +29,7 @@ and forward the same event stream over SSE.
 
 **Frameworkless constraint.** The raw `openai` SDK is used directly inside the
 agent (injected, never wrapped). There is deliberately no LLM/SDK abstraction
-layer. The only port introduced is for _storage_ (`ConversationStore`), which is
+layer. The only port introduced is for _storage_ (`Store`), which is
 not an SDK abstraction.
 
 ## The stateless agent
@@ -74,9 +74,7 @@ which uses [`it-merge`](https://www.npmjs.com/package/it-merge) to interleave
 events:
 
 ```ts
-const { events, results } = mergeGenerators(
-  calls.map((call) => this.executeCall(call, context)),
-);
+const { events, results } = mergeGenerators(calls.map((call) => this.executeCall(call, context)));
 for await (const event of events) {
   yield event;
 }
@@ -92,38 +90,44 @@ no per-tool special case in the loop — every call is treated the same way.
 ## The Session (integration owns state)
 
 `Session` ([src/integration/session.ts](../src/integration/session.ts)) owns
-everything the agent does not: the running transcript (`log`), the out-of-window
-state (rolling summary + pinned facts + indexed sources), token accounting, the
-context window, and persistence. `runTurn`:
+everything the agent does not: pinned facts, indexed sources, token accounting,
+the context window, and persistence. It reads all transcript state from the
+`Store` on each turn — no in-memory `log`. `runTurn`:
 
-1. appends the user message to `log`;
-2. calls `agent.run(log, options, { facts, summary })`, forwarding presentation
-   events to the caller and folding `message`/`usage` events into `log` and the
-   usage totals;
-3. compacts the window and persists.
+1. appends the user message to the store;
+2. loads model input via `queryHistory().forModel()` — the full unsummarized tail
+   after the latest summary row, with evicted turns replaced by the summary text
+   prepended once;
+3. calls `agent.run(messages, options, { facts })`, forwarding presentation
+   events to the caller and persisting `message`/`usage` events;
+4. compacts the window when the unsummarized tail overflows.
 
-Swapping storage (file → SQLite → remote API) is a new `ConversationStore`
-implementation ([src/integration/store/](../src/integration/store/)); nothing in
-the agent changes.
+Swapping or extending backends is a new `Store` bundle
+([src/store/](../src/store/)); nothing in the agent changes. A future
+`CloudStore` might compose API-backed conversation/fact/sources namespaces —
+each as its own sub-client on the facade.
 
 ### Context window management
 
 The last `KEEP_LAST_TURNS` (4) user turns are kept verbatim. When the window
-overflows, `maintainWindow` splits the transcript at a user-message boundary (so
-tool calls stay attached to their turn), folds the evicted turns into a rolling
-summary via the pure `summarize` helper ([src/agent/tokens/summarizer.ts](../src/agent/tokens/summarizer.ts)),
-and truncates `log`. Windowing lives in the Session, not the agent.
+overflows, `maintainWindow` splits the unsummarized tail at a user-message
+boundary (so tool calls stay attached to their turn), folds the evicted turns
+into a rolling summary via the pure `summarize` helper
+([src/agent/tokens/summarizer.ts](../src/agent/tokens/summarizer.ts)), and
+**appends** a new `kind = 'summary'` row. Older transcript rows remain in the
+DB for audit; `queryHistory().afterLastSummary()` excludes them from model
+reads. Windowing lives in the Session, not the agent.
 
 ### Prompt caching
 
-Out-of-window state (pinned facts + rolling summary) is built into a single
-trailing `developer` message by `buildContextBlock`
-([src/agent/dynamicContext/context.ts](../src/agent/dynamicContext/context.ts)) and appended **last** in the
-request input — after the stable conversation prefix. This means a `/remember`
-or a re-summarization changes only the tail and never invalidates the cached
-prefix above it. The discretion rules in that block (telling the model not to
-volunteer stored facts) are a single source of truth that the prompt evals
-exercise directly.
+Pinned facts are appended **last** in the request input via `buildContextBlock`
+([src/agent/dynamicContext/context.ts](../src/agent/dynamicContext/context.ts)),
+after the conversation prefix. The rolling summary is part of that prefix —
+assembled by `forModel()` as a prepended `developer` message replacing evicted
+turns, not duplicated in the facts block. A `/remember` changes only the tail
+and never invalidates the cached prefix above it. The discretion rules in that
+block (telling the model not to volunteer stored facts) are a single source of
+truth that the prompt evals exercise directly.
 
 ### Token accounting
 

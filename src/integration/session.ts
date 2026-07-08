@@ -2,144 +2,146 @@ import type { OpenAI } from "openai";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import type { AgentService, TurnContext } from "../agent";
 import type { TurnOptions } from "../agent/conversation";
-import { countUserTurns, renderItemsText, splitAtLastTurns } from "../agent/conversation";
+import { countUserTurns, splitAtLastTurns } from "../agent/conversation";
 import type { TurnEvent } from "../agent/events";
-import { SYSTEM_INSTRUCTIONS } from "../agent/prompts";
-import { estimateTokens, summarize } from "../agent/tokens";
-import type { ConversationStore } from "./store/types";
-import {
-  addResponseUsage,
-  addSummarizerUsage,
-  EMPTY_USAGE,
-  formatReport,
-  usageSnapshot,
-  type UsageSnapshot,
-  type UsageTotals,
-} from "./usage";
+import { summarize } from "../agent/tokens";
+import type { Store } from "../store/store";
+import { responseUsageToTokens } from "../store/derive";
+import type { ConversationItemInsert, ItemKind, TokenColumns } from "../store/types";
+import { formatReport, usageSnapshot, type UsageSnapshot } from "./usage";
+
+function itemKind(item: ResponseInputItem): ItemKind {
+  if ("role" in item) return "message";
+  if (item.type === "function_call") return "function_call";
+  return "function_call_output";
+}
 
 export class Session {
-  private log: ResponseInputItem[] = [];
-  private summaryText: string;
-  private factList: string[];
-  private sourceList: string[];
-  private usage: UsageTotals;
-  private naiveTokens = 0;
+  private pendingUsage: TokenColumns | null = null;
+  private pendingMessages: ResponseInputItem[] = [];
+  private currentTurnIndex = 0;
 
-  constructor(
+  private constructor(
     private readonly agent: AgentService,
     private readonly openai: OpenAI,
-    private readonly store: ConversationStore,
+    private readonly store: Store,
     private readonly keepLastTurns: number,
-  ) {
-    const loaded = store.load();
-    this.summaryText = loaded?.summary ?? "";
-    this.factList = loaded?.facts ?? [];
-    this.sourceList = loaded?.sources ?? [];
-    this.usage = { ...EMPTY_USAGE, ...loaded?.usage };
+  ) {}
+
+  static async create(
+    agent: AgentService,
+    openai: OpenAI,
+    store: Store,
+    keepLastTurns: number,
+  ): Promise<Session> {
+    return new Session(agent, openai, store, keepLastTurns);
   }
 
-  get summary(): string {
-    return this.summaryText;
+  async facts(): Promise<string[]> {
+    return this.store.fact.list();
   }
 
-  get facts(): readonly string[] {
-    return this.factList;
+  async sources(): Promise<string[]> {
+    return this.store.sources.list();
   }
 
-  get sources(): readonly string[] {
-    return this.sourceList;
+  async getUsageTotals(): Promise<UsageSnapshot> {
+    const totals = await this.store.conversation.getUsageTotals();
+    return usageSnapshot(totals);
   }
 
-  get usageTotals(): UsageSnapshot {
-    return usageSnapshot(this.usage);
+  /** Full persisted transcript (all turns, not just the in-context window) for UI replay. */
+  history(): Promise<ResponseInputItem[]> {
+    return this.store.conversation.queryHistory().execute();
   }
 
-  get transcript(): readonly ResponseInputItem[] {
-    return this.log;
+  async report(): Promise<string> {
+    return formatReport(await this.store.conversation.getUsageTotals());
   }
 
-  report(): string {
-    return formatReport(this.usage);
+  async addFact(fact: string): Promise<void> {
+    await this.store.fact.add(fact);
   }
 
-  addFact(fact: string): void {
-    this.factList.push(fact);
-    this.persist();
-  }
-
-  addSources(paths: readonly string[]): string[] {
-    const added: string[] = [];
-    const known = new Set(this.sourceList);
-    for (const path of paths) {
-      if (known.has(path)) continue;
-      known.add(path);
-      this.sourceList.push(path);
-      added.push(path);
-    }
-    if (added.length) this.persist();
-    return added;
+  async addSources(paths: readonly string[]): Promise<string[]> {
+    return this.store.sources.add(paths);
   }
 
   async *runTurn(prompt: string, options: TurnOptions): AsyncGenerator<TurnEvent, void> {
+    const { conversation } = this.store;
+    const tail = await conversation.queryHistory().afterLastSummary().execute();
+    this.currentTurnIndex = countUserTurns(tail);
+
     const userMessage = {
       role: "user",
       content: prompt,
     } satisfies ResponseInputItem;
-    this.log.push(userMessage);
-    this.growNaive(`user: ${prompt}`);
 
+    await conversation.appendItem({
+      kind: "message",
+      turnIndex: this.currentTurnIndex,
+      payload: userMessage,
+    });
+
+    const messages = await conversation.queryHistory().forModel().execute();
     const context: TurnContext = {
-      facts: this.factList,
-      summary: this.summaryText,
+      facts: await this.facts(),
     };
 
-    for await (const event of this.agent.run(this.log, options, context)) {
+    for await (const event of this.agent.run(messages, options, context)) {
       switch (event.type) {
         case "message":
-          this.log.push(event.item);
-          this.growNaive(renderItemsText([event.item]));
+          this.pendingMessages.push(event.item);
           break;
         case "usage":
-          if (event.kind === "response") addResponseUsage(this.usage, event.usage);
-          else addSummarizerUsage(this.usage, event.usage);
+          if (event.kind === "response") {
+            await this.flushPendingMessages();
+            this.pendingUsage = responseUsageToTokens(event.usage ?? {});
+          } else {
+            await this.flushPendingMessages();
+          }
           break;
         default:
           yield event;
       }
     }
 
-    this.finishTurn();
+    await this.flushPendingMessages();
     await this.maintainWindow();
-    this.persist();
   }
 
-  private growNaive(text: string): void {
-    this.naiveTokens += estimateTokens(text);
-  }
+  private async flushPendingMessages(): Promise<void> {
+    if (!this.pendingMessages.length) return;
 
-  private finishTurn(): void {
-    this.usage.baselineInput += this.naiveTokens + estimateTokens(SYSTEM_INSTRUCTIONS);
-    this.usage.turns += 1;
+    const messages = this.pendingMessages;
+    this.pendingMessages = [];
+    const usage = this.pendingUsage;
+    this.pendingUsage = null;
+
+    const inserts: ConversationItemInsert[] = messages.map((item, index) => ({
+      kind: itemKind(item),
+      turnIndex: this.currentTurnIndex,
+      payload: item,
+      tokens: index === messages.length - 1 ? (usage ?? undefined) : undefined,
+    }));
+    await this.store.conversation.appendItems(inserts);
   }
 
   private async maintainWindow(): Promise<void> {
-    if (countUserTurns(this.log) <= this.keepLastTurns) return;
+    const { conversation } = this.store;
+    const tail = await conversation.queryHistory().afterLastSummary().execute();
+    if (countUserTurns(tail) <= this.keepLastTurns) return;
 
-    const { evicted, kept } = splitAtLastTurns(this.log, this.keepLastTurns);
+    const { evicted } = splitAtLastTurns(tail, this.keepLastTurns);
     if (!evicted.length) return;
 
-    const { text, usage } = await summarize(this.openai, this.summaryText, evicted);
-    addSummarizerUsage(this.usage, usage);
-    this.summaryText = text;
-    this.log = kept;
-  }
-
-  private persist(): void {
-    this.store.save({
-      summary: this.summaryText,
-      facts: this.factList,
-      sources: this.sourceList,
-      usage: this.usage,
+    const priorSummary = await conversation.readLatestSummaryText();
+    const { text, usage } = await summarize(this.openai, priorSummary, evicted);
+    await conversation.appendItem({
+      kind: "summary",
+      turnIndex: null,
+      payload: { content: text },
+      tokens: { summarizerTokens: usage?.total_tokens ?? 0 },
     });
   }
 }

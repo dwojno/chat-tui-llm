@@ -4,6 +4,7 @@ import type { ZodType } from "zod";
 import { MODEL } from "../../src/agent/config";
 import { SYSTEM_INSTRUCTIONS } from "../../src/agent/prompts";
 import { buildContextBlock } from "../../src/agent/dynamicContext/context";
+import { summaryDeveloperMessage } from "../../src/store/conversation/query";
 import { getFunctionCalls } from "../../src/agent/conversation/items";
 import { forkTools, mainTools } from "../../src/agent/tools";
 import { openai } from "./client";
@@ -61,14 +62,15 @@ function parseArgs(json: string): Record<string, unknown> {
  * are still passed so the model has the real menu of choices.
  */
 export async function probePrompt(spec: ProbeSpec): Promise<ProbeResult> {
+  const summary = spec.context?.summary ?? "";
+  const prefix = summary ? [summaryDeveloperMessage(summary)] : [];
   const contextItems = buildContextBlock({
     facts: spec.context?.facts ?? [],
-    summary: spec.context?.summary ?? "",
   });
 
   const response = await openai().responses.parse({
     model: MODEL,
-    input: [{ role: "user", content: spec.prompt }, ...contextItems],
+    input: [...prefix, { role: "user", content: spec.prompt }, ...contextItems],
     instructions: spec.instructions ?? SYSTEM_INSTRUCTIONS,
     text: spec.structuredOutput
       ? { format: zodTextFormat(spec.structuredOutput, "response_schema") }

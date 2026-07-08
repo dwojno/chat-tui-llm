@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { z } from "zod";
+import { extractConversationSummary } from "../dynamicContext/context";
 import { FORK_INSTRUCTIONS } from "../prompts";
 import { compressHandoff } from "./utils/handoff";
 import { DEFAULT_TURN_OPTIONS } from "../conversation/options";
@@ -55,7 +56,8 @@ async function* execute(
 ): AsyncGenerator<TurnEvent, string> {
   if (!ctx) throw new Error(`${DELEGATE_TASK_NAME} requires a tool context`);
 
-  const brief = buildForkBrief(ctx.context.summary, ctx.context.facts, task);
+  const summary = extractConversationSummary(ctx.messages);
+  const brief = buildForkBrief(summary, ctx.context.facts, task);
   const userMessage = {
     role: "user",
     content: brief,
@@ -71,7 +73,7 @@ async function* execute(
   for await (const event of ctx.runTurn(
     [userMessage],
     { ...DEFAULT_TURN_OPTIONS, stream: false },
-    { facts: ctx.context.facts, summary: "" },
+    { facts: ctx.context.facts },
     profile,
   )) {
     switch (event.type) {

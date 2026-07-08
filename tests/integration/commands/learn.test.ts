@@ -24,7 +24,12 @@ describe("learn command", () => {
   it("indexes valid @files and reports missing ones", async () => {
     writeFileSync("note.txt", "hello");
     const { client } = createMockOpenAI();
-    const session = new Session(new AgentService(client), client, createMemoryStore(), 4);
+    const session = await Session.create(
+      new AgentService(client),
+      client,
+      await createMemoryStore(),
+      4,
+    );
     const push = vi.fn();
     const ctx: CommandContext = {
       temperature: 0.5,
@@ -34,7 +39,7 @@ describe("learn command", () => {
 
     const action = await runCommand("/learn @note.txt @missing.txt", ctx);
     expect(action).toEqual({ kind: "handled" });
-    expect(session.sources).toEqual(["note.txt"]);
+    expect(await session.sources()).toEqual(["note.txt"]);
     expect(push).toHaveBeenCalledWith(
       expect.objectContaining({
         role: "assistant",

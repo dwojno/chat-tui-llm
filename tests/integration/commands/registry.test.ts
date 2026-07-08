@@ -18,7 +18,7 @@ function makeCtx(overrides: Partial<CommandContext> = {}) {
     session: {
       addFact,
       addSources,
-      sources: [],
+      sources: vi.fn().mockResolvedValue([]),
       ...overrides.session,
     } as unknown as Session,
     chat: { push, ...overrides.chat } as unknown as ChatHandle,
@@ -106,7 +106,9 @@ describe("runCommand", () => {
 
   it("/sources lists indexed files", async () => {
     const { ctx, push } = makeCtx({
-      session: { sources: ["src/a.ts", "tests/b.ts"] } as unknown as Session,
+      session: {
+        sources: vi.fn().mockResolvedValue(["src/a.ts", "tests/b.ts"]),
+      } as unknown as Session,
     });
     const action = await runCommand("/sources", ctx);
     expect(action).toEqual({ kind: "handled" });

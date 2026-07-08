@@ -17,16 +17,16 @@ export interface SummaryResult {
 
 export async function summarize(
   openai: OpenAI,
-  previousSummary: string,
+  priorSummary: string,
   evicted: ResponseInputItem[],
 ): Promise<SummaryResult> {
   const transcript = renderItemsText(evicted);
   const input = [
-    previousSummary ? `Prior summary:\n${previousSummary}\n` : "",
+    priorSummary ? `Prior summary:\n${priorSummary}` : "",
     `New turns to fold in:\n${transcript}`,
   ]
     .filter(Boolean)
-    .join("\n");
+    .join("\n\n");
 
   const response = await openai.responses.create({
     model: MODEL,

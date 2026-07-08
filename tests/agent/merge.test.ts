@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mergeGenerators } from "../../src/agent/events/merge";
 
-async function* gen<T, R>(
-  yields: T[],
-  result: R,
-  delayMs = 0,
-): AsyncGenerator<T, R> {
+async function* gen<T, R>(yields: T[], result: R, delayMs = 0): AsyncGenerator<T, R> {
   for (const value of yields) {
     if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
     yield value;
@@ -26,10 +22,7 @@ async function collect<T, R>(
 
 describe("mergeGenerators", () => {
   it("yields every event from all generators and returns results in input order", async () => {
-    const { events, result } = await collect([
-      gen(["a1", "a2"], "A"),
-      gen(["b1"], "B"),
-    ]);
+    const { events, result } = await collect([gen(["a1", "a2"], "A"), gen(["b1"], "B")]);
 
     expect([...events].toSorted()).toEqual(["a1", "a2", "b1"]);
     expect(result).toEqual(["A", "B"]);
@@ -50,10 +43,7 @@ describe("mergeGenerators", () => {
   });
 
   it("interleaves events as they arrive from concurrent generators", async () => {
-    const { events, result } = await collect([
-      gen(["slow"], "S", 20),
-      gen(["fast"], "F", 0),
-    ]);
+    const { events, result } = await collect([gen(["slow"], "S", 20), gen(["fast"], "F", 0)]);
 
     expect(events).toContain("slow");
     expect(events).toContain("fast");

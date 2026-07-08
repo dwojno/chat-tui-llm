@@ -45,11 +45,16 @@ interface Harness {
   ctx: CommandContext;
   run: (line: string) => Promise<"exit" | "continue">;
   lastAssistant: () => Message | undefined;
-  toolOutputs: () => string[];
+  toolOutputs: () => Promise<string[]>;
 }
 
-function setup(client: OpenAI): Harness {
-  const session = new Session(new AgentService(client), client, createMemoryStore(), 4);
+async function setup(client: OpenAI): Promise<Harness> {
+  const session = await Session.create(
+    new AgentService(client),
+    client,
+    await createMemoryStore(),
+    4,
+  );
   const chat = renderChat([], { interactive: false });
   const ctx: CommandContext = { temperature: 0.7, session, chat };
   return {
@@ -59,14 +64,14 @@ function setup(client: OpenAI): Harness {
     run: (line) => processLine(line, ctx, chat, session),
     lastAssistant: () => [...chat.messages].toReversed().find((m) => m.role === "assistant"),
     // The transcript's function_call_output entries carry tool results/errors.
-    toolOutputs: () =>
-      (session.transcript as unknown as Record<string, string>[])
+    toolOutputs: async () =>
+      ((await session.history()) as unknown as Record<string, string>[])
         .filter((i) => i.type === "function_call_output")
         .map((i) => i.output),
   };
 }
 
-const mocked = (turns: MockTurn[], compressions: string[] = []): Harness =>
+const mocked = async (turns: MockTurn[], compressions: string[] = []): Promise<Harness> =>
   setup(createMockOpenAI(turns, compressions).client);
 
 /** Stub global fetch (web_search's backend) with a canned implementation. */
@@ -91,7 +96,7 @@ afterEach(() => {
 
 describe("E2E: happy paths", () => {
   it("answers a plain message", async () => {
-    const h = mocked([{ text: "Hello!" }]);
+    const h = await mocked([{ text: "Hello!" }]);
     await h.run("hi there");
     expect(h.chat.messages).toEqual([
       { role: "user", content: "hi there" },
@@ -100,28 +105,28 @@ describe("E2E: happy paths", () => {
   });
 
   it("/remember pins a fact without a model turn", async () => {
-    const h = mocked([]);
+    const h = await mocked([]);
     const result = await h.run("/remember I like tea");
     expect(result).toBe("continue");
-    expect(h.session.facts).toContain("I like tea");
+    expect(await h.session.facts()).toContain("I like tea");
     expect(h.lastAssistant()?.content).toContain("Remembered");
   });
 
   it("exit stops the loop", async () => {
-    const h = mocked([]);
+    const h = await mocked([]);
     expect(await h.run("exit")).toBe("exit");
     expect(h.chat.messages).toEqual([]);
   });
 
   it("renders structured output as answer + sources", async () => {
-    const h = mocked([{ text: "", parsed: { answer: "42", sources: ["s1"] } }]);
+    const h = await mocked([{ text: "", parsed: { answer: "42", sources: ["s1"] } }]);
     await h.run("/structured what is the answer?");
     expect(h.lastAssistant()?.content).toBe("42\n\nSources: s1");
   });
 
   it("expands @file mentions for the model while keeping @refs in the transcript", async () => {
     const mock = createMockOpenAI([{ text: "summarized" }]);
-    const h = setup(mock.client);
+    const h = await setup(mock.client);
     const fixture = "tests/fixtures/small.txt";
 
     await h.run(`summarize @${fixture}`);
@@ -130,11 +135,12 @@ describe("E2E: happy paths", () => {
       role: "user",
       content: `summarize @${fixture}`,
     });
-    expect(h.session.transcript[0]).toMatchObject({
+    const transcript = await h.session.history();
+    expect(transcript[0]).toMatchObject({
       role: "user",
       content: expect.stringContaining('<file path="tests/fixtures/small.txt">'),
     });
-    expect(h.session.transcript[0]).toMatchObject({
+    expect(transcript[0]).toMatchObject({
       content: expect.stringContaining("hello from fixture"),
     });
     expect(h.lastAssistant()?.content).toBe("summarized");
@@ -144,13 +150,13 @@ describe("E2E: happy paths", () => {
 describe("E2E: bad LLM output", () => {
   it("renders an empty answer when structured output fails to parse", async () => {
     // Schema validation failed upstream → output_parsed is null.
-    const h = mocked([{ text: "", parsed: null }]);
+    const h = await mocked([{ text: "", parsed: null }]);
     await h.run("/structured give me json");
     expect(h.lastAssistant()).toMatchObject({ role: "assistant", content: "" });
   });
 
   it("commits an empty assistant turn when the model returns no text", async () => {
-    const h = mocked([{ text: "" }]);
+    const h = await mocked([{ text: "" }]);
     await h.run("say nothing");
     expect(h.lastAssistant()?.content).toBe("");
   });
@@ -158,32 +164,32 @@ describe("E2E: bad LLM output", () => {
 
 describe("E2E: tool-call failures recover via the error-output path", () => {
   it("unknown tool → error fed back → model recovers", async () => {
-    const h = mocked([
+    const h = await mocked([
       { calls: [{ name: "do_magic", arguments: {} }] },
       { text: "I could not do that, here is a normal answer." },
     ]);
     await h.run("do magic");
-    expect(h.toolOutputs()[0]).toMatch(/Unknown tool: do_magic/);
+    expect((await h.toolOutputs())[0]).toMatch(/Unknown tool: do_magic/);
     expect(h.lastAssistant()?.content).toContain("normal answer");
   });
 
   it("malformed tool arguments → schema error fed back → recovers", async () => {
-    const h = mocked([
+    const h = await mocked([
       { calls: [{ name: "get_weather_data", arguments: {} }] }, // missing `city`
       { text: "Which city did you mean?" },
     ]);
     await h.run("weather?");
-    expect(h.toolOutputs()[0]).toMatch(/^Error:/);
+    expect((await h.toolOutputs())[0]).toMatch(/^Error:/);
     expect(h.lastAssistant()?.content).toContain("city");
   });
 
   it("invalid JSON arguments → parse error fed back → recovers", async () => {
-    const h = mocked([
+    const h = await mocked([
       { calls: [{ name: "get_weather_data", arguments: "not json" }] },
       { text: "recovered from bad json" },
     ]);
     await h.run("weather?");
-    expect(h.toolOutputs()[0]).toMatch(/^Error:/);
+    expect((await h.toolOutputs())[0]).toMatch(/^Error:/);
     expect(h.lastAssistant()?.content).toContain("recovered");
   });
 
@@ -192,16 +198,16 @@ describe("E2E: tool-call failures recover via the error-output path", () => {
       calls: [{ name: "do_magic", arguments: {} }],
     }));
     turns.push({ text: "forced final answer" });
-    const h = mocked(turns);
+    const h = await mocked(turns);
     await h.run("loop please");
-    expect(h.toolOutputs()).toHaveLength(8);
+    expect(await h.toolOutputs()).toHaveLength(8);
     expect(h.lastAssistant()?.content).toBe("forced final answer");
   });
 });
 
 describe("E2E: model/API failure", () => {
   it("surfaces an API error in the transcript instead of crashing the REPL", async () => {
-    const h = setup(createThrowingOpenAI("API down"));
+    const h = await setup(createThrowingOpenAI("API down"));
     const result = await h.run("hello");
     expect(result).toBe("continue"); // REPL survives
     expect(h.lastAssistant()?.content).toBe("⚠️ API down");
@@ -211,7 +217,7 @@ describe("E2E: model/API failure", () => {
 describe("E2E: delegation", () => {
   it("streams the sub-agent tool activity and folds in the handoff", async () => {
     stubFetch(() => searchHits([{ title: "SSR", snippet: "renders on the <b>server</b>" }]));
-    const h = mocked(
+    const h = await mocked(
       [
         {
           calls: [
@@ -248,7 +254,7 @@ describe("E2E: delegation", () => {
     stubFetch(() => {
       throw new Error("network down");
     });
-    const h = mocked(
+    const h = await mocked(
       [
         {
           calls: [
@@ -275,7 +281,7 @@ describe("E2E: delegation", () => {
         name: "TimeoutError",
       });
     });
-    const h = mocked(
+    const h = await mocked(
       [
         {
           calls: [
@@ -297,12 +303,12 @@ describe("E2E: delegation", () => {
   });
 
   it("malformed delegate arguments → error fed back → recovers", async () => {
-    const h = mocked([
+    const h = await mocked([
       { calls: [{ name: "delegate_task", arguments: { title: "X" } }] }, // missing `task`
       { text: "handled the bad delegation" },
     ]);
     await h.run("delegate badly");
-    expect(h.toolOutputs()[0]).toMatch(/^Error:/);
+    expect((await h.toolOutputs())[0]).toMatch(/^Error:/);
     expect(h.lastAssistant()?.content).toContain("handled");
   });
 
@@ -327,7 +333,7 @@ describe("E2E: delegation", () => {
       ],
       ["DIGEST A", "DIGEST B"],
     );
-    const h = setup(mock.client);
+    const h = await setup(mock.client);
 
     await h.run("do two things");
 

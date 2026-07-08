@@ -7,10 +7,10 @@ export const rememberCommand: Command = {
   completion: PREFIX,
   hint: "pin a fact to long-term memory",
   matches: (input) => input.startsWith(PREFIX),
-  run: (input, { session, chat }) => {
+  run: async (input, { session, chat }) => {
     const fact = input.slice(PREFIX.length).trim();
     if (fact) {
-      session.addFact(fact);
+      await session.addFact(fact);
       chat.push({ role: "user", content: input });
       chat.push({ role: "assistant", content: `📌 Remembered: ${fact}` });
     }

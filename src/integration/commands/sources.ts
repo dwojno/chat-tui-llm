@@ -7,13 +7,14 @@ export const sourcesCommand: Command = {
   completion: COMMAND,
   hint: "list indexed RAG source files",
   matches: (input) => input.trim() === COMMAND,
-  run: (input, { session, chat }) => {
+  run: async (input, { session, chat }) => {
     chat.push({ role: "user", content: input.trim() });
 
+    const paths = await session.sources();
     const content =
-      session.sources.length === 0
+      paths.length === 0
         ? "No sources indexed yet. Use /learn @file to add one."
-        : ["Indexed sources:", ...session.sources.map((path) => `  - ${path}`)].join("\n");
+        : ["Indexed sources:", ...paths.map((path) => `  - ${path}`)].join("\n");
 
     chat.push({ role: "assistant", content });
     return { kind: "handled" };

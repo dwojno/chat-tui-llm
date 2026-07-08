@@ -14,7 +14,7 @@ import { AgentConfig } from "./config/types";
 import { DEFAULT_CACHE_KEY, MAX_TOOL_STEPS, MODEL } from "./config";
 import { SYSTEM_INSTRUCTIONS } from "./prompts";
 
-const EMPTY_CONTEXT: TurnContext = { facts: [], summary: "" };
+const EMPTY_CONTEXT: TurnContext = { facts: [] };
 
 export type { TurnContext } from "./conversation/turn";
 
@@ -45,7 +45,6 @@ export class AgentService {
         ...input,
         ...buildContextBlock({
           facts: context.facts,
-          summary: context.summary,
         }),
       ],
       instructions: profile.instructions,
@@ -90,20 +89,25 @@ export class AgentService {
     return response;
   }
 
-  private toolContext(context: TurnContext): ToolRunContext {
+  private toolContext(
+    context: TurnContext,
+    messages: readonly ResponseInputItem[],
+  ): ToolRunContext {
     return {
       openai: this.openai,
       context,
-      runTurn: (messages, options, ctx, profile) => this.run(messages, options, ctx, profile),
+      messages,
+      runTurn: (msgs, options, ctx, profile) => this.run(msgs, options, ctx, profile),
     };
   }
 
   private async *executeCall(
     call: { name: string; arguments: string },
     context: TurnContext,
+    messages: readonly ResponseInputItem[],
   ): AsyncGenerator<TurnEvent, string> {
     try {
-      return yield* executeToolCall(call.name, call.arguments, this.toolContext(context));
+      return yield* executeToolCall(call.name, call.arguments, this.toolContext(context, messages));
     } catch (error) {
       return `Error: ${error instanceof Error ? error.message : String(error)}`;
     }
@@ -138,7 +142,7 @@ export class AgentService {
       }
 
       const { events, results } = mergeGenerators(
-        calls.map((call) => this.executeCall(call, context)),
+        calls.map((call) => this.executeCall(call, context, input)),
       );
       for await (const event of events) {
         yield event;

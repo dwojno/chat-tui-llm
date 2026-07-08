@@ -1,6 +1,6 @@
 import type { OpenAI } from "openai";
 import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
-import type { ConversationStore, PersistedState } from "../../src/integration/store/types";
+import { LocalStore, type Store } from "../../src/store/store";
 
 /** Drive an async generator to completion and return its final value. */
 export async function drainToReturn<R>(gen: AsyncGenerator<unknown, R>): Promise<R> {
@@ -172,19 +172,7 @@ export function createThrowingOpenAI(message = "API unavailable"): OpenAI {
   } as unknown as OpenAI;
 }
 
-/**
- * An in-memory {@link ConversationStore} for exercising a Session offline. Holds
- * one snapshot; `saved` exposes the last persisted state for assertions.
- */
-export function createMemoryStore(initial: PersistedState | null = null): ConversationStore & {
-  saved: () => PersistedState | null;
-} {
-  let current = initial;
-  return {
-    load: () => current,
-    save: (state: PersistedState) => {
-      current = structuredClone(state);
-    },
-    saved: () => current,
-  };
+/** An ephemeral `:memory:` SQLite {@link Store} for exercising a Session offline. */
+export function createMemoryStore(): Promise<Store> {
+  return LocalStore.open(":memory:");
 }

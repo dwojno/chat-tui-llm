@@ -45,15 +45,15 @@ export async function processLine(
             detail: event.detail,
             fork: event.fork,
           });
-          chat.setUsage(session.usageTotals);
+          void session.getUsageTotals().then((usage) => chat.setUsage(usage));
           break;
         case "status":
           chat.addStep({ label: event.text, fork: event.fork });
-          chat.setUsage(session.usageTotals);
+          void session.getUsageTotals().then((usage) => chat.setUsage(usage));
           break;
         case "answer":
           chat.commitStreaming(event.content);
-          chat.setUsage(session.usageTotals);
+          void session.getUsageTotals().then((usage) => chat.setUsage(usage));
           break;
       }
     }
@@ -78,15 +78,17 @@ export async function runRepl({
 
   sigint.signal.addEventListener("abort", () => {
     chat.unmount();
-    writeSync(1, `\n${session.report()}\n`);
-    process.exit(0);
+    void session.report().then((report) => {
+      writeSync(1, `\n${report}\n`);
+      process.exit(0);
+    });
   });
 
   process.on("SIGINT", shutdown);
 
   const ctx: CommandContext = { temperature, session, chat };
 
-  chat.setUsage(session.usageTotals);
+  chat.setUsage(await session.getUsageTotals());
 
   if (interactive) {
     chat.onExit(shutdown);

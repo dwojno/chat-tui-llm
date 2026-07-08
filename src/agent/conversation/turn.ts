@@ -5,7 +5,6 @@ import type { TurnOptions } from "./options";
 
 export type TurnContext = {
   facts: readonly string[];
-  summary: string;
 };
 
 export type OpenAITool = {
@@ -33,5 +32,6 @@ export type RunTurn = (
 export interface ToolRunContext {
   openai: OpenAI;
   context: TurnContext;
+  messages: readonly ResponseInputItem[];
   runTurn: RunTurn;
 }

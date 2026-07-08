@@ -1,3 +1,3 @@
 export const KEEP_LAST_TURNS = 4;
 
-export const STATE_FILE = ".chat-state/session.json";
+export const DB_PATH = ".chat-state/chat.db";

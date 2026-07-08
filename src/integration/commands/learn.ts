@@ -33,7 +33,7 @@ export const learnCommand: Command = {
       }),
     );
 
-    const added = session.addSources(valid);
+    const added = await session.addSources(valid);
     const alreadyIndexed = valid.filter((path) => !added.includes(path));
 
     const lines: string[] = [];
