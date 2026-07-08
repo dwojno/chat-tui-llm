@@ -116,6 +116,27 @@ describe("E2E: happy paths", () => {
     await h.run("/structured what is the answer?");
     expect(h.lastAssistant()?.content).toBe("42\n\nSources: s1");
   });
+
+  it("expands @file mentions for the model while keeping @refs in the transcript", async () => {
+    const mock = createMockOpenAI([{ text: "summarized" }]);
+    const h = setup(mock.client);
+    const fixture = "tests/fixtures/small.txt";
+
+    await h.run(`summarize @${fixture}`);
+
+    expect(h.chat.messages[0]).toEqual({
+      role: "user",
+      content: `summarize @${fixture}`,
+    });
+    expect(h.service.items[0]).toMatchObject({
+      role: "user",
+      content: expect.stringContaining('<file path="tests/fixtures/small.txt">'),
+    });
+    expect(h.service.items[0]).toMatchObject({
+      content: expect.stringContaining("hello from fixture"),
+    });
+    expect(h.lastAssistant()?.content).toBe("summarized");
+  });
 });
 
 describe("E2E: bad LLM output", () => {

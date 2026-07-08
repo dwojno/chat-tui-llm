@@ -1,6 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { render, Box, Text, Static, useInput, type TextProps } from "ink";
 import { slashCommandCatalog, type SlashCommandInfo } from "../commands/registry";
+import {
+  matchFileMentionToken,
+  suggestFilesAtCursor,
+  type FileSuggestion,
+} from "./file-suggestions";
 import Markdown from "./markdown";
 
 export type Role = "user" | "assistant";
@@ -204,8 +209,8 @@ function Welcome(): React.JSX.Element {
       </Text>
       <Text dimColor>Type a message and press Enter to start chatting.</Text>
       <Text dimColor>
-        Press <Text color="yellow">/</Text> for commands · <Text color="yellow">exit</Text> or
-        Ctrl+C to quit.
+        Press <Text color="yellow">@</Text> to attach a file · <Text color="yellow">/</Text> for
+        commands · <Text color="yellow">exit</Text> or Ctrl+C to quit.
       </Text>
     </Box>
   );
@@ -220,6 +225,47 @@ const SLASH_COMMANDS: SlashCommandInfo[] = slashCommandCatalog();
 function matchSuggestions(value: string): SlashCommandInfo[] {
   if (!/^\/\S*$/.test(value)) return [];
   return SLASH_COMMANDS.filter((command) => command.completion.startsWith(value));
+}
+
+type ActiveSuggestions =
+  | { kind: "slash"; items: SlashCommandInfo[] }
+  | { kind: "file"; items: FileSuggestion[] };
+
+function activeSuggestions(value: string, cursor: number): ActiveSuggestions | null {
+  const slash = matchSuggestions(value);
+  if (slash.length) return { kind: "slash", items: slash };
+  const files = suggestFilesAtCursor(value, cursor);
+  if (files.length) return { kind: "file", items: files };
+  return null;
+}
+
+interface SuggestionMenuProps {
+  suggestions: ActiveSuggestions;
+  selected: number;
+}
+
+function SuggestionMenu({ suggestions, selected }: SuggestionMenuProps): React.JSX.Element {
+  const sel = Math.min(selected, suggestions.items.length - 1);
+
+  return (
+    <Box flexDirection="column" paddingLeft={2}>
+      {suggestions.kind === "slash"
+        ? suggestions.items.map((command, i) => (
+            <Text key={command.completion} color={i === sel ? "cyan" : "gray"}>
+              {i === sel ? "❯ " : "  "}
+              <Text bold={i === sel}>{command.completion.trim()}</Text>
+              <Text dimColor> — {command.hint}</Text>
+            </Text>
+          ))
+        : suggestions.items.map((file, i) => (
+            <Text key={file.path} color={i === sel ? "cyan" : "gray"}>
+              {i === sel ? "❯ " : "  "}
+              <Text bold={i === sel}>{file.label}</Text>
+            </Text>
+          ))}
+      <Text dimColor>{"  "}↑↓ to select · Tab/Enter to complete</Text>
+    </Box>
+  );
 }
 
 interface PromptInputProps {
@@ -239,14 +285,33 @@ function PromptInput({ active, onSubmit, onExit }: PromptInputProps): React.JSX.
   const [cursor, setCursor] = useState(0);
   const [selected, setSelected] = useState(0);
 
-  const suggestions = active ? matchSuggestions(value) : [];
-  const menuOpen = suggestions.length > 0;
-  const sel = menuOpen ? Math.min(selected, suggestions.length - 1) : 0;
+  const suggestions = useMemo(
+    () => (active ? activeSuggestions(value, cursor) : null),
+    [active, value, cursor],
+  );
+  const menuOpen = suggestions !== null;
+  const sel = menuOpen ? Math.min(selected, suggestions.items.length - 1) : 0;
 
-  const accept = (command: SlashCommandInfo): void => {
+  const acceptSlash = (command: SlashCommandInfo): void => {
     setValue(command.completion);
     setCursor(command.completion.length);
     setSelected(0);
+  };
+
+  const acceptFile = (file: FileSuggestion): void => {
+    const token = matchFileMentionToken(value, cursor);
+    if (!token) return;
+    const insertion = `@${file.path} `;
+    const next = value.slice(0, token.start) + insertion + value.slice(cursor);
+    setValue(next);
+    setCursor(token.start + insertion.length);
+    setSelected(0);
+  };
+
+  const acceptHighlighted = (): void => {
+    if (!suggestions) return;
+    if (suggestions.kind === "slash") acceptSlash(suggestions.items[sel]);
+    else acceptFile(suggestions.items[sel]);
   };
 
   useInput((input, key) => {
@@ -260,24 +325,26 @@ function PromptInput({ active, onSubmit, onExit }: PromptInputProps): React.JSX.
     if (!active) return;
 
     if (key.upArrow) {
-      if (menuOpen) {
-        setSelected((s) => (s - 1 + suggestions.length) % suggestions.length);
+      if (menuOpen && suggestions) {
+        setSelected((s) => (s - 1 + suggestions.items.length) % suggestions.items.length);
       }
       return;
     }
     if (key.downArrow) {
-      if (menuOpen) setSelected((s) => (s + 1) % suggestions.length);
+      if (menuOpen && suggestions) {
+        setSelected((s) => (s + 1) % suggestions.items.length);
+      }
       return;
     }
     if (key.tab) {
-      if (menuOpen) accept(suggestions[sel]);
+      if (menuOpen) acceptHighlighted();
       return;
     }
     if (key.return) {
       // With the menu open, Enter accepts the highlighted command; otherwise it
       // submits the line.
       if (menuOpen) {
-        accept(suggestions[sel]);
+        acceptHighlighted();
         return;
       }
       const line = value;
@@ -341,18 +408,7 @@ function PromptInput({ active, onSubmit, onExit }: PromptInputProps): React.JSX.
         <Text inverse>{atCursor}</Text>
         <Text>{after}</Text>
       </Box>
-      {menuOpen && (
-        <Box flexDirection="column" paddingLeft={2}>
-          {suggestions.map((command, i) => (
-            <Text key={command.completion} color={i === sel ? "cyan" : "gray"}>
-              {i === sel ? "❯ " : "  "}
-              <Text bold={i === sel}>{command.completion.trim()}</Text>
-              <Text dimColor> — {command.hint}</Text>
-            </Text>
-          ))}
-          <Text dimColor>{"  "}↑↓ to select · Tab/Enter to complete</Text>
-        </Box>
-      )}
+      {menuOpen && suggestions && <SuggestionMenu suggestions={suggestions} selected={sel} />}
     </Box>
   );
 }

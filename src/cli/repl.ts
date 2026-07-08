@@ -2,6 +2,7 @@ import { writeSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { runCommand } from "../commands/registry";
 import type { CommandContext } from "../commands/types";
+import { expandFileMentions } from "../conversation/file-mentions";
 import type { ConversationService } from "../conversation/service";
 import type { SessionState } from "../conversation/state";
 import type { ChatHandle } from "../ui/chat";
@@ -38,8 +39,9 @@ export async function processLine(
   try {
     chat.push({ role: "user", content: action.content });
 
+    const expanded = await expandFileMentions(action.content);
     chat.setStreaming("");
-    for await (const event of conversation.run(action.content, action.options)) {
+    for await (const event of conversation.run(expanded, action.options)) {
       switch (event.type) {
         case "delta":
           chat.appendStreaming(event.text);
