@@ -62,16 +62,29 @@ pnpm start -- --temperature 0.2   # -t for short; default 0.7
 
 At the `>` prompt, type a message for a streaming reply, or use a command:
 
-| Command                | Description                                                       |
-| ---------------------- | ----------------------------------------------------------------- |
-| `/remember <fact>`     | Pin a fact; injected into every later turn (survives truncation)  |
-| `/learn @file [@…]`    | Convert, upload, chunk, embed and index files for RAG             |
-| `/sources`             | List the files indexed in the current profile                     |
-| `/reindex`             | Re-index every source in the current profile                      |
-| `/profile`             | Switch or create a profile (each has its own bucket + collection) |
-| `/json <prompt>`       | Reply in JSON output mode                                         |
-| `/structured <prompt>` | Reply validated against a Zod schema (answer + sources)           |
-| `exit`                 | Leave the REPL (Ctrl+C / Ctrl+D also work)                        |
+| Command                | Description                                                              |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `/remember <fact>`     | Pin a fact; injected into every later turn (survives truncation)         |
+| `/learn @file [@…]`    | Convert, upload, chunk, embed and index files for RAG                    |
+| `/sources`             | List the files indexed in the current profile                           |
+| `/reindex`             | Re-index every source in the current profile                            |
+| `/profile`             | Switch or create a profile — each has its own bucket, collection + facts |
+| `/conversation`        | Switch or start a conversation (chat session) within the current profile |
+| `/json <prompt>`       | Reply in JSON output mode                                                |
+| `/structured <prompt>` | Reply validated against a Zod schema (answer + sources)                  |
+| `exit`                 | Leave the REPL (Ctrl+C / Ctrl+D also work)                               |
+
+`/profile` and `/conversation` open an interactive picker: choose an existing entry or create a new one, and the transcript, summary, pinned facts, and knowledge base swap to that context. A **profile** is an isolated workspace (its own MinIO bucket, Qdrant collection, and pinned facts); a **conversation** is a distinct chat thread inside a profile, so you can keep several running side by side without their histories bleeding together.
+
+### Attaching files with `@file`
+
+Prefix any path with `@` to pull that file into the model's context — it works in a normal message, not just `/learn`. On send, each `@path` is resolved relative to the current directory and its contents are inlined into the prompt wrapped in a `<file path="…">` block:
+
+```
+> summarize @src/agent/agent.ts and compare it to @docs/architecture.md
+```
+
+Mentions are sandboxed to the working directory (no escaping via `..` or symlinks), binary files are skipped, and reads are capped (32 KB per file, 100 KB total) so a stray `@node_modules/...` can't blow the context window. Use `@file` for a one-off look at a file in the current turn; use `/learn @file` to persist it into the searchable knowledge base for every later turn.
 
 On exit, a token-savings report compares actual input tokens against a naive "re-send everything" baseline — the payoff of the context management above.
 
