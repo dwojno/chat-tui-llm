@@ -4,14 +4,14 @@ export type Role = "user" | "assistant";
 
 export interface Step {
   label: string;
-  detail?: string;
-  fork?: string;
+  detail?: string | undefined;
+  fork?: string | undefined;
 }
 
 export interface Message {
   role: Role;
   content: string;
-  steps?: Step[];
+  steps?: Step[] | undefined;
 }
 
 export interface LiveTurn {
@@ -22,7 +22,7 @@ export interface LiveTurn {
 interface RoleMeta {
   label: string;
   icon: string;
-  color: TextProps["color"];
+  color: NonNullable<TextProps["color"]>;
 }
 
 export const ROLE_META: Record<Role, RoleMeta> = {

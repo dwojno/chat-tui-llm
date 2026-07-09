@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 
@@ -129,7 +130,9 @@ export function matchFileMentionToken(
   const before = value.slice(0, cursor);
   const match = before.match(/@([^\s@]*)$/);
   if (!match || match.index === undefined) return null;
-  return { query: match[1], start: match.index };
+  const query = match[1];
+  assert(query !== undefined);
+  return { query, start: match.index };
 }
 
 export function suggestFilesAtCursor(

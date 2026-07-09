@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import assert from "node:assert";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import {
   countUserTurns,
@@ -30,7 +31,9 @@ describe("function-call helpers", () => {
     expect(hasFunctionCalls(output)).toBe(true);
     const calls = getFunctionCalls(output);
     expect(calls).toHaveLength(1);
-    expect(calls[0].name).toBe("get_weather_data");
+    const call = calls[0];
+    assert(call !== undefined);
+    expect(call.name).toBe("get_weather_data");
   });
 
   it("reports no function calls for a plain message", () => {

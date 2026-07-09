@@ -12,10 +12,10 @@ export type { Message, Step, Role } from "./types";
 
 interface ChatProps {
   messages: Message[];
-  live?: LiveTurn;
+  live?: LiveTurn | undefined;
   interactive: boolean;
   inputActive: boolean;
-  usage?: UsageSnapshot;
+  usage?: UsageSnapshot | undefined;
   onSubmit(line: string): void;
   onExit(): void;
 }

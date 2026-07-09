@@ -26,7 +26,7 @@ describe("summarize", () => {
     expect(result.text).toBe("a tidy summary");
     expect(result.usage).toBeDefined();
 
-    const params = create.mock.calls[0][0] as {
+    const params = create.mock.calls[0]![0] as {
       input: string;
       temperature: number;
     };
@@ -39,7 +39,7 @@ describe("summarize", () => {
   it("omits the prior-summary section when there is none", async () => {
     const { client, create } = fakeOpenAI("fresh");
     await summarize(client, "", evicted);
-    const params = create.mock.calls[0][0] as { input: string };
+    const params = create.mock.calls[0]![0] as { input: string };
     expect(params.input).not.toContain("Prior summary:");
   });
 });

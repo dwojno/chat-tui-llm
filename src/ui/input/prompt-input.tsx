@@ -51,8 +51,13 @@ export function PromptInput({
 
   const acceptHighlighted = (): void => {
     if (!suggestions) return;
-    if (suggestions.kind === "slash") acceptSlash(suggestions.items[sel]);
-    else acceptFile(suggestions.items[sel]);
+    if (suggestions.kind === "slash") {
+      const item = suggestions.items[sel];
+      if (item) acceptSlash(item);
+    } else {
+      const item = suggestions.items[sel];
+      if (item) acceptFile(item);
+    }
   };
 
   useInput((input, key) => {

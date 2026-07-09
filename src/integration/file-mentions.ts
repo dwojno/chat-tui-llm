@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 
@@ -80,7 +81,7 @@ export function parseFileMentions(text: string): string[] {
 
   for (const match of text.matchAll(MENTION_RE)) {
     const path = match[1];
-    if (!seen.has(path)) {
+    if (path && !seen.has(path)) {
       seen.add(path);
       paths.push(path);
     }
@@ -106,11 +107,13 @@ export async function expandFileMentions(text: string, cwd = process.cwd()): Pro
       break;
     }
 
+    const path = paths[i];
+    assert(path !== undefined);
     const buffer = reads[i];
     if (!buffer || looksBinary(buffer)) continue;
 
     const content = decodeFileContent(buffer);
-    const block = wrapFile(paths[i], content);
+    const block = wrapFile(path, content);
     if (totalBytes + block.length > MAX_TOTAL_BYTES) {
       skipped = true;
       break;

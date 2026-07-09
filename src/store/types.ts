@@ -20,7 +20,7 @@ export interface ConversationItemInsert {
   kind: ItemKind;
   turnIndex: number | null;
   payload: ResponseInputItem | { content: string };
-  tokens?: Partial<TokenColumns>;
+  tokens?: Partial<TokenColumns> | undefined;
 }
 
 export interface SessionMeta {

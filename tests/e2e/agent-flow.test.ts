@@ -65,7 +65,7 @@ async function setup(client: OpenAI): Promise<Harness> {
     lastAssistant: () => [...chat.messages].toReversed().find((m) => m.role === "assistant"),
     // The transcript's function_call_output entries carry tool results/errors.
     toolOutputs: async () =>
-      ((await session.history()) as unknown as Record<string, string>[])
+      ((await session.history()) as unknown as Array<{ type: string; output: string }>)
         .filter((i) => i.type === "function_call_output")
         .map((i) => i.output),
   };

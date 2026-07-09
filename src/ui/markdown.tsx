@@ -69,13 +69,15 @@ function renderBlocks(source: string): React.ReactNode[] {
   let key = 0;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = lines[i] ?? "";
 
     if (FENCE.test(line)) {
       const code: string[] = [];
       i++;
-      while (i < lines.length && !FENCE.test(lines[i])) {
-        code.push(lines[i]);
+      while (i < lines.length) {
+        const codeLine = lines[i];
+        if (codeLine === undefined || FENCE.test(codeLine)) break;
+        code.push(codeLine);
         i++;
       }
       blocks.push(
@@ -108,7 +110,7 @@ function renderBlocks(source: string): React.ReactNode[] {
     if (heading) {
       blocks.push(
         <Text key={key++} bold color="cyan">
-          {renderInline(heading[2])}
+          {renderInline(heading[2] ?? "")}
         </Text>,
       );
       continue;
@@ -119,7 +121,7 @@ function renderBlocks(source: string): React.ReactNode[] {
       blocks.push(
         <Text key={key++} color="gray">
           {"│ "}
-          {renderInline(quote[1])}
+          {renderInline(quote[1] ?? "")}
         </Text>,
       );
       continue;
@@ -131,7 +133,7 @@ function renderBlocks(source: string): React.ReactNode[] {
         <Text key={key++}>
           {ordered[1]}
           {`${ordered[2]}. `}
-          {renderInline(ordered[3])}
+          {renderInline(ordered[3] ?? "")}
         </Text>,
       );
       continue;
@@ -143,7 +145,7 @@ function renderBlocks(source: string): React.ReactNode[] {
         <Text key={key++}>
           {unordered[1]}
           {"• "}
-          {renderInline(unordered[2])}
+          {renderInline(unordered[2] ?? "")}
         </Text>,
       );
       continue;

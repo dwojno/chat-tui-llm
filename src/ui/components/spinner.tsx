@@ -9,7 +9,7 @@ export function Spinner({
   color,
 }: {
   label: string;
-  color: TextProps["color"];
+  color: NonNullable<TextProps["color"]>;
 }): React.JSX.Element {
   const frame = useAnimationFrame(SPINNER_FRAMES.length, 80);
   return (
@@ -19,7 +19,7 @@ export function Spinner({
   );
 }
 
-export function Cursor({ color }: { color: TextProps["color"] }): React.JSX.Element {
+export function Cursor({ color }: { color: NonNullable<TextProps["color"]> }): React.JSX.Element {
   const frame = useAnimationFrame(2, 450);
   return <Text color={color}>{frame === 0 ? "▋" : " "}</Text>;
 }

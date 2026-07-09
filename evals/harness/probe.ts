@@ -68,13 +68,15 @@ export async function probePrompt(spec: ProbeSpec): Promise<ProbeResult> {
     facts: spec.context?.facts ?? [],
   });
 
+  const text = spec.structuredOutput
+    ? { format: zodTextFormat(spec.structuredOutput, "response_schema") }
+    : undefined;
+
   const response = await openai().responses.parse({
     model: MODEL,
     input: [...prefix, { role: "user", content: spec.prompt }, ...contextItems],
     instructions: spec.instructions ?? SYSTEM_INSTRUCTIONS,
-    text: spec.structuredOutput
-      ? { format: zodTextFormat(spec.structuredOutput, "response_schema") }
-      : undefined,
+    ...(text ? { text } : {}),
     temperature: spec.temperature ?? 0,
     max_output_tokens: 1000,
     store: false,

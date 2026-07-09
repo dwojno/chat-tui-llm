@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import type { OpenAI } from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { toResponseInputItems } from "openai/lib/responses/ResponseInputItems.mjs";
@@ -39,6 +40,12 @@ export class AgentService {
     profile: TurnProfile,
     forbidTools: boolean,
   ) {
+    const text = options.structured_output
+      ? { format: zodTextFormat(options.structured_output, "response_schema") }
+      : options.json_mode
+        ? { format: { type: "json_object" as const } }
+        : undefined;
+
     return {
       model: MODEL,
       input: [
@@ -48,15 +55,11 @@ export class AgentService {
         }),
       ],
       instructions: profile.instructions,
-      text: options.structured_output
-        ? {
-            format: zodTextFormat(options.structured_output, "response_schema"),
-          }
-        : options.json_mode
-          ? { format: { type: "json_object" as const } }
-          : undefined,
-      temperature: options.temperature,
-      max_output_tokens: options.max_output_tokens,
+      ...(text ? { text } : {}),
+      ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
+      ...(options.max_output_tokens !== undefined
+        ? { max_output_tokens: options.max_output_tokens }
+        : {}),
       store: false as const,
       tools: forbidTools ? [] : profile.tools,
       prompt_cache_key: profile.cacheKey,
@@ -134,10 +137,11 @@ export class AgentService {
       const calls = getFunctionCalls(response.output);
 
       for (const call of calls) {
+        const detail = describeToolCall(call.name, call.arguments);
         yield {
           type: "tool",
           name: call.name,
-          detail: describeToolCall(call.name, call.arguments),
+          ...(detail !== undefined ? { detail } : {}),
         };
       }
 
@@ -150,10 +154,12 @@ export class AgentService {
       const outputs = await results;
 
       for (const [index, call] of calls.entries()) {
+        const output = outputs[index];
+        assert(output !== undefined);
         const outputItem: ResponseInputItem = {
           type: "function_call_output",
           call_id: call.call_id,
-          output: outputs[index],
+          output,
         };
         input.push(outputItem);
         yield { type: "message", item: outputItem };

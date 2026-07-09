@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import assert from "node:assert";
 import type { OpenAI } from "openai";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { compressHandoff } from "../../src/agent/tools/utils/handoff";
@@ -26,7 +27,9 @@ describe("compressHandoff", () => {
     expect(result.text).toBe("digest text");
     expect(result.usage).toBeDefined();
 
-    const params = create.mock.calls[0][0] as {
+    const call = create.mock.calls[0];
+    assert(call !== undefined);
+    const params = call[0] as {
       input: string;
       instructions: string;
     };
@@ -38,7 +41,9 @@ describe("compressHandoff", () => {
   it("includes the prior child summary when present", async () => {
     const { client, create } = fakeOpenAI("digest");
     await compressHandoff(client, childItems, "child was midway through");
-    const params = create.mock.calls[0][0] as { input: string };
+    const call = create.mock.calls[0];
+    assert(call !== undefined);
+    const params = call[0] as { input: string };
     expect(params.input).toContain("Prior child summary:");
     expect(params.input).toContain("child was midway through");
   });

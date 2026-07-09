@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import assert from "node:assert";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { messagesFromTranscript } from "../../src/ui/history";
 
@@ -44,8 +45,10 @@ describe("messagesFromTranscript", () => {
 
     const messages = messagesFromTranscript(items);
     expect(messages).toHaveLength(2);
-    expect(messages[1].role).toBe("assistant");
-    expect(messages[1].content).toBe("It's sunny.");
-    expect(messages[1].steps).toHaveLength(1);
+    const assistant = messages[1];
+    assert(assistant !== undefined);
+    expect(assistant.role).toBe("assistant");
+    expect(assistant.content).toBe("It's sunny.");
+    expect(assistant.steps).toHaveLength(1);
   });
 });
