@@ -40,6 +40,43 @@ src/eval/
 | `suites/structured-output.eval.ts`  | `/structured` `ResponseSchema`          | output validates as `{ answer, sources[] }`                                                                   |
 | `suites/summarizer.eval.ts`         | `summarizer.ts`                         | rolling summary stays short and keeps the facts                                                               |
 
+## RAG eval (end-to-end, real services)
+
+`suites/rag-eval.eval.ts` is unlike the others: it is a **true end-to-end test
+with no mocks**. Each run resets its own isolated Qdrant collection + MinIO
+bucket (`kb_eval-rag`), ingests the corpus in
+[`rag-corpus/`](rag-corpus/) through the app's production `store.sources`
+pipeline, then runs the **actual `AgentService` loop** (with the real
+store-backed RAG tools) once per query. `retrievedContext` is captured from the
+agent's genuine `search_knowledge_base` / `read_file` / `grep_files` tool
+outputs, so the RAGAS-style scorers (from
+[autoevals](https://github.com/braintrustdata/autoevals)) grade what the system
+actually retrieved and generated. The harness lives alongside the other eval
+machinery in [`harness/`](harness/) (`rag.ts`, `rag-scorers.ts`, `infra.ts`).
+
+```bash
+cp .env.example .env      # set OPENAI_API_KEY (defaults point at localhost)
+pnpm eval:rag             # auto-starts Qdrant+MinIO, ingests, runs the suite
+```
+
+Everything is automatic and fully programmatic — there are no CLIs to run. The
+suite calls `harness.setup()` in its `data()` step, which prepares the services
+(starts Qdrant + MinIO if they aren't up), wipes the suite's collection + bucket,
+and ingests the corpus through the production `store.sources` pipeline. (evalite's
+`setupFiles` also pre-warm the services via `harness/infra-setup.ts`, so the
+prompt-only suites don't pay for it.) Ingestion is idempotent — re-running
+re-indexes each file in place (no duplicates). Because generation goes through
+the real agent, a case only
+exercises retrieval when the model _chooses_ to call the search tool — a query
+it answers from parametric knowledge (or refuses) shows empty
+`retrievedContext`, which the scorers penalize. That is real system behaviour,
+surfaced honestly rather than hidden.
+
+Scorers: **Faithfulness** (answer grounded in retrieved context),
+**Answer Relevancy**, **Context Relevancy**, **Context Precision** (needs a
+ground-truth answer), and a hand-rolled **Admits Insufficient** judge for
+queries the corpus can't answer.
+
 ## How it fits together
 
 Evalite's model is `data → task → scorers`:

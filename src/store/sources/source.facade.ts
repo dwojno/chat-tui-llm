@@ -33,6 +33,7 @@ export abstract class SourcesFacade {
   abstract add(profileId: string, path: string): AsyncGenerator<SourceProgress, IndexResult>;
   abstract reindex(profileId: string): AsyncGenerator<SourceProgress, IndexResult[]>;
   abstract remove(profileId: string, id: number): Promise<void>;
+  abstract reset(profileId: string): Promise<void>;
   abstract search(profileId: string, query: string, opts?: SearchOptions): Promise<SearchHit[]>;
   abstract listFiles(profileId: string): Promise<string[]>;
   abstract grep(
@@ -117,6 +118,12 @@ export class SqliteSourcesFacade extends SourcesFacade {
     if (!row) return;
     await engine.removeDocument(profileId, row.path, row.s3Key ?? engine.s3KeyFor(row.path));
     this.repo.delete(id);
+  }
+
+  async reset(profileId: string): Promise<void> {
+    await this.engine().reset(profileId);
+    const rows = await this.repo.query().forProfile(profileId).execute();
+    if (rows.length) this.repo.delete(rows.map((row) => row.id));
   }
 
   async search(profileId: string, query: string, opts?: SearchOptions): Promise<SearchHit[]> {

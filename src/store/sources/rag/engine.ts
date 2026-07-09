@@ -135,6 +135,22 @@ export class RagEngine {
     await this.index.deleteByPath(profileId, path);
     await this.blob.remove(profileId, key);
   }
+
+  /**
+   * Wipe a profile's knowledge base: drop its Qdrant collection and clear every
+   * object in its bucket. Used to start an index over from scratch (and by the
+   * evals to guarantee a fresh, isolated index per run). SQLite bookkeeping is
+   * the facade's concern — this only touches the vector + object stores.
+   */
+  async reset(profileId: string): Promise<void> {
+    await this.index.dropCollection(profileId);
+    try {
+      const keys = await this.blob.list(profileId);
+      await Promise.all(keys.map((key) => this.blob.remove(profileId, key)));
+    } catch {
+      // Bucket may not exist yet — nothing to clear.
+    }
+  }
 }
 
 function truncate(text: string, max: number): string {
