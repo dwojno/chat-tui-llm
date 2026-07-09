@@ -11,15 +11,29 @@ import type { GrepMatch, GrepOptions, ReadRange, Store } from "../../store";
 export function createRagTools(store: Store): ToolDefinition<z.ZodType>[] {
   const searchParams = z.object({
     query: z.string().min(1).describe("Natural-language question to search the knowledge base for"),
-    limit: z.number().int().min(1).max(50).nullable().describe("Max results (null for default)"),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(50)
+      .nullable()
+      .describe(
+        "Max passages to return; null uses the default, which is enough for most " +
+          "questions. Only raise it when the top results clearly miss the answer — " +
+          "a larger limit returns more off-topic passages.",
+      ),
   });
   const searchTool: ToolDefinition<typeof searchParams> = {
     name: "search_knowledge_base",
     label: "Searching knowledge base",
     description:
       "Hybrid (dense + sparse, RRF-fused) semantic search over the current " +
-      "profile's indexed source files. Returns the best-matching passages with " +
-      "their file path and line range — cite these to the user.",
+      "profile's indexed source files, reranked to the most relevant passages. " +
+      "Returns the best-matching passages with their file path and line range — " +
+      "cite these to the user. Use a focused query naming the specific concept or " +
+      "entity you need, not the user's whole sentence; prefer one precise search " +
+      "over several broad ones. If a passage looks right but is cut off, expand it " +
+      "with read_file rather than searching again.",
     parameters: searchParams,
     async *execute({ query, limit }): AsyncGenerator<TurnEvent, string> {
       const hits = await store.sources.search(
@@ -72,7 +86,8 @@ export function createRagTools(store: Store): ToolDefinition<z.ZodType>[] {
     label: "Grepping knowledge base",
     description:
       "Regex-search the raw text of indexed files (streamed from object storage), " +
-      "returning matching lines as `path:line: text`.",
+      "returning matching lines as `path:line: text`. Use this for exact strings, " +
+      "identifiers, or error messages; use search_knowledge_base for conceptual questions.",
     parameters: grepParams,
     async *execute({ pattern, paths, ignoreCase, maxMatches }): AsyncGenerator<TurnEvent, string> {
       yield { type: "status", text: `grep /${pattern}/` };

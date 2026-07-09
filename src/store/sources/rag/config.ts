@@ -17,6 +17,19 @@ const schema = z.object({
   qdrantSparseModel: z.string().min(1).default("Qdrant/bm25"),
   chunkTokens: z.coerce.number().int().positive().default(512),
   chunkOverlap: z.coerce.number().int().nonnegative().default(64),
+  // Reranking: rescore a larger fused candidate pool by true relevance and keep
+  // only the best, so search returns fewer, on-topic passages instead of the
+  // top-N regardless of relevance.
+  rerankEnabled: z.boolean().default(true),
+  rerankModel: z.string().min(1).default("gpt-4o-mini"),
+  rerankCandidateMultiplier: z.coerce.number().int().positive().default(3),
+  rerankMaxCandidates: z.coerce.number().int().positive().default(24),
+  // Drop hits scoring below this fraction of the top hit (relative, since RRF
+  // scores have no meaningful absolute scale). Always keeps the top hit.
+  rerankRelativeCutoff: z.coerce.number().min(0).max(1).default(0.5),
+  // Snippet cap (chars). ~1200 ≈ a full 512-token chunk, so hits arrive whole
+  // rather than cut mid-sentence — better grounding now that there are fewer.
+  snippetMaxChars: z.coerce.number().int().positive().default(1200),
 });
 
 export type RagConfig = z.infer<typeof schema>;
@@ -35,6 +48,15 @@ export function loadRagConfig(env: Record<string, string | undefined> = process.
     qdrantSparseModel: env.QDRANT_SPARSE_MODEL,
     chunkTokens: env.RAG_CHUNK_TOKENS,
     chunkOverlap: env.RAG_CHUNK_OVERLAP,
+    // Explicit boolean parse: only the literal "false" disables it (z.coerce
+    // .boolean would treat any non-empty string, including "false", as true).
+    rerankEnabled:
+      env.RAG_RERANK_ENABLED === undefined ? undefined : env.RAG_RERANK_ENABLED !== "false",
+    rerankModel: env.RAG_RERANK_MODEL,
+    rerankCandidateMultiplier: env.RAG_RERANK_CANDIDATE_MULTIPLIER,
+    rerankMaxCandidates: env.RAG_RERANK_MAX_CANDIDATES,
+    rerankRelativeCutoff: env.RAG_RELATIVE_CUTOFF,
+    snippetMaxChars: env.RAG_SNIPPET_MAX_CHARS,
   });
   if (config.chunkOverlap >= config.chunkTokens) {
     throw new Error("RAG_CHUNK_OVERLAP must be smaller than RAG_CHUNK_TOKENS");

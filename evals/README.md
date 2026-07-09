@@ -72,10 +72,21 @@ it answers from parametric knowledge (or refuses) shows empty
 `retrievedContext`, which the scorers penalize. That is real system behaviour,
 surfaced honestly rather than hidden.
 
-Scorers: **Faithfulness** (answer grounded in retrieved context),
+RAGAS-style scorers: **Faithfulness** (answer grounded in retrieved context),
 **Answer Relevancy**, **Context Relevancy**, **Context Precision** (needs a
-ground-truth answer), and a hand-rolled **Admits Insufficient** judge for
+ground-truth answer), plus a hand-rolled **Admits Insufficient** judge for
 queries the corpus can't answer.
+
+Hand-rolled retrieval/grounding scorers (set-overlap against a case's gold source
+files): **Context Recall** (gold files the agent retrieved), **Retrieval
+Precision** (of the files it retrieved, how many were gold — this is what
+penalizes over-retrieval, the "gets all the things" problem the reranker
+targets), **Retrieval F1** (harmonic mean of the two), **Citation Recall** (gold
+files the agent cited), and **Citation Grounding** (every cited file was actually
+retrieved — no fabricated citations). A `Hits` column also surfaces the raw
+per-run hit count as an over-fetch-volume diagnostic. Together, Recall + Precision
+let you prove a retrieval change made context **tighter without dropping what the
+answer needs** — re-run with `RAG_RERANK_ENABLED=false` for a pure-RRF baseline.
 
 ## How it fits together
 

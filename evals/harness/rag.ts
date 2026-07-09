@@ -59,6 +59,7 @@ You are being evaluated on grounded, cited answers. For every reply:
 
 /** What `myRagPipeline` returns to the eval (the contract the suite scores). */
 export interface RagResult {
+  query: string;
   answer: string;
   /** The real text the agent retrieved from the KB tools during the run. */
   retrievedContext: string[];
@@ -75,6 +76,13 @@ export interface RagResult {
    * cited file must have actually been retrieved — no fabricated citations).
    */
   citedSources: string[];
+  /**
+   * Total number of hit blocks the KB tools returned across the run (search +
+   * grep hits, counted from the `path:line` prefixes). A diagnostic for
+   * over-fetch *volume* — file-basename gold can't score chunk count, but this
+   * is the clearest "receives all the things" signal.
+   */
+  retrievedHitCount: number;
   /** What the agent actually did this turn — for trace inspection. */
   toolCalls: { name: string; arguments: string }[];
 }
@@ -189,6 +197,7 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
     const retrievedContext: string[] = [];
     const sources = new Set<string>();
     const toolCalls: { name: string; arguments: string }[] = [];
+    let hitCount = 0;
     let answer = "";
 
     for await (const event of agent.run([{ role: "user", content: query }], options)) {
@@ -210,17 +219,21 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
               typeof item.output === "string" ? item.output : JSON.stringify(item.output);
             retrievedContext.push(output);
             // search / grep prefix each result line with its `path:line…`.
-            for (const path of pathsFromOutput(output)) sources.add(basename(path));
+            const paths = pathsFromOutput(output);
+            hitCount += paths.length;
+            for (const path of paths) sources.add(basename(path));
           }
         }
       }
     }
 
     return {
+      query,
       answer,
       retrievedContext,
       retrievedSources: [...sources],
       citedSources: citedSourcesFrom(answer),
+      retrievedHitCount: hitCount,
       toolCalls,
     };
   }

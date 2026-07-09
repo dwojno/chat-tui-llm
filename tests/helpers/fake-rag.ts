@@ -5,8 +5,16 @@ import { encodeSparse, type DenseEmbedder } from "../../src/store/sources/rag/em
 import { RagEngine } from "../../src/store/sources/rag/engine";
 import type { SearchResult, VectorIndex, VectorPoint } from "../../src/store/sources/rag/qdrant";
 import type { RagDeps } from "../../src/store/sources/rag/deps";
+import type { RankedHit, RerankCandidate, Reranker } from "../../src/store/sources/rag/reranker";
 
 const EMBED_DIM = 64;
+
+/** Identity reranker: keeps the fused order (no LLM), so tests stay deterministic. */
+export class IdentityReranker implements Reranker {
+  async rerank(_query: string, candidates: RerankCandidate[], topK: number): Promise<RankedHit[]> {
+    return candidates.slice(0, topK).map((candidate) => ({ index: candidate.index, relevance: 1 }));
+  }
+}
 
 /** Deterministic bag-of-tokens embedder: shared tokens ⇒ higher cosine. */
 export class DeterministicEmbedder implements DenseEmbedder {
@@ -136,7 +144,13 @@ export function createFakeRag(overrides: Partial<RagConfig> = {}): FakeRag {
   const config: RagConfig = { ...loadRagConfig({}), ...overrides };
   const blob = new FakeObjectStore();
   const index = new FakeVectorIndex();
-  const engine = new RagEngine(config, new DeterministicEmbedder(), blob, index);
+  const engine = new RagEngine(
+    config,
+    new DeterministicEmbedder(),
+    blob,
+    index,
+    new IdentityReranker(),
+  );
   return { deps: { engine }, blob, index };
 }
 

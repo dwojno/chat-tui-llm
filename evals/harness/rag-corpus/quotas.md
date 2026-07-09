@@ -5,11 +5,11 @@ evaluation. Prices are covered in the Billing FAQ and Changelog, not here.
 
 ## Limits by plan
 
-| Plan       | Concurrent deploys | Build minutes / month | Log retention | API rate limit  |
-| ---------- | ------------------ | --------------------- | ------------- | --------------- |
-| Free       | 1                  | 200                   | 24 hours      | 60 req/min      |
-| Team       | 5                  | 2,000                 | 30 days       | 600 req/min     |
-| Enterprise | 25                 | 10,000                | 365 days      | 6,000 req/min   |
+| Plan       | Concurrent deploys | Build minutes / month | Log retention | API rate limit |
+| ---------- | ------------------ | --------------------- | ------------- | -------------- |
+| Free       | 1                  | 200                   | 24 hours      | 60 req/min     |
+| Team       | 5                  | 2,000                 | 30 days       | 600 req/min    |
+| Enterprise | 25                 | 10,000                | 365 days      | 6,000 req/min  |
 
 ## How build minutes are counted
 

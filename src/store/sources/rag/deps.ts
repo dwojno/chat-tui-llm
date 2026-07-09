@@ -4,6 +4,7 @@ import type { RagConfig } from "./config";
 import { OpenAIDenseEmbedder } from "./embeddings";
 import { RagEngine } from "./engine";
 import { QdrantIndex } from "./qdrant";
+import { LlmReranker } from "./reranker";
 
 /**
  * The assembled RAG engine plus the raw inputs used to build it. Passed to
@@ -19,5 +20,6 @@ export function createRagDeps(openai: OpenAI, config: RagConfig): RagDeps {
   const embedder = new OpenAIDenseEmbedder(openai, config.openaiEmbeddingModel);
   const blob = new BlobStore(config);
   const index = new QdrantIndex(config);
-  return { engine: new RagEngine(config, embedder, blob, index) };
+  const reranker = new LlmReranker(openai, config.rerankModel);
+  return { engine: new RagEngine(config, embedder, blob, index, reranker) };
 }

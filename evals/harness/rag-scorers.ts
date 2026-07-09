@@ -163,6 +163,17 @@ const coverage = (wanted: string[], have: Set<string>): number =>
   wanted.length ? wanted.filter((id) => have.has(id)).length / wanted.length : 1;
 
 /**
+ * precision(have ∩ wanted / have): the mirror of `coverage` — of the files the
+ * agent actually retrieved, what fraction were gold? Divides by `have.length`
+ * (what we retrieved), whereas `coverage` divides by `wanted.length` (gold).
+ */
+const precision = (wanted: string[], have: string[]): number => {
+  if (!have.length) return 1;
+  const gold = new Set(wanted);
+  return have.filter((id) => gold.has(id)).length / have.length;
+};
+
+/**
  * Retrieval recall: of the gold source files, how many did the agent actually
  * pull context from? Measures the retriever independently of the wording of the
  * answer. n/a when a case has no gold ids (no-answer / out-of-domain / decline).
@@ -182,6 +193,53 @@ export const contextRecall: RagScorer = createScorer<RagInput, RagResult, RagExp
         missing: gold.filter((id) => !retrieved.has(id)),
       },
     };
+  },
+});
+
+/**
+ * Retrieval precision: of the source files the agent pulled context from, how
+ * many were actually gold? The counterpart to Context Recall — it PENALISES
+ * over-retrieval (touching files beyond what the answer needs), which is exactly
+ * the "receives all the things" problem. Coarse: scored at file-basename
+ * granularity (there is no chunk-level gold), so it measures file *selectivity*,
+ * not chunk-level correctness. n/a when a case has no gold ids.
+ */
+export const retrievalPrecision: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
+  name: "Retrieval Precision",
+  description: "retrieved source files that were actually gold (penalises over-retrieval)",
+  scorer: ({ output, expected }) => {
+    const gold = expected?.goldContextIds;
+    if (!gold?.length) return notApplicable;
+    const retrieved = output.retrievedSources;
+    if (!retrieved.length) return { score: 0, metadata: { note: "no retrieval" } };
+    return {
+      score: precision(gold, retrieved),
+      metadata: {
+        gold,
+        retrieved,
+        extraneous: retrieved.filter((id) => !gold.includes(id)),
+      },
+    };
+  },
+});
+
+/**
+ * Retrieval F1: harmonic mean of file-level precision and recall — one number
+ * that drops if the agent either misses gold files (recall) OR fetches
+ * extraneous ones (precision). Recomputed from the same primitives as the two
+ * standalone scorers, since evalite runs each scorer in isolation. n/a without gold.
+ */
+export const retrievalF1: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
+  name: "Retrieval F1",
+  description: "harmonic mean of retrieval precision and recall",
+  scorer: ({ output, expected }) => {
+    const gold = expected?.goldContextIds;
+    if (!gold?.length) return notApplicable;
+    const retrieved = output.retrievedSources;
+    const r = coverage(gold, new Set(retrieved));
+    const p = precision(gold, retrieved);
+    const f1 = p + r ? (2 * p * r) / (p + r) : 0;
+    return { score: f1, metadata: { precision: p, recall: r, retrieved } };
   },
 });
 
@@ -232,6 +290,8 @@ export const ragScorers = [
   contextPrecision,
   admitsInsufficient,
   contextRecall,
+  retrievalPrecision,
+  retrievalF1,
   citationRecall,
   citationGrounding,
 ];
