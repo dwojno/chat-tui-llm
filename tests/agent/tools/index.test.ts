@@ -1,54 +1,51 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { describeToolCall, executeToolCall, forkTools, mainTools } from "../../../src/agent/tools";
-import { DELEGATE_TASK_NAME } from "../../../src/agent/tools/delegate-task";
-import { WEATHER_TOOL_NAME } from "../../../src/agent/tools/weather";
-import { WEB_SEARCH_TOOL_NAME } from "../../../src/agent/tools/web-search";
-import { drainToReturn } from "../../helpers/mock-openai";
+import { describe, expect, it } from "vitest";
+import { z } from "zod";
+import { describeToolCall, executeToolCall, toolLabel } from "../../../src/agent/tools";
+import type { ToolDefinition } from "../../../src/agent/tools/types";
+import { drain } from "../../../src/utils/async-gen";
 
-afterEach(() => {
-  vi.useRealTimers();
-});
+const params = z.object({ city: z.string() });
+const fakeTool: ToolDefinition<typeof params> = {
+  name: "get_weather_data",
+  label: "Fetching weather data",
+  description: "test",
+  parameters: params,
+  async *execute({ city }) {
+    return `weather in ${city}`;
+  },
+  summarize: ({ city }) => city,
+};
+const tools = [fakeTool] as ToolDefinition<z.ZodType>[];
 
 describe("executeToolCall", () => {
-  it("runs a registered tool with parsed args", async () => {
-    vi.useFakeTimers();
-    const pending = drainToReturn(
-      executeToolCall(WEATHER_TOOL_NAME, JSON.stringify({ city: "Paris" })),
+  it("runs a tool from the given list with parsed args", async () => {
+    const out = await drain(
+      executeToolCall(tools, "get_weather_data", JSON.stringify({ city: "Paris" })),
     );
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(await pending).toBe("The weather in Paris is sunny");
+    expect(out).toBe("weather in Paris");
   });
 
-  it("throws for an unknown tool", () => {
-    expect(() => executeToolCall("nope", "{}")).toThrow(/Unknown tool/);
+  it("throws for a tool not in the list", () => {
+    expect(() => executeToolCall(tools, "nope", "{}")).toThrow(/Unknown tool/);
   });
 });
 
 describe("describeToolCall", () => {
-  it("summarizes a weather call to the city", () => {
-    expect(describeToolCall(WEATHER_TOOL_NAME, JSON.stringify({ city: "Berlin" }))).toBe("Berlin");
-  });
-
-  it("summarizes a web_search call to the query", () => {
-    expect(describeToolCall(WEB_SEARCH_TOOL_NAME, JSON.stringify({ query: "ssr" }))).toBe("ssr");
+  it("summarizes via the resolved tool", () => {
+    expect(describeToolCall(tools, "get_weather_data", JSON.stringify({ city: "Berlin" }))).toBe(
+      "Berlin",
+    );
   });
 
   it("returns undefined for an unknown tool or unparseable args", () => {
-    expect(describeToolCall("nope", "{}")).toBeUndefined();
-    expect(describeToolCall(WEATHER_TOOL_NAME, "not json")).toBeUndefined();
+    expect(describeToolCall(tools, "nope", "{}")).toBeUndefined();
+    expect(describeToolCall(tools, "get_weather_data", "not json")).toBeUndefined();
   });
 });
 
-describe("tool sets", () => {
-  it("main tools = weather + delegate_task", () => {
-    const names = mainTools.map((t) => t.name);
-    expect(names).toContain(WEATHER_TOOL_NAME);
-    expect(names).toContain(DELEGATE_TASK_NAME);
-  });
-
-  it("fork tools = weather + web_search, and never delegate_task (no recursion)", () => {
-    const names = forkTools.map((t) => t.name);
-    expect(names).toEqual(expect.arrayContaining([WEATHER_TOOL_NAME, WEB_SEARCH_TOOL_NAME]));
-    expect(names).not.toContain(DELEGATE_TASK_NAME);
+describe("toolLabel", () => {
+  it("returns the tool's label or undefined", () => {
+    expect(toolLabel(tools, "get_weather_data")).toBe("Fetching weather data");
+    expect(toolLabel(tools, "nope")).toBeUndefined();
   });
 });

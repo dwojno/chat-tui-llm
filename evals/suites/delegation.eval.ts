@@ -1,5 +1,5 @@
 import { evalite } from "evalite";
-import { DELEGATE_TASK_NAME } from "../../src/agent/tools/delegate-task";
+import { DELEGATE_TASK_NAME } from "../../src/integration/tools/delegate-task";
 import {
   conciseArg,
   probePrompt,

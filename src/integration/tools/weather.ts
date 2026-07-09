@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { TurnEvent } from "../events/events";
-import type { ToolDefinition } from "./types";
+import type { TurnEvent } from "../../agent/events/events";
+import type { ToolDefinition } from "../../agent/tools/types";
 
 export const WEATHER_TOOL_NAME = "get_weather_data" as const;
 

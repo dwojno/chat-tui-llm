@@ -6,10 +6,9 @@ import { SYSTEM_INSTRUCTIONS } from "../../src/agent/prompts";
 import { buildContextBlock } from "../../src/agent/dynamicContext/context";
 import { summaryDeveloperMessage } from "../../src/store";
 import { getFunctionCalls } from "../../src/agent/conversation/items";
-import { forkTools, mainTools } from "../../src/agent/tools";
+import type { OpenAITool } from "../../src/agent/conversation/turn";
+import { mainToolSchemas } from "../../src/integration/tools";
 import { openai } from "./client";
-
-type OpenAITool = (typeof mainTools)[number] | (typeof forkTools)[number];
 
 /** A tool call the model emitted, with arguments parsed for convenience. */
 export interface ProbeToolCall {
@@ -80,7 +79,7 @@ export async function probePrompt(spec: ProbeSpec): Promise<ProbeResult> {
     temperature: spec.temperature ?? 0,
     max_output_tokens: 1000,
     store: false,
-    tools: spec.tools ?? mainTools,
+    tools: spec.tools ?? mainToolSchemas,
   });
 
   const toolCalls: ProbeToolCall[] = getFunctionCalls(response.output).map((call) => ({

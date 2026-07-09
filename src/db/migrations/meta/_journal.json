@@ -15,6 +15,13 @@
       "when": 1783516571555,
       "tag": "0001_profiles_conversations",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783516571556,
+      "tag": "0002_source_index",
+      "breakpoints": true
     }
   ]
 }

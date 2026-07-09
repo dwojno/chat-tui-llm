@@ -35,6 +35,11 @@ export const source = sqliteTable(
       .notNull()
       .references(() => profile.id),
     path: text("path").notNull(),
+    status: text("status").notNull().default("pending"),
+    s3Key: text("s3_key"),
+    contentHash: text("content_hash"),
+    chunkCount: integer("chunk_count"),
+    indexedAt: integer("indexed_at"),
     createdAt: integer("created_at").notNull(),
   },
   (table) => [uniqueIndex("source_profile_path").on(table.profileId, table.path)],

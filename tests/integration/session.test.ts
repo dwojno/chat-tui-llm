@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { AgentService } from "../../src/agent/agent";
-import type { TurnEvent } from "../../src/agent/events/events";
 import { DEFAULT_TURN_OPTIONS } from "../../src/agent/conversation/options";
 import { Session } from "../../src/integration/session";
 import type { Store } from "../../src/store";
 import { createMemoryStore, createMockOpenAI, type MockTurn } from "../helpers/mock-openai";
+import { collect } from "../../src/utils/async-gen";
 
 async function makeSession(
   turns: MockTurn[] = [],
@@ -17,12 +17,6 @@ async function makeSession(
   const agent = new AgentService(mock.client);
   const session = await Session.create(agent, mock.client, resolvedStore, keepLastTurns);
   return { session, mock, store: resolvedStore };
-}
-
-async function drain(gen: AsyncGenerator<TurnEvent, void>): Promise<TurnEvent[]> {
-  const events: TurnEvent[] = [];
-  for await (const event of gen) events.push(event);
-  return events;
 }
 
 describe("Session state", () => {
@@ -38,8 +32,7 @@ describe("Session state", () => {
     const { session } = await makeSession([], [], 4, store);
 
     await session.addFact("likes tea");
-    expect(await session.addSources(["src/a.ts", "src/b.ts"])).toEqual(["src/a.ts", "src/b.ts"]);
-    expect(await session.addSources(["src/b.ts", "src/c.ts"])).toEqual(["src/c.ts"]);
+    await store.sources.createMany(store.profileId, ["src/a.ts", "src/b.ts", "src/c.ts"]);
 
     const reloaded = (await makeSession([], [], 4, store)).session;
     expect(await reloaded.facts()).toEqual(["likes tea"]);
@@ -51,7 +44,7 @@ describe("Session.runTurn", () => {
   it("forwards presentation events and accumulates response usage", async () => {
     const { session } = await makeSession([{ text: "hello" }]);
 
-    const events = await drain(session.runTurn("hi", DEFAULT_TURN_OPTIONS));
+    const events = await collect(session.runTurn("hi", DEFAULT_TURN_OPTIONS));
 
     expect(events.every((e) => e.type === "delta" || e.type === "answer")).toBe(true);
     expect(events.at(-1)).toEqual({ type: "answer", content: "hello" });
@@ -66,7 +59,7 @@ describe("Session.runTurn", () => {
 
   it("renames a new chat from the first user prompt", async () => {
     const { session, store } = await makeSession([{ text: "hello" }]);
-    await drain(session.runTurn("My first question here", DEFAULT_TURN_OPTIONS));
+    await collect(session.runTurn("My first question here", DEFAULT_TURN_OPTIONS));
 
     const row = await store.conversation.query().byId(store.conversationId).executeAndTakeFirst();
     expect(row?.title).toBe("My first question he");
@@ -79,7 +72,7 @@ describe("Session.runTurn", () => {
     const agent = new AgentService(mock.client);
     const session = await Session.create(agent, mock.client, store, 4);
 
-    await drain(session.runTurn("hi", DEFAULT_TURN_OPTIONS));
+    await collect(session.runTurn("hi", DEFAULT_TURN_OPTIONS));
 
     const params = mock.calls.stream[0] as { temperature?: number };
     expect(params.temperature).toBe(0.2);
@@ -92,7 +85,7 @@ describe("Session.runTurn", () => {
     const { session, mock } = await makeSession(turns, ["ROLLING SUMMARY"], 4);
 
     for (let i = 0; i < 5; i++) {
-      await drain(
+      await collect(
         session.runTurn(`question ${i}`, {
           ...DEFAULT_TURN_OPTIONS,
           stream: false,

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { TurnEvent } from "../events/events";
-import type { ToolDefinition } from "./types";
+import type { TurnEvent } from "../../agent/events/events";
+import type { ToolDefinition } from "../../agent/tools/types";
 
 export const WEB_SEARCH_TOOL_NAME = "web_search" as const;
 

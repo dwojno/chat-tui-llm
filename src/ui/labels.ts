@@ -1,12 +1,17 @@
-import { forkTools, mainTools } from "../agent/tools";
-
-const TOOL_LABELS: Record<string, string> = [...mainTools, ...forkTools].reduce(
-  (acc, tool) => {
-    acc[tool.name] = tool.label;
-    return acc;
-  },
-  {} as Record<string, string>,
-);
+/**
+ * Fallback tool → label map for the UI. Live tool events carry their own
+ * `label` (from the injected tool definitions); this map is only used when
+ * replaying persisted history, where the label was not stored.
+ */
+const TOOL_LABELS: Record<string, string> = {
+  get_weather_data: "Fetching weather data",
+  web_search: "Searching the web",
+  delegate_task: "Delegating",
+  search_knowledge_base: "Searching knowledge base",
+  list_files: "Listing knowledge base files",
+  grep_files: "Grepping knowledge base",
+  read_file: "Reading knowledge base file",
+};
 
 export function toolStepLabel(name: string): string {
   return TOOL_LABELS[name] ?? `Running ${name}`;

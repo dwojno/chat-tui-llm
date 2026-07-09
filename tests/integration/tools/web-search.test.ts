@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { webSearchTool } from "../../../src/agent/tools/web-search";
-import { drainToReturn } from "../../helpers/mock-openai";
+import { webSearchTool } from "../../../src/integration/tools/web-search";
+import { drain } from "../../../src/utils/async-gen";
 
 function mockFetch(impl: () => unknown) {
   const fetchMock = vi.fn(async () => impl());
@@ -29,7 +29,7 @@ describe("webSearchTool", () => {
       }),
     }));
 
-    const result = await drainToReturn(webSearchTool.execute({ query: "SSR vs SSG" }));
+    const result = await drain(webSearchTool.execute({ query: "SSR vs SSG" }));
 
     expect(result).toBe(
       [
@@ -41,14 +41,12 @@ describe("webSearchTool", () => {
 
   it("reports when there are no results", async () => {
     mockFetch(() => ({ ok: true, json: async () => ({ query: { search: [] } }) }));
-    expect(await drainToReturn(webSearchTool.execute({ query: "zxqw" }))).toBe(
-      'No results for "zxqw".',
-    );
+    expect(await drain(webSearchTool.execute({ query: "zxqw" }))).toBe('No results for "zxqw".');
   });
 
   it("throws on a non-ok response so the loop can feed the error back", async () => {
     mockFetch(() => ({ ok: false, status: 503, statusText: "Service Unavailable" }));
-    await expect(drainToReturn(webSearchTool.execute({ query: "x" }))).rejects.toThrow(/503/);
+    await expect(drain(webSearchTool.execute({ query: "x" }))).rejects.toThrow(/503/);
   });
 
   it("summarizes a call to the query", () => {

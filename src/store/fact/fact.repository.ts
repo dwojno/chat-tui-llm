@@ -75,9 +75,6 @@ export class FactRepository {
   delete(ids: OneOrMany<number>): void {
     const batch = asArray(ids);
     if (!batch.length) return;
-    this.db
-      .delete(fact)
-      .where(inArray(fact.id, batch))
-      .run();
+    this.db.delete(fact).where(inArray(fact.id, batch)).run();
   }
 }

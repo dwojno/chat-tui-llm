@@ -6,7 +6,7 @@ import { FactFacade, SqliteFactFacade } from "./fact";
 import { FactRepository } from "./fact/fact.repository";
 import { ProfileFacade, SqliteProfileFacade } from "./profile";
 import { ProfileRepository } from "./profile/profile.repository";
-import { SourcesFacade, SqliteSourcesFacade } from "./sources";
+import { SourcesFacade, SqliteSourcesFacade, type RagDeps } from "./sources";
 import { SourceRepository } from "./sources/source.repository";
 import { DEFAULT_PROFILE_ID, readActivePointer, writeActivePointer } from "./profile/helpers";
 import { StoreContext } from "./context";
@@ -15,6 +15,8 @@ const IN_MEMORY = ":memory:";
 
 export interface OpenStoreOptions {
   conversationId?: string | undefined;
+  /** When present, enables the sources RAG pipeline (S3/Qdrant/embeddings). */
+  rag?: RagDeps | undefined;
 }
 
 export interface Store {
@@ -33,7 +35,7 @@ interface StoreFacades {
   sources: SourcesFacade;
 }
 
-function createFacades(db: SqliteDb, ctx: StoreContext): StoreFacades {
+function createFacades(db: SqliteDb, ctx: StoreContext, rag?: RagDeps): StoreFacades {
   const profileRepo = new ProfileRepository(db);
   const conversationRepo = new ConversationRepository(db);
   const factRepo = new FactRepository(db);
@@ -44,7 +46,7 @@ function createFacades(db: SqliteDb, ctx: StoreContext): StoreFacades {
   const conversation = new SqliteConversationFacade(conversationRepo, ctx);
   const profile = new SqliteProfileFacade(profileRepo, ctx, conversation);
   const fact = new SqliteFactFacade(factRepo);
-  const sources = new SqliteSourcesFacade(sourceRepo);
+  const sources = new SqliteSourcesFacade(sourceRepo, rag);
 
   return { profile, conversation, fact, sources };
 }
@@ -77,7 +79,7 @@ export class LocalStore implements Store {
     const db = openDatabase(dbPath);
     const inMemory = dbPath === IN_MEMORY;
     const ctx = new StoreContext(DEFAULT_PROFILE_ID, "", dbPath, inMemory);
-    const facades = createFacades(db, ctx);
+    const facades = createFacades(db, ctx, opts.rag);
 
     if (opts.conversationId) {
       const restored = await facades.conversation

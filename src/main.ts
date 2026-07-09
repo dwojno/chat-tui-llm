@@ -4,9 +4,9 @@ import { runRepl } from "./integration/repl";
 import { buildChatContext } from "./integration/switch";
 import { DB_PATH, KEEP_LAST_TURNS } from "./integration/config";
 import { AgentService } from "./agent/agent";
-import { mainTools } from "./agent/tools";
+import { createAgentTools } from "./integration/tools";
 import { Session } from "./integration/session";
-import { LocalStore } from "./store";
+import { createRagDeps, loadRagConfig, LocalStore, type OpenStoreOptions } from "./store";
 import { renderChat } from "./ui/chat";
 import { messagesFromTranscript } from "./ui/history";
 
@@ -15,12 +15,13 @@ export async function run(): Promise<void> {
   const cli = parseCliArgs();
 
   const openai = new OpenAI();
-  const store = await LocalStore.open(
-    DB_PATH,
-    cli.conversationId !== undefined ? { conversationId: cli.conversationId } : {},
-  );
+  const openOpts: OpenStoreOptions = { rag: createRagDeps(openai, loadRagConfig()) };
+  if (cli.conversationId !== undefined) openOpts.conversationId = cli.conversationId;
+  const store = await LocalStore.open(DB_PATH, openOpts);
+  const { tools, forkTools } = createAgentTools(store);
   const agent = new AgentService(openai, {
-    tools: mainTools,
+    tools,
+    forkTools,
     cacheKey: `chat-cli:${process.pid}`,
   });
   const session = await Session.create(agent, openai, store, KEEP_LAST_TURNS);

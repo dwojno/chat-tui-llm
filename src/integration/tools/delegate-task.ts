@@ -1,15 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { z } from "zod";
-import { extractConversationSummary } from "../dynamicContext/context";
-import { FORK_INSTRUCTIONS } from "../prompts";
-import { compressHandoff } from "./utils/handoff";
-import { DEFAULT_TURN_OPTIONS } from "../conversation/options";
-import type { TurnEvent } from "../events/events";
-import type { ToolRunContext, TurnProfile } from "../conversation/turn";
-import { toOpenAITool, type ToolDefinition } from "./types";
-import { weatherTool } from "./weather";
-import { webSearchTool } from "./web-search";
+import { extractConversationSummary } from "../../agent/dynamicContext/context";
+import { FORK_INSTRUCTIONS } from "../../agent/prompts";
+import { compressHandoff } from "../../agent/tools/utils/handoff";
+import { DEFAULT_TURN_OPTIONS } from "../../agent/conversation/options";
+import type { TurnEvent } from "../../agent/events/events";
+import type { ToolRunContext, TurnProfile } from "../../agent/conversation/turn";
+import type { ToolDefinition } from "../../agent/tools/types";
 
 export const DELEGATE_TASK_NAME = "delegate_task" as const;
 
@@ -27,8 +25,6 @@ const parameters = z.object({
 export function parseDelegateTaskArgs(argsJson: string): z.infer<typeof parameters> {
   return parameters.parse(JSON.parse(argsJson));
 }
-
-export const forkTools = [toOpenAITool(weatherTool), toOpenAITool(webSearchTool)];
 
 function buildForkBrief(summary: string, facts: readonly string[], task: string): string {
   const parts = [
@@ -66,7 +62,7 @@ async function* execute(
 
   const profile: TurnProfile = {
     instructions: FORK_INSTRUCTIONS,
-    tools: forkTools,
+    tools: ctx.forkTools,
     cacheKey: `chat-cli:fork:${randomUUID()}`,
   };
 

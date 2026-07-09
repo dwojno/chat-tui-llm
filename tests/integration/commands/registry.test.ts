@@ -11,19 +11,19 @@ import type { CommandContext } from "../../../src/integration/commands/types";
 
 function makeCtx(overrides: Partial<CommandContext> = {}) {
   const addFact = vi.fn();
-  const addSources = vi.fn().mockReturnValue([]);
+  const indexSource = vi.fn().mockResolvedValue({ path: "x", chunkCount: 1, status: "indexed" });
   const push = vi.fn();
   const ctx: CommandContext = {
     session: {
       addFact,
-      addSources,
+      indexSource,
       sources: vi.fn().mockResolvedValue([]),
       ...overrides.session,
     } as unknown as Session,
     chat: { push, ...overrides.chat } as unknown as ChatHandle,
     ...overrides,
   };
-  return { ctx, addFact, addSources, push };
+  return { ctx, addFact, indexSource, push };
 }
 
 describe("resolveCommand", () => {
@@ -93,10 +93,10 @@ describe("runCommand", () => {
   });
 
   it("/learn without @mentions shows usage", async () => {
-    const { ctx, addSources, push } = makeCtx();
+    const { ctx, indexSource, push } = makeCtx();
     const action = await runCommand("/learn", ctx);
     expect(action).toEqual({ kind: "handled" });
-    expect(addSources).not.toHaveBeenCalled();
+    expect(indexSource).not.toHaveBeenCalled();
     expect(push).toHaveBeenCalledWith(
       expect.objectContaining({
         role: "assistant",

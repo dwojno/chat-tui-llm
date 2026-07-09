@@ -15,9 +15,10 @@ The point isn't the chat — it's the machinery underneath. Every layer an agent
 - **Stateless agent loop** — runs the model → tool-call → tool-result cycle by hand until the model stops asking for tools, then streams the answer. Takes the transcript in, keeps nothing after the turn. Independent tool calls in a single turn run in parallel. [`agent.ts`](src/agent/agent.ts)
 - **Context-window management** — only the last 4 turns are kept verbatim; older turns fold into a rolling summary and are dropped, keeping a stable, cacheable prompt prefix. Owned by the session, not the agent. [`summarizer.ts`](src/agent/tokens/summarizer.ts), [`session.ts`](src/integration/session.ts)
 - **Prompt caching** — out-of-window state (facts + summary) is pinned to the _end_ of the input so a `/remember` or a re-summarization never invalidates the cached prefix above it.
-- **Sub-agent delegation** — the model can spin up ephemeral child agents for multi-step work — several in parallel — each with its own context and tools, handing back a compressed digest. The sub-agent's tool activity streams back live under a short, model-chosen label. [`delegate-task.ts`](src/agent/tools/delegate-task.ts), [`handoff.ts`](src/agent/tools/utils/handoff.ts)
+- **Sub-agent delegation** — the model can spin up ephemeral child agents for multi-step work — several in parallel — each with its own context and tools, handing back a compressed digest. The sub-agent's tool activity streams back live under a short, model-chosen label. [`delegate-task.ts`](src/integration/tools/delegate-task.ts), [`handoff.ts`](src/agent/tools/utils/handoff.ts)
 - **Live activity trace** — every tool call and delegation surfaces as a streaming, Gemini-style "thinking" step (with its target — the city, the search query, the sub-task) that freezes above the final answer instead of vanishing. [`ui/`](src/ui/)
-- **Tool calling** — typed, Zod-validated tools the model can invoke: a demo weather lookup and a keyless, Wikipedia-backed web search that sub-agents use for research. Add your own under [src/agent/tools/](src/agent/tools/).
+- **Injected tools** — the agent core ships with _no_ tools; the host composes them as one `ToolDefinition` type and injects a main set + a fork set. Tool operations are async generators, so long-running ones (grep, indexing) stream progress to the UI. Built-ins are a demo weather lookup and a keyless Wikipedia web search; compose your own in [src/integration/tools/](src/integration/tools/). [`createAgentTools`](src/integration/tools/index.ts)
+- **Knowledge base (RAG)** — `/learn @file` converts a source (md/txt/code, PDF, DOCX, HTML, XLSX, CSV) to Markdown, uploads it to a per-profile MinIO bucket, chunks it (heading-aware, line-tracked), and indexes it in a per-profile Qdrant collection using **hybrid dense + sparse search fused with RRF**. The agent gets four store-backed tools — `search_knowledge_base` (returns file + line ranges), `list_files`, `grep_files` (streamed from object storage), and `read_file` (line/byte ranges). The whole pipeline lives in the `sources` store domain behind its facade; the agent core stays RAG-agnostic. [`src/store/sources/`](src/store/sources/)
 - **Structured output** — replies validated against a Zod schema, plus a raw JSON mode.
 - **Prompt evals** — behavioural tests that grade the prompts and tools against the live model. See [evals/](evals/).
 - **Tests** — a Vitest suite (unit + end-to-end) that mocks the model, covering the agent loop, tool failures, delegation, and the UI — fast and fully offline. See [tests/](tests/).
@@ -35,6 +36,23 @@ pnpm start
 - `pnpm test` — run the unit + e2e tests (model mocked; no API key needed)
 - `pnpm eval` — run the prompt evals against the live model ([details](src/eval/))
 
+### Knowledge base (RAG) services
+
+The `/learn` pipeline needs MinIO (S3) and Qdrant. Start them with Docker and copy the RAG env vars:
+
+```bash
+pnpm infra:start              # MinIO on :9000 (console :9001), Qdrant on :6333
+cp .env.example .env          # then set OPENAI_API_KEY; defaults point at localhost
+```
+
+`pnpm infra:stop` stops the services (keeping data); `pnpm infra:clear` also wipes their volumes.
+
+Defaults (endpoints, credentials, embedding model `text-embedding-3-small`, sparse model `Qdrant/bm25`, chunk sizes) live in [`.env.example`](.env.example). Each profile gets its own bucket (`chat-cli-<profile>`) and Qdrant collection (`kb_<profile>`). The offline test suite fakes these services; to exercise the real ones end to end:
+
+```bash
+RAG_INTEGRATION=1 pnpm test tests/store/rag/live.integration.test.ts
+```
+
 ## Usage
 
 ```bash
@@ -43,12 +61,16 @@ pnpm start -- --temperature 0.2   # -t for short; default 0.7
 
 At the `>` prompt, type a message for a streaming reply, or use a command:
 
-| Command                | Description                                                      |
-| ---------------------- | ---------------------------------------------------------------- |
-| `/remember <fact>`     | Pin a fact; injected into every later turn (survives truncation) |
-| `/json <prompt>`       | Reply in JSON output mode                                        |
-| `/structured <prompt>` | Reply validated against a Zod schema (answer + sources)          |
-| `exit`                 | Leave the REPL (Ctrl+C / Ctrl+D also work)                       |
+| Command                | Description                                                       |
+| ---------------------- | ----------------------------------------------------------------- |
+| `/remember <fact>`     | Pin a fact; injected into every later turn (survives truncation)  |
+| `/learn @file [@…]`    | Convert, upload, chunk, embed and index files for RAG             |
+| `/sources`             | List the files indexed in the current profile                     |
+| `/reindex`             | Re-index every source in the current profile                      |
+| `/profile`             | Switch or create a profile (each has its own bucket + collection) |
+| `/json <prompt>`       | Reply in JSON output mode                                         |
+| `/structured <prompt>` | Reply validated against a Zod schema (answer + sources)           |
+| `exit`                 | Leave the REPL (Ctrl+C / Ctrl+D also work)                        |
 
 On exit, a token-savings report compares actual input tokens against a naive "re-send everything" baseline — the payoff of the context management above.
 
@@ -63,10 +85,15 @@ After each answer, the window is trimmed deterministically: keep the last 4 turn
 ```
 src/
   main.ts           composition root — build every dependency once
-  agent/            PURE core: loop, summarizer, fork/handoff, events, tools, prompts
+  agent/            PURE core: loop, summarizer, fork/handoff, events, prompts
+                    (tool-agnostic — tools are injected by the host)
   ui/               Ink chat + activity trace + markdown (components/hooks/input)
-  integration/      adapters + wiring: session, store, OpenAI client, REPL,
-                    CLI args, file-mentions, slash/keyword commands
+  integration/      adapters + wiring: session, OpenAI client, REPL, CLI args,
+                    file-mentions, commands, and all tools (weather/web-search/
+                    delegate + RAG) composed and injected into the agent
+  store/            store facade + domain facades (profile, conversation, fact,
+                    sources); sources/ owns the RAG pipeline behind its facade
+  db/               SQLite connection, schema, migrations
 tests/              vitest unit + e2e suites (model mocked; mirrors src/)
 evals/              prompt evals against the live model (evalite)
 docs/               architecture notes (see docs/architecture.md)

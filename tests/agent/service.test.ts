@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Stub tool *execution* so the loop runs offline and instantly (the real
-// weather tool sleeps 1s and web_search hits the network). Everything else
-// from the tools module — describeToolCall, mainTools, forkTools — stays real.
+// Stub tool *execution* so the loop runs offline and instantly. Everything
+// else from the tools module — describeToolCall, toolLabel — stays real.
 vi.mock("../../src/agent/tools", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../src/agent/tools")>();
   return {
@@ -13,13 +12,30 @@ vi.mock("../../src/agent/tools", async (importOriginal) => {
   };
 });
 
+import { z } from "zod";
 import { executeToolCall } from "../../src/agent/tools";
+import type { ToolDefinition } from "../../src/agent/tools/types";
 import type { TurnEvent } from "../../src/agent/events/events";
 import { AgentService } from "../../src/agent/agent";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { createMockOpenAI, type MockTurn } from "../helpers/mock-openai";
+import { collect } from "../../src/utils/async-gen";
 
 const exec = vi.mocked(executeToolCall);
+
+// A minimal injected tool so describe/label resolve (execution is mocked above).
+const weatherParams = z.object({ city: z.string() });
+const fakeWeatherTool: ToolDefinition<typeof weatherParams> = {
+  name: "get_weather_data",
+  label: "Fetching weather data",
+  description: "test weather tool",
+  parameters: weatherParams,
+  // eslint-disable-next-line require-yield
+  async *execute() {
+    return "unused — execution is mocked";
+  },
+  summarize: ({ city }) => city,
+};
 
 // The ResponseInputItem union is awkward to narrow in tests; view it loosely.
 type Item = Record<string, unknown>;
@@ -36,15 +52,9 @@ const emittedItems = (events: TurnEvent[]): Item[] =>
 const responseUsageCount = (events: TurnEvent[]): number =>
   events.filter((e) => e.type === "usage" && e.kind === "response").length;
 
-async function collect(gen: AsyncGenerator<TurnEvent, void>): Promise<TurnEvent[]> {
-  const events: TurnEvent[] = [];
-  for await (const event of gen) events.push(event);
-  return events;
-}
-
 function makeService(turns: MockTurn[], compressions: string[] = []) {
   const mock = createMockOpenAI(turns, compressions);
-  const service = new AgentService(mock.client);
+  const service = new AgentService(mock.client, { tools: [fakeWeatherTool] });
   return { service, mock };
 }
 
@@ -115,9 +125,10 @@ describe("AgentService.run", () => {
     });
 
     expect(exec).toHaveBeenCalledWith(
+      expect.anything(), // tool registry
       "get_weather_data",
       JSON.stringify({ city: "Paris" }),
-      expect.anything(),
+      expect.anything(), // tool run context
     );
     expect(mock.calls.stream).toHaveLength(2); // tool round + answer round
 

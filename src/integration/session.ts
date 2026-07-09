@@ -7,7 +7,9 @@ import type { TurnEvent } from "../agent/events";
 import { summarize } from "../agent/tokens";
 import {
   type ConversationItemInsert,
+  type IndexResult,
   type ItemKind,
+  type SourceProgress,
   type Store,
   type TokenColumns,
   responseUsageToTokens,
@@ -102,17 +104,14 @@ export class Session {
     await this.store.fact.create(this.store.profileId, fact);
   }
 
-  async addSources(paths: string[]): Promise<string[]> {
-    const existing = new Set(
-      (await this.store.sources.query().forProfile(this.store.profileId).execute()).map(
-        (row) => row.path,
-      ),
-    );
-    const toAdd = paths.filter((path) => !existing.has(path));
-    if (!toAdd.length) return [];
-    await this.store.sources.createMany(this.store.profileId, toAdd);
-    for (const path of toAdd) existing.add(path);
-    return toAdd;
+  /** Add + index a single source file, streaming progress steps then the result. */
+  indexSource(path: string): AsyncGenerator<SourceProgress, IndexResult> {
+    return this.store.sources.add(this.store.profileId, path);
+  }
+
+  /** Re-index every source in the current profile, streaming progress. */
+  reindexSources(): AsyncGenerator<SourceProgress, IndexResult[]> {
+    return this.store.sources.reindex(this.store.profileId);
   }
 
   async *runTurn(prompt: string, options: TurnOptions): AsyncGenerator<TurnEvent, void> {

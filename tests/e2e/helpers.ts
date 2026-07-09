@@ -5,6 +5,7 @@ import type { OpenAI } from "openai";
 import { AgentService } from "../../src/agent/agent";
 import { processLine } from "../../src/integration/repl";
 import type { CommandContext } from "../../src/integration/commands/types";
+import { createAgentTools } from "../../src/integration/tools";
 import { Session } from "../../src/integration/session";
 import { LocalStore, type Store } from "../../src/store";
 import { renderChat, type ChatHandle, type Message } from "../../src/ui/chat";
@@ -38,7 +39,13 @@ export async function createE2EHarness(opts?: {
   const store = opts?.store ?? (await createMemoryStore());
   const mock = opts?.client ? null : createMockOpenAI(opts?.turns ?? [], opts?.compressions ?? []);
   const client = opts?.client ?? mock!.client;
-  const session = await Session.create(new AgentService(client), client, store, 4);
+  const { tools, forkTools } = createAgentTools(store);
+  const session = await Session.create(
+    new AgentService(client, { tools, forkTools }),
+    client,
+    store,
+    4,
+  );
   const chat = renderChat([], { interactive: false, conversationId: store.conversationId });
 
   const pickerQueue: (string | "create" | null)[] = [];

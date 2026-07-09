@@ -3,7 +3,7 @@ import {
   DELEGATE_TASK_NAME,
   delegateTaskTool,
   parseDelegateTaskArgs,
-} from "../../../src/agent/tools/delegate-task";
+} from "../../../src/integration/tools/delegate-task";
 import { toOpenAITool } from "../../../src/agent/tools/types";
 
 describe("parseDelegateTaskArgs", () => {

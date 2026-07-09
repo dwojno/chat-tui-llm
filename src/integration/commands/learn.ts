@@ -1,4 +1,5 @@
 import { parseFileMentions, resolveMentionFile } from "../file-mentions";
+import { drain } from "../../utils/async-gen";
 import type { Command } from "./types";
 
 const PREFIX = "/learn ";
@@ -33,21 +34,28 @@ export const learnCommand: Command = {
       }),
     );
 
-    const added = await session.addSources(valid);
-    const alreadyIndexed = valid.filter((path) => !added.includes(path));
+    const results = [];
+    for (const path of valid) {
+      results.push(await drain(session.indexSource(path)));
+    }
+    const indexed = results.filter((result) => result.status === "indexed");
+    const failed = results.filter((result) => result.status === "error");
 
     const lines: string[] = [];
-    if (added.length) {
-      lines.push(`📚 Added ${added.length} source${added.length === 1 ? "" : "s"}:`);
-      lines.push(...added.map((path) => `  - ${path}`));
+    if (indexed.length) {
+      lines.push(`📚 Indexed ${indexed.length} source${indexed.length === 1 ? "" : "s"}:`);
+      lines.push(...indexed.map((result) => `  - ${result.path} (${result.chunkCount} chunks)`));
     }
-    if (alreadyIndexed.length) {
-      lines.push(`Already indexed: ${alreadyIndexed.join(", ")}`);
+    if (failed.length) {
+      lines.push("Failed to index:");
+      lines.push(
+        ...failed.map((result) => `  - ${result.path}: ${result.error ?? "unknown error"}`),
+      );
     }
     if (missing.length) {
       lines.push(`Not found: ${missing.map((path) => `@${path}`).join(", ")}`);
     }
-    if (!added.length && !alreadyIndexed.length && !missing.length) {
+    if (!lines.length) {
       lines.push("No sources were added.");
     }
 

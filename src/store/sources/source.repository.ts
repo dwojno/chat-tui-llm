@@ -1,20 +1,41 @@
 import assert from "node:assert/strict";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { SqliteDb } from "../../db/db";
 import { source } from "../../db/schema";
 import { asArray, type OneOrMany } from "../helpers";
+
+export type SourceStatus = "pending" | "indexed" | "error";
 
 export type Source = {
   id: number;
   profileId: string;
   path: string;
+  status: SourceStatus;
+  s3Key: string | null;
+  contentHash: string | null;
+  chunkCount: number | null;
+  indexedAt: number | null;
   createdAt: number;
+};
+
+/** Fields updated once a source has been (re)indexed. */
+export type SourceIndexPatch = {
+  status: SourceStatus;
+  s3Key?: string | null;
+  contentHash?: string | null;
+  chunkCount?: number | null;
+  indexedAt?: number | null;
 };
 
 const sourceShape = {
   id: source.id,
   profileId: source.profileId,
   path: source.path,
+  status: source.status,
+  s3Key: source.s3Key,
+  contentHash: source.contentHash,
+  chunkCount: source.chunkCount,
+  indexedAt: source.indexedAt,
   createdAt: source.createdAt,
 };
 
@@ -31,11 +52,11 @@ export class SourceQuery {
   }
 
   execute(): Promise<Source[]> {
-    return Promise.resolve(this.qb.all());
+    return Promise.resolve(this.qb.all() as Source[]);
   }
 
   executeAndTakeFirst(): Promise<Source | null> {
-    return Promise.resolve(this.qb.get() ?? null);
+    return Promise.resolve((this.qb.get() as Source | undefined) ?? null);
   }
 }
 
@@ -50,11 +71,24 @@ export class SourceRepository {
     const createdAt = Date.now();
     const row = this.db.insert(source).values({ profileId, path, createdAt }).returning().get();
     assert(row !== undefined);
-    return row;
+    return row as Source;
   }
 
   update(id: number, path: string): void {
     this.db.update(source).set({ path }).where(eq(source.id, id)).run();
+  }
+
+  getByPath(profileId: string, path: string): Source | null {
+    const row = this.db
+      .select()
+      .from(source)
+      .where(and(eq(source.profileId, profileId), eq(source.path, path)))
+      .get();
+    return (row as Source | undefined) ?? null;
+  }
+
+  markIndexed(id: number, patch: SourceIndexPatch): void {
+    this.db.update(source).set(patch).where(eq(source.id, id)).run();
   }
 
   delete(ids: OneOrMany<number>): void {

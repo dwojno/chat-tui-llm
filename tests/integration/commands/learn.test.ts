@@ -8,6 +8,7 @@ import { AgentService } from "../../../src/agent/agent";
 import { Session } from "../../../src/integration/session";
 import type { ChatHandle } from "../../../src/ui/chat";
 import { createMemoryStore, createMockOpenAI } from "../../helpers/mock-openai";
+import { createFakeRag } from "../../helpers/fake-rag";
 
 let dir: string;
 
@@ -27,7 +28,7 @@ describe("learn command", () => {
     const session = await Session.create(
       new AgentService(client),
       client,
-      await createMemoryStore(),
+      await createMemoryStore(createFakeRag().deps),
       4,
     );
     const push = vi.fn();
@@ -43,7 +44,7 @@ describe("learn command", () => {
       expect.objectContaining({
         role: "assistant",
         content: expect.stringMatching(
-          /Added 1 source[\s\S]*note\.txt[\s\S]*Not found: @missing\.txt/,
+          /Indexed 1 source[\s\S]*note\.txt[\s\S]*Not found: @missing\.txt/,
         ),
       }),
     );

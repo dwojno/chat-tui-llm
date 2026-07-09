@@ -1,0 +1,27 @@
+import { describe, expect, it } from "vitest";
+import { createAgentTools } from "../../../src/integration/tools";
+import { DELEGATE_TASK_NAME } from "../../../src/integration/tools/delegate-task";
+import { WEATHER_TOOL_NAME } from "../../../src/integration/tools/weather";
+import { WEB_SEARCH_TOOL_NAME } from "../../../src/integration/tools/web-search";
+import { createMemoryStore } from "../../helpers/mock-openai";
+
+describe("createAgentTools", () => {
+  it("composes weather + delegate + RAG tools for the main agent", async () => {
+    const store = await createMemoryStore();
+    const { tools } = createAgentTools(store);
+    const names = tools.map((t) => t.name);
+    expect(names).toContain(WEATHER_TOOL_NAME);
+    expect(names).toContain(DELEGATE_TASK_NAME);
+    expect(names).toEqual(
+      expect.arrayContaining(["search_knowledge_base", "list_files", "grep_files", "read_file"]),
+    );
+  });
+
+  it("gives forks web_search + weather but never delegate_task (no recursion)", async () => {
+    const store = await createMemoryStore();
+    const { forkTools } = createAgentTools(store);
+    const names = forkTools.map((t) => t.name);
+    expect(names).toEqual(expect.arrayContaining([WEATHER_TOOL_NAME, WEB_SEARCH_TOOL_NAME]));
+    expect(names).not.toContain(DELEGATE_TASK_NAME);
+  });
+});

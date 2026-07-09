@@ -1,8 +1,8 @@
 import { evalite } from "evalite";
 import { FORK_INSTRUCTIONS } from "../../src/agent/prompts";
-import { forkTools } from "../../src/agent/tools";
-import { WEATHER_TOOL_NAME } from "../../src/agent/tools/weather";
-import { WEB_SEARCH_TOOL_NAME } from "../../src/agent/tools/web-search";
+import { forkToolSchemas } from "../../src/integration/tools";
+import { WEATHER_TOOL_NAME } from "../../src/integration/tools/weather";
+import { WEB_SEARCH_TOOL_NAME } from "../../src/integration/tools/web-search";
 import {
   avoidsTools,
   probePrompt,
@@ -29,7 +29,7 @@ evalite<ProbeSpec, ProbeResult, Expected>("fork tool routing", {
           "Summarize the main tradeoffs between server-side rendering and " +
           "static site generation, and current best practices for each.",
         instructions: FORK_INSTRUCTIONS,
-        tools: forkTools,
+        tools: forkToolSchemas,
       },
       expected: {
         route: WEB_SEARCH_TOOL_NAME,
@@ -40,7 +40,7 @@ evalite<ProbeSpec, ProbeResult, Expected>("fork tool routing", {
       input: {
         prompt: "Find current best practices for API rate limiting.",
         instructions: FORK_INSTRUCTIONS,
-        tools: forkTools,
+        tools: forkToolSchemas,
       },
       expected: {
         route: WEB_SEARCH_TOOL_NAME,
@@ -52,7 +52,7 @@ evalite<ProbeSpec, ProbeResult, Expected>("fork tool routing", {
       input: {
         prompt: "What is the current weather in Tokyo?",
         instructions: FORK_INSTRUCTIONS,
-        tools: forkTools,
+        tools: forkToolSchemas,
       },
       expected: {
         route: WEATHER_TOOL_NAME,
@@ -64,7 +64,7 @@ evalite<ProbeSpec, ProbeResult, Expected>("fork tool routing", {
       input: {
         prompt: "Write a short haiku about autumn.",
         instructions: FORK_INSTRUCTIONS,
-        tools: forkTools,
+        tools: forkToolSchemas,
       },
       expected: {
         route: "direct",

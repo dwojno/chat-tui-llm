@@ -2,7 +2,7 @@ import type { ResponseInputItem, ResponseUsage } from "openai/resources/response
 
 export type TurnEvent =
   | { type: "delta"; text: string }
-  | { type: "tool"; name: string; detail?: string; fork?: string }
+  | { type: "tool"; name: string; label?: string; detail?: string; fork?: string }
   | { type: "status"; text: string; fork?: string }
   | { type: "answer"; content: string }
   | { type: "message"; item: ResponseInputItem }

@@ -20,22 +20,32 @@
     "eval": "evalite run",
     "eval:watch": "evalite watch",
     "db:generate": "drizzle-kit generate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "infra:start": "docker compose up -d",
+    "infra:stop": "docker compose down",
+    "infra:clear": "docker compose down -v"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1083.0",
+    "@qdrant/js-client-rest": "^1.18.0",
     "better-sqlite3": "^12.11.1",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "ink": "^7.1.0",
     "it-merge": "^3.0.14",
+    "mammoth": "^1.12.0",
     "openai": "^6.45.0",
     "react": "^19.2.7",
+    "turndown": "^7.2.4",
+    "unpdf": "^1.6.2",
+    "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
+    "@types/turndown": "^5.0.6",
     "drizzle-kit": "^0.31.10",
     "evalite": "^0.19.0",
     "ink-testing-library": "^4.0.0",

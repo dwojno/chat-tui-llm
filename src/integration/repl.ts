@@ -44,7 +44,7 @@ export async function processLine(
           break;
         case "tool":
           chat.addStep({
-            label: toolStepLabel(event.name),
+            label: event.label ?? toolStepLabel(event.name),
             detail: event.detail,
             fork: event.fork,
           });

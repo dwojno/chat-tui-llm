@@ -8,10 +8,12 @@ import type { TurnEvent } from "./events/events";
 import { mergeGenerators } from "./events/merge";
 import { formatResponse } from "./conversation/format";
 import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "./conversation/options";
-import { describeToolCall, executeToolCall, mainTools } from "./tools";
+import { describeToolCall, executeToolCall, toolLabel } from "./tools";
+import { toOpenAITool, type ToolDefinition } from "./tools/types";
 import { getFunctionCalls, hasFunctionCalls, toReplayInputItems } from "./conversation/items";
-import type { ToolRunContext, TurnContext, TurnProfile } from "./conversation/turn";
+import type { OpenAITool, ToolRunContext, TurnContext, TurnProfile } from "./conversation/turn";
 import { AgentConfig } from "./config/types";
+import type { z } from "zod";
 import { DEFAULT_CACHE_KEY, MAX_TOOL_STEPS } from "./config";
 import { SYSTEM_INSTRUCTIONS } from "./prompts";
 
@@ -21,14 +23,21 @@ export type { TurnContext } from "./conversation/turn";
 
 export class AgentService {
   private readonly defaultProfile: TurnProfile;
+  /** Union of main + fork tools — everything this service can execute. */
+  private readonly registry: ToolDefinition<z.ZodType>[];
+  private readonly forkToolSchemas: OpenAITool[];
 
   constructor(
     private readonly openai: OpenAI,
     config: AgentConfig = {},
   ) {
+    const tools = config.tools ?? [];
+    const forkTools = config.forkTools ?? [];
+    this.registry = dedupeByName([...tools, ...forkTools]);
+    this.forkToolSchemas = forkTools.map(toOpenAITool);
     this.defaultProfile = {
       instructions: config.instructions ?? SYSTEM_INSTRUCTIONS,
-      tools: config.tools ?? mainTools,
+      tools: tools.map(toOpenAITool),
       cacheKey: config.cacheKey ?? DEFAULT_CACHE_KEY,
     };
   }
@@ -101,6 +110,7 @@ export class AgentService {
       context,
       messages,
       runTurn: (msgs, options, ctx, profile) => this.run(msgs, options, ctx, profile),
+      forkTools: this.forkToolSchemas,
     };
   }
 
@@ -110,7 +120,12 @@ export class AgentService {
     messages: readonly ResponseInputItem[],
   ): AsyncGenerator<TurnEvent, string> {
     try {
-      return yield* executeToolCall(call.name, call.arguments, this.toolContext(context, messages));
+      return yield* executeToolCall(
+        this.registry,
+        call.name,
+        call.arguments,
+        this.toolContext(context, messages),
+      );
     } catch (error) {
       return `Error: ${error instanceof Error ? error.message : String(error)}`;
     }
@@ -137,10 +152,12 @@ export class AgentService {
       const calls = getFunctionCalls(response.output);
 
       for (const call of calls) {
-        const detail = describeToolCall(call.name, call.arguments);
+        const detail = describeToolCall(this.registry, call.name, call.arguments);
+        const label = toolLabel(this.registry, call.name);
         yield {
           type: "tool",
           name: call.name,
+          ...(label !== undefined ? { label } : {}),
           ...(detail !== undefined ? { detail } : {}),
         };
       }
@@ -182,4 +199,10 @@ export class AgentService {
 
     yield { type: "answer", content: formatResponse(response, options) };
   }
+}
+
+function dedupeByName(tools: ToolDefinition<z.ZodType>[]): ToolDefinition<z.ZodType>[] {
+  const seen = new Map<string, ToolDefinition<z.ZodType>>();
+  for (const tool of tools) if (!seen.has(tool.name)) seen.set(tool.name, tool);
+  return [...seen.values()];
 }

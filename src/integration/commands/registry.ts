@@ -4,6 +4,7 @@ import { conversationCommand } from "./conversation";
 import { jsonCommand } from "./json";
 import { learnCommand } from "./learn";
 import { profileCommand } from "./profile";
+import { reindexCommand } from "./reindex";
 import { rememberCommand } from "./remember";
 import { sourcesCommand } from "./sources";
 import { structuredCommand } from "./structured";
@@ -13,6 +14,7 @@ const COMMANDS: Command[] = [
   exitCommand,
   rememberCommand,
   learnCommand,
+  reindexCommand,
   sourcesCommand,
   profileCommand,
   conversationCommand,

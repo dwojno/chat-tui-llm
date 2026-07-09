@@ -34,4 +34,6 @@ export interface ToolRunContext {
   context: TurnContext;
   messages: readonly ResponseInputItem[];
   runTurn: RunTurn;
+  /** Tool schemas a delegated sub-agent may use (e.g. for `delegate_task`). */
+  forkTools: OpenAITool[];
 }

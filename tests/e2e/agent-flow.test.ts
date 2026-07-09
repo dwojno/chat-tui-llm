@@ -20,6 +20,7 @@ vi.mock("ink", () => ({
 import { processLine } from "../../src/integration/repl";
 import type { CommandContext } from "../../src/integration/commands/types";
 import { AgentService } from "../../src/agent/agent";
+import { createAgentTools } from "../../src/integration/tools";
 import { Session } from "../../src/integration/session";
 import { renderChat, type ChatHandle, type Message } from "../../src/ui/chat";
 import {
@@ -49,10 +50,12 @@ interface Harness {
 }
 
 async function setup(client: OpenAI): Promise<Harness> {
+  const store = await createMemoryStore();
+  const { tools, forkTools } = createAgentTools(store);
   const session = await Session.create(
-    new AgentService(client),
+    new AgentService(client, { tools, forkTools }),
     client,
-    await createMemoryStore(),
+    store,
     4,
   );
   const chat = renderChat([], { interactive: false });

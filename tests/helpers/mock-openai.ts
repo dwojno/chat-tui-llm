@@ -1,13 +1,6 @@
 import type { OpenAI } from "openai";
 import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
-import { LocalStore, type Store } from "../../src/store";
-
-/** Drive an async generator to completion and return its final value. */
-export async function drainToReturn<R>(gen: AsyncGenerator<unknown, R>): Promise<R> {
-  let next = await gen.next();
-  while (!next.done) next = await gen.next();
-  return next.value;
-}
+import { LocalStore, type RagDeps, type Store } from "../../src/store";
 
 /**
  * Test doubles for the OpenAI Responses API. The app injects the client
@@ -173,6 +166,6 @@ export function createThrowingOpenAI(message = "API unavailable"): OpenAI {
 }
 
 /** An ephemeral `:memory:` SQLite {@link Store} for exercising a Session offline. */
-export function createMemoryStore(): Promise<Store> {
-  return LocalStore.open(":memory:");
+export function createMemoryStore(rag?: RagDeps): Promise<Store> {
+  return LocalStore.open(":memory:", rag ? { rag } : {});
 }
