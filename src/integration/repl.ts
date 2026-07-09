@@ -4,13 +4,16 @@ import { runCommand } from "./commands/registry";
 import type { CommandContext } from "./commands/types";
 import { expandFileMentions } from "./file-mentions";
 import type { Session } from "./session";
+import { buildChatContext } from "./switch";
+import { buildExitMessage } from "./shutdown";
+import type { Store } from "../store";
 import type { ChatHandle } from "../ui/chat";
 import { toolStepLabel } from "../ui/labels";
 
 export interface ReplDeps {
   chat: ChatHandle;
   session: Session;
-  temperature: number;
+  store: Store;
   interactive: boolean;
 }
 
@@ -54,6 +57,7 @@ export async function processLine(
         case "answer":
           chat.commitStreaming(event.content);
           void session.getUsageTotals().then((usage) => chat.setUsage(usage));
+          void buildChatContext(session.store).then((context) => chat.setContext(context));
           break;
       }
     }
@@ -64,12 +68,7 @@ export async function processLine(
   return "continue";
 }
 
-export async function runRepl({
-  chat,
-  session,
-  temperature,
-  interactive,
-}: ReplDeps): Promise<void> {
+export async function runRepl({ chat, session, store, interactive }: ReplDeps): Promise<void> {
   const sigint = new AbortController();
 
   const shutdown = (): void => {
@@ -78,15 +77,15 @@ export async function runRepl({
 
   sigint.signal.addEventListener("abort", () => {
     chat.unmount();
-    void session.report().then((report) => {
-      writeSync(1, `\n${report}\n`);
+    void buildExitMessage(store, session).then((message) => {
+      writeSync(1, message);
       process.exit(0);
     });
   });
 
   process.on("SIGINT", shutdown);
 
-  const ctx: CommandContext = { temperature, session, chat };
+  const ctx: CommandContext = { session, chat };
 
   chat.setUsage(await session.getUsageTotals());
 

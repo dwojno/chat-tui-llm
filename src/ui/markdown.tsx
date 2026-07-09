@@ -83,7 +83,7 @@ function renderBlocks(source: string): React.ReactNode[] {
       blocks.push(
         <Box key={key++} flexDirection="column" paddingX={1}>
           {code.map((codeLine, index) => (
-            <Text key={index} color="gray">
+            <Text key={codeLine ?? index} color="gray">
               {codeLine || " "}
             </Text>
           ))}

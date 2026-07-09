@@ -4,7 +4,7 @@ import type { ZodType } from "zod";
 import { MODEL } from "../../src/agent/config";
 import { SYSTEM_INSTRUCTIONS } from "../../src/agent/prompts";
 import { buildContextBlock } from "../../src/agent/dynamicContext/context";
-import { summaryDeveloperMessage } from "../../src/store/conversation/query";
+import { summaryDeveloperMessage } from "../../src/store";
 import { getFunctionCalls } from "../../src/agent/conversation/items";
 import { forkTools, mainTools } from "../../src/agent/tools";
 import { openai } from "./client";

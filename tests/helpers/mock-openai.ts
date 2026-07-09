@@ -1,6 +1,6 @@
 import type { OpenAI } from "openai";
 import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
-import { LocalStore, type Store } from "../../src/store/store";
+import { LocalStore, type Store } from "../../src/store";
 
 /** Drive an async generator to completion and return its final value. */
 export async function drainToReturn<R>(gen: AsyncGenerator<unknown, R>): Promise<R> {

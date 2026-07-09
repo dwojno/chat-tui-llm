@@ -9,12 +9,11 @@ export const structuredCommand: Command = {
   completion: PREFIX,
   hint: "answer validated against a schema (answer + sources)",
   matches: (input) => input.startsWith(PREFIX),
-  run: (input, { temperature }) => ({
+  run: async (input) => ({
     kind: "turn",
     content: input.slice(PREFIX.length).trim(),
     options: {
       ...DEFAULT_TURN_OPTIONS,
-      temperature,
       structured_output: ResponseSchema,
     },
   }),

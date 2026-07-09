@@ -10,6 +10,10 @@ function matchSuggestions(value: string): SlashCommandInfo[] {
   return SLASH_COMMANDS.filter((command) => command.completion.startsWith(value));
 }
 
+export function isExactSlashCommand(value: string): boolean {
+  return SLASH_COMMANDS.some((command) => command.completion === value);
+}
+
 export type ActiveSuggestions =
   | { kind: "slash"; items: SlashCommandInfo[] }
   | { kind: "file"; items: FileSuggestion[] };

@@ -5,7 +5,13 @@ import Markdown from "../markdown";
 import { MessageHeader } from "./message-header";
 import { CollapsibleStepList } from "./step-list";
 
-export function ChatMessage({ message }: { message: Message }): React.JSX.Element {
+export function ChatMessage({
+  message,
+  dimmed = false,
+}: {
+  message: Message;
+  dimmed?: boolean;
+}): React.JSX.Element {
   const steps = message.role === "assistant" ? message.steps : undefined;
   return (
     <Box flexDirection="column" marginBottom={1}>
@@ -15,7 +21,7 @@ export function ChatMessage({ message }: { message: Message }): React.JSX.Elemen
         {message.role === "assistant" ? (
           <Markdown>{message.content}</Markdown>
         ) : (
-          <Text>{message.content}</Text>
+          <Text dimColor={dimmed}>{message.content}</Text>
         )}
       </Box>
     </Box>

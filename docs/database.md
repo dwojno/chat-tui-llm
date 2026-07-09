@@ -1,11 +1,11 @@
 # Persistence: SQLite + Drizzle
 
-chat-cli persists durable state behind a top-level [`Store`](../src/store/store.ts)
-facade. The store composes three namespaced clients —
-[`conversation`](../src/store/conversation/client.ts) (transcript, summaries,
-usage), [`fact`](../src/store/fact/client.ts) (pinned facts), and
-[`sources`](../src/store/sources/client.ts) (learned file paths). SQLite is the
-current backend for all three; its schema is documented below.
+chat-cli persists durable state behind a top-level [`Store`](../src/store/index.ts)
+facade. The store composes namespaced domain facades —
+[`profile`](../src/store/profile/index.ts) (settings), [`conversation`](../src/store/conversation/index.ts) (transcript, summaries,
+usage), [`fact`](../src/store/fact/index.ts) (pinned facts), and
+[`sources`](../src/store/sources/index.ts) (learned file paths). SQLite is the
+current backend; its schema is documented below.
 
 ## Store (top-level facade)
 
@@ -16,22 +16,37 @@ and its namespaces, never on SQLite directly:
 const store = await LocalStore.open(DB_PATH);
 const session = await Session.create(agent, openai, store, KEEP_LAST_TURNS);
 
-await store.conversation.appendItems(items);
-await store.fact.add("likes tea");
-await store.sources.add(["src/a.ts"]);
+await store.conversation.createItems(store.conversationId, items);
+await store.fact.create(store.profileId, "likes tea");
+await store.sources.create(store.profileId, "src/a.ts");
+
+const profiles = await store.profile.query().execute();
+const conversations = await store.conversation
+  .query()
+  .forProfile(store.profileId)
+  .orderByLastActivity()
+  .execute();
+const facts = await store.fact.query().forProfile(store.profileId).execute();
+const profile = await store.profile.query().byId(store.profileId).executeAndTakeFirst();
+const conversation = await store.conversation
+  .query()
+  .byId(store.conversationId)
+  .executeAndTakeFirst();
 ```
 
-| Type                                                        | Role                                         |
-| ----------------------------------------------------------- | -------------------------------------------- |
-| [`Store`](../src/store/store.ts)                            | Top-level facade — `sessionId` + namespaces  |
-| [`LocalStore`](../src/store/store.ts)                       | SQLite bundle (`open(path)` or `":memory:"`) |
-| [`ConversationClient`](../src/store/conversation/client.ts) | Transcript, summaries, token usage           |
-| [`FactClient`](../src/store/fact/client.ts)                 | Pinned facts                                 |
-| [`SourcesClient`](../src/store/sources/client.ts)           | Learned source paths (deduped)               |
+| Type                                                                     | Role                                              |
+| ------------------------------------------------------------------------ | ------------------------------------------------- |
+| [`Store`](../src/store/index.ts)                                         | Top-level facade — `profileId` + `conversationId` |
+| [`LocalStore`](../src/store/store.ts)                                    | SQLite bundle (`open(path)` or `":memory:"`)      |
+| [`ProfileFacade`](../src/store/profile/profile.facade.ts)                | Profile settings (model, temperature)             |
+| [`ConversationFacade`](../src/store/conversation/conversation.facade.ts) | Transcript, summaries, token usage                |
+| [`FactFacade`](../src/store/fact/fact.facade.ts)                         | Pinned facts (profile-scoped)                     |
+| [`SourcesFacade`](../src/store/sources/source.facade.ts)                 | Learned source paths (profile-scoped)             |
 
-Each namespace's only implementation lives under
-[`src/store/sqlite/`](../src/store/sqlite/); nothing outside `sqlite/` imports
-Drizzle or `better-sqlite3`. Tests run against the same SQLite code via
+Each domain exposes a single public module (`index.ts`) with an abstract facade class
+and a repository holding all SQL. [`src/db/`](../src/db/) holds schema, migrations,
+and connection; the composition root in [`store.ts`](../src/store/store.ts) wires
+facades with constructor injection. Tests run against the same SQLite code via
 `LocalStore.open(":memory:")`, so they exercise the real SQL — there is no
 separate in-memory stand-in to drift from production behaviour.
 
@@ -42,9 +57,10 @@ A remote or Postgres backend is a new `Store` whose namespaces call `fetch()`
 
 ```ts
 class CloudStore implements Store {
-  readonly conversation: ApiConversationClient;
-  readonly fact: ApiFactClient;
-  readonly sources: ApiSourcesClient;
+  readonly profile: ApiProfileFacade;
+  readonly conversation: ApiConversationFacade;
+  readonly fact: ApiFactFacade;
+  readonly sources: ApiSourcesFacade;
 }
 ```
 
@@ -58,7 +74,7 @@ when those features land.
 2. **`conversation_item` is append-only** — no `UPDATE` or `DELETE`, ever. Each
    windowing pass **inserts** a new `kind = 'summary'` row; older summary rows
    remain as an audit trail.
-3. **The rolling summary is session-scoped, not durable** — it exists only to
+3. **The rolling summary is conversation-scoped, not durable** — it exists only to
    shrink the live context window while a process runs. Summary rows are written
    (for summarizer-token accounting + audit) but never returned as history items;
    on restart the summary starts empty and rebuilds from the restored window as it
@@ -72,20 +88,20 @@ when those features land.
 
 ## On-disk layout
 
-| Path                  | Purpose                                                                           |
-| --------------------- | --------------------------------------------------------------------------------- |
-| `.chat-state/chat.db` | SQLite database (WAL mode) — all persisted state                                  |
-| `.chat-state/active`  | Plain-text pointer to the active session UUID (runtime preference, not in the DB) |
+| Path                      | Purpose                                                       |
+| ------------------------- | ------------------------------------------------------------- |
+| `.chat-state/chat.db`     | SQLite database (WAL mode) — all persisted state              |
+| `.chat-state/active.json` | JSON pointer to the active profile (`{ "profileId": "..." }`) |
 
 The whole `.chat-state/` directory is gitignored.
 
 ## Read patterns
 
-| Concern          | SQL query                     | Used for                 |
-| ---------------- | ----------------------------- | ------------------------ |
-| **Transcript**   | `queryHistory()`              | UI replay + model window |
-| **Usage totals** | `SUM(...)` over token columns | status bar, `/report`    |
-| **Facts**        | `fact` table, `ORDER BY id`   | `buildContextBlock()`    |
+| Concern          | SQL query                                   | Used for                 |
+| ---------------- | ------------------------------------------- | ------------------------ |
+| **Transcript**   | `queryHistory()`                            | UI replay + model window |
+| **Usage totals** | `SUM(...)` over token columns               | status bar, `/report`    |
+| **Facts**        | `fact` table, profile-scoped, `ORDER BY id` | `buildContextBlock()`    |
 
 `queryHistory()` is the fluent transcript read API. Summary rows are never
 returned as UI history items; `forModel()` reads the latest summary text from the
@@ -115,19 +131,29 @@ flowchart LR
 
 ```mermaid
 erDiagram
-  session ||--o{ fact : has
-  session ||--o{ source : has
-  session ||--o{ conversation_item : has
+  profile ||--o{ conversation : has
+  profile ||--o{ fact : owns
+  profile ||--o{ source : owns
+  conversation ||--o{ conversation_item : has
 
-  session {
+  profile {
     text id PK
+    text name
+    text model
+    real temperature
+    int created_at
+  }
+
+  conversation {
+    text id PK
+    text profile_id FK
     text title
     int created_at
   }
 
   fact {
     int id PK
-    text session_id FK
+    text profile_id FK
     text category
     text text
     int created_at
@@ -135,14 +161,14 @@ erDiagram
 
   source {
     int id PK
-    text session_id FK
+    text profile_id FK
     text path
     int created_at
   }
 
   conversation_item {
     int id PK
-    text session_id FK
+    text conversation_id FK
     int turn_index
     text kind
     json payload
@@ -156,27 +182,43 @@ erDiagram
 
 ## Tables
 
-### `session` — identifiable, browsable chat sessions
+### `profile` — settings and memory scope
 
-| Column       | Type                               | Notes                                        |
-| ------------ | ---------------------------------- | -------------------------------------------- |
-| `id`         | `TEXT PK`                          | UUID (`crypto.randomUUID()`)                 |
-| `title`      | `TEXT NOT NULL DEFAULT 'New chat'` | Human-readable label for the session browser |
-| `created_at` | `INTEGER NOT NULL`                 | Unix ms                                      |
+| Column        | Type               | Notes                                               |
+| ------------- | ------------------ | --------------------------------------------------- |
+| `id`          | `TEXT PK`          | Slug (`personal` is the default, seeded on migrate) |
+| `name`        | `TEXT NOT NULL`    | Display name in the profile picker                  |
+| `model`       | `TEXT`             | Optional per-profile model override                 |
+| `temperature` | `REAL`             | Optional per-profile temperature override           |
+| `created_at`  | `INTEGER NOT NULL` | Unix ms                                             |
+
+- Facts and sources belong to a profile, not a conversation — switching
+  conversation keeps memory; switching profile does not.
+- The active profile id is persisted in `.chat-state/active.json` (not in the DB).
+
+### `conversation` — identifiable, browsable chat threads
+
+| Column       | Type                               | Notes                                            |
+| ------------ | ---------------------------------- | ------------------------------------------------ |
+| `id`         | `TEXT PK`                          | UUID (`crypto.randomUUID()`)                     |
+| `profile_id` | `TEXT NOT NULL FK → profile.id`    | Owning profile                                   |
+| `title`      | `TEXT NOT NULL DEFAULT 'New chat'` | Human-readable label for the conversation picker |
+| `created_at` | `INTEGER NOT NULL`                 | Unix ms                                          |
 
 - `id` is a UUID, not a sentinel like `'default'`.
-- `title` is user-facing and updatable — the session row is the one exception to
+- `title` is user-facing and updatable — the conversation row is the one exception to
   the append-only rule (it is metadata, not transcript).
 - Last activity is derived, not stored: `MAX(conversation_item.created_at)`.
 
 Browse query:
 
 ```sql
-SELECT s.id, s.title, s.created_at,
+SELECT c.id, c.profile_id, c.title, c.created_at,
   (SELECT MAX(ci.created_at) FROM conversation_item ci
-   WHERE ci.session_id = s.id) AS last_activity_at
-FROM session s
-ORDER BY last_activity_at DESC, s.created_at DESC;
+   WHERE ci.conversation_id = c.id) AS last_activity_at
+FROM conversation c
+WHERE c.profile_id = ?
+ORDER BY last_activity_at DESC, c.created_at DESC;
 ```
 
 ### `fact` — pinned user notes (`/remember`)
@@ -184,7 +226,7 @@ ORDER BY last_activity_at DESC, s.created_at DESC;
 | Column       | Type                              | Notes              |
 | ------------ | --------------------------------- | ------------------ |
 | `id`         | `INTEGER PK AUTOINCREMENT`        | Order by `id ASC`  |
-| `session_id` | `TEXT NOT NULL FK → session.id`   |                    |
+| `profile_id` | `TEXT NOT NULL FK → profile.id`   |                    |
 | `category`   | `TEXT NOT NULL DEFAULT 'general'` | Free-form grouping |
 | `text`       | `TEXT NOT NULL`                   | Fact body          |
 | `created_at` | `INTEGER NOT NULL`                |                    |
@@ -194,26 +236,26 @@ ORDER BY last_activity_at DESC, s.created_at DESC;
 | Column       | Type                            | Notes             |
 | ------------ | ------------------------------- | ----------------- |
 | `id`         | `INTEGER PK AUTOINCREMENT`      | Order by `id ASC` |
-| `session_id` | `TEXT NOT NULL FK → session.id` |                   |
+| `profile_id` | `TEXT NOT NULL FK → profile.id` |                   |
 | `path`       | `TEXT NOT NULL`                 | cwd-relative      |
 | `created_at` | `INTEGER NOT NULL`              |                   |
 
-- Unique: `(session_id, path)` — dedupes repeat `/learn` of the same file.
+- Unique: `(profile_id, path)` — dedupes repeat `/learn` of the same file.
 
 ### `conversation_item` — append-only transcript + summaries + token usage
 
-| Column                | Type                            | Notes                                                         |
-| --------------------- | ------------------------------- | ------------------------------------------------------------- |
-| `id`                  | `INTEGER PK AUTOINCREMENT`      | Order by `id ASC`                                             |
-| `session_id`          | `TEXT NOT NULL FK → session.id` |                                                               |
-| `turn_index`          | `INTEGER`                       | `NULL` for `kind = 'summary'`                                 |
-| `kind`                | `TEXT NOT NULL`                 | `message \| function_call \| function_call_output \| summary` |
-| `payload`             | `TEXT NOT NULL`                 | JSON — shape depends on `kind`                                |
-| `input_tokens`        | `INTEGER NOT NULL DEFAULT 0`    |                                                               |
-| `cached_input_tokens` | `INTEGER NOT NULL DEFAULT 0`    |                                                               |
-| `output_tokens`       | `INTEGER NOT NULL DEFAULT 0`    |                                                               |
-| `summarizer_tokens`   | `INTEGER NOT NULL DEFAULT 0`    | Non-zero on `kind = 'summary'` rows                           |
-| `created_at`          | `INTEGER NOT NULL`              |                                                               |
+| Column                | Type                                 | Notes                                                         |
+| --------------------- | ------------------------------------ | ------------------------------------------------------------- |
+| `id`                  | `INTEGER PK AUTOINCREMENT`           | Order by `id ASC`                                             |
+| `conversation_id`     | `TEXT NOT NULL FK → conversation.id` |                                                               |
+| `turn_index`          | `INTEGER`                            | `NULL` for `kind = 'summary'`                                 |
+| `kind`                | `TEXT NOT NULL`                      | `message \| function_call \| function_call_output \| summary` |
+| `payload`             | `TEXT NOT NULL`                      | JSON — shape depends on `kind`                                |
+| `input_tokens`        | `INTEGER NOT NULL DEFAULT 0`         |                                                               |
+| `cached_input_tokens` | `INTEGER NOT NULL DEFAULT 0`         |                                                               |
+| `output_tokens`       | `INTEGER NOT NULL DEFAULT 0`         |                                                               |
+| `summarizer_tokens`   | `INTEGER NOT NULL DEFAULT 0`         | Non-zero on `kind = 'summary'` rows                           |
+| `created_at`          | `INTEGER NOT NULL`                   |                                                               |
 
 Payload shapes per `kind`:
 
@@ -226,11 +268,11 @@ Payload shapes per `kind`:
 
 Indexes:
 
-- `(session_id, turn_index)` — window queries
-- `(session_id, kind, id)` — fast latest-summary lookup
+- `(conversation_id, turn_index)` — window queries
+- `(conversation_id, kind, id)` — fast latest-summary lookup
 
 There is no partial unique index on summary rows: multiple summary rows per
-session are intentional.
+conversation are intentional.
 
 ## Summary: append, never update
 
@@ -264,14 +306,16 @@ SELECT
   COALESCE(SUM(cached_input_tokens), 0) AS cached_input,
   COALESCE(SUM(output_tokens), 0)       AS output_tokens,
   COALESCE(SUM(summarizer_tokens), 0)   AS summarizer_tokens
-FROM conversation_item WHERE session_id = ?;
+FROM conversation_item WHERE conversation_id = ?;
 ```
 
 ## Runtime assembly
 
 ```ts
-const messages = await store.conversation.queryHistory().forModel().execute();
-const facts = await store.fact.list();
+const messages = await store.conversation.queryHistory(store.conversationId).forModel().execute();
+const facts = (await store.fact.query().forProfile(store.profileId).execute()).map(
+  (row) => row.text,
+);
 
 const apiInput = [
   ...messages, // full unsummarized tail; summary prepended once when present
@@ -285,7 +329,7 @@ the latest summary row's text once — it is not duplicated in `buildContextBloc
 ## Migrations
 
 Schema lives in
-[`src/store/sqlite/schema.ts`](../src/store/sqlite/schema.ts).
+[`src/db/schema.ts`](../src/db/schema.ts).
 SQL migrations are generated by drizzle-kit and applied automatically on startup.
 
 ```bash
@@ -294,31 +338,25 @@ pnpm db:studio                     # browse the database
 ```
 
 Migrations run on every open
-([`src/store/sqlite/db.ts`](../src/store/sqlite/db.ts));
+([`src/db/db.ts`](../src/db/db.ts));
 once the schema is current it is a no-op, so there is no separate setup step.
 
 ## Code map
 
-| File                                                                      | Role                                    |
-| ------------------------------------------------------------------------- | --------------------------------------- |
-| [`src/store/store.ts`](../src/store/store.ts)                             | `Store` facade + `LocalStore` bundle    |
-| [`src/store/types.ts`](../src/store/types.ts)                             | Storage-agnostic domain types           |
-| [`src/store/derive.ts`](../src/store/derive.ts)                           | Pure window/usage helpers               |
-| [`src/store/conversation/client.ts`](../src/store/conversation/client.ts) | Abstract `ConversationClient`           |
-| [`src/store/fact/client.ts`](../src/store/fact/client.ts)                 | Abstract `FactClient`                   |
-| [`src/store/sources/client.ts`](../src/store/sources/client.ts)           | Abstract `SourcesClient`                |
-| [`src/store/sqlite/schema.ts`](../src/store/sqlite/schema.ts)             | Drizzle table definitions               |
-| [`src/store/sqlite/db.ts`](../src/store/sqlite/db.ts)                     | Connection, WAL, migrations             |
-| [`src/store/sqlite/sessions.ts`](../src/store/sqlite/sessions.ts)         | Active-session pointer + `listSessions` |
-| [`src/store/sqlite/conversation.ts`](../src/store/sqlite/conversation.ts) | SQLite `ConversationClient`             |
-| [`src/store/sqlite/fact.ts`](../src/store/sqlite/fact.ts)                 | SQLite `FactClient`                     |
-| [`src/store/sqlite/sources.ts`](../src/store/sqlite/sources.ts)           | SQLite `SourcesClient`                  |
-| `src/store/sqlite/migrations/`                                            | drizzle-kit generated SQL + journal     |
+| File                                                    | Role                                            |
+| ------------------------------------------------------- | ----------------------------------------------- |
+| [`src/store/index.ts`](../src/store/index.ts)           | `Store` facade entry point                      |
+| [`src/store/store.ts`](../src/store/store.ts)           | `LocalStore` composition                        |
+| [`src/store/profile/`](../src/store/profile/)           | `ProfileFacade` + `ProfileRepository`           |
+| [`src/store/conversation/`](../src/store/conversation/) | `ConversationFacade` + `ConversationRepository` |
+| [`src/store/fact/`](../src/store/fact/)                 | `FactFacade` + `FactRepository`                 |
+| [`src/store/sources/`](../src/store/sources/)           | `SourcesFacade` + `SourceRepository`            |
+| [`src/db/schema.ts`](../src/db/schema.ts)               | Drizzle table definitions                       |
+| [`src/db/db.ts`](../src/db/db.ts)                       | Connection, WAL, migrations                     |
+| `src/db/migrations/`                                    | drizzle-kit generated SQL + journal             |
 
 ## Deliberate non-goals (v1)
 
-- **Session browser UI** — schema and `listSessions()` are ready; the TUI picker
-  is a follow-up.
 - **UPDATE/DELETE on `conversation_item`** — strictly append-only.
 - **Storing `last_activity_at`** — derived from `conversation_item`.
 - **Showing summary rows in UI chat** — excluded from the history query.

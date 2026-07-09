@@ -1,7 +1,9 @@
 import { DEFAULT_TURN_OPTIONS } from "../../agent/conversation/options";
 import { exitCommand } from "./exit";
+import { conversationCommand } from "./conversation";
 import { jsonCommand } from "./json";
 import { learnCommand } from "./learn";
+import { profileCommand } from "./profile";
 import { rememberCommand } from "./remember";
 import { sourcesCommand } from "./sources";
 import { structuredCommand } from "./structured";
@@ -12,6 +14,8 @@ const COMMANDS: Command[] = [
   rememberCommand,
   learnCommand,
   sourcesCommand,
+  profileCommand,
+  conversationCommand,
   structuredCommand,
   jsonCommand,
 ];
@@ -19,10 +23,10 @@ const COMMANDS: Command[] = [
 const chatCommand: Command = {
   name: "chat",
   matches: () => true,
-  run: (input, { temperature }) => ({
+  run: async (input) => ({
     kind: "turn",
     content: input,
-    options: { ...DEFAULT_TURN_OPTIONS, temperature },
+    options: DEFAULT_TURN_OPTIONS,
   }),
 };
 

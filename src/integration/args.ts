@@ -1,14 +1,13 @@
 import { parseArgs } from "node:util";
-import { DEFAULT_TURN_OPTIONS } from "../agent/conversation/options";
 
 export interface CliArgs {
-  temperature: number;
+  conversationId?: string | undefined;
 }
 
 const USAGE = `Usage: chat-cli [options]
 
 Options:
-  -t, --temperature <number>   Sampling temperature for every turn (default: ${DEFAULT_TURN_OPTIONS.temperature})
+  -c, --conversation <uuid>    Restore a previous conversation by id
   -h, --help                   Show this help and exit`;
 
 export function parseCliArgs(argv: readonly string[] = process.argv.slice(2)): CliArgs {
@@ -19,18 +18,19 @@ export function parseCliArgs(argv: readonly string[] = process.argv.slice(2)): C
     process.exit(0);
   }
 
-  return { temperature: parseTemperature(values.temperature) };
+  const conversationId = values.conversation?.trim() || undefined;
+  return conversationId !== undefined ? { conversationId } : {};
 }
 
 function parseRaw(argv: readonly string[]): {
-  temperature?: string;
+  conversation?: string;
   help?: boolean;
 } {
   try {
     return parseArgs({
       args: [...argv],
       options: {
-        temperature: { type: "string", short: "t" },
+        conversation: { type: "string", short: "c" },
         help: { type: "boolean", short: "h" },
       },
       strict: true,
@@ -39,19 +39,6 @@ function parseRaw(argv: readonly string[]): {
     const message = error instanceof Error ? error.message : String(error);
     return fail(`${message}\n\n${USAGE}`);
   }
-}
-
-function parseTemperature(raw: string | undefined): number {
-  if (raw === undefined) {
-    return DEFAULT_TURN_OPTIONS.temperature;
-  }
-
-  const value = Number(raw);
-  if (Number.isNaN(value)) {
-    return fail(`Invalid --temperature: ${JSON.stringify(raw)} is not a number.`);
-  }
-
-  return value;
 }
 
 function fail(message: string): never {

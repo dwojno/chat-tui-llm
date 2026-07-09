@@ -5,19 +5,30 @@ import type { LiveTurn, Message, Step } from "./types";
 import { ChatMessage } from "./components/message";
 import { StreamingMessage } from "./components/streaming-message";
 import { Welcome } from "./components/welcome";
-import { UsageBar } from "./components/usage-bar";
+import { UsageBar, type ChatContextBar } from "./components/usage-bar";
 import { PromptInput } from "./input/prompt-input";
+import { PickerOverlay, PromptOverlay } from "./input/picker-overlay";
+import type { PickerItem } from "./input/picker-keys";
 
 export type { Message, Step, Role } from "./types";
+export type { ChatContextBar } from "./components/usage-bar";
+
+type OverlayState =
+  | { kind: "picker"; title: string; subtitle?: string; items: PickerItem[]; createLabel: string }
+  | { kind: "prompt"; title: string; placeholder: string };
 
 interface ChatProps {
   messages: Message[];
   live?: LiveTurn | undefined;
   interactive: boolean;
   inputActive: boolean;
+  overlay?: OverlayState | undefined;
   usage?: UsageSnapshot | undefined;
+  context?: ChatContextBar | undefined;
+  dimmed: boolean;
   onSubmit(line: string): void;
   onExit(): void;
+  onOverlayResolve(value: string | "create" | null): void;
 }
 
 function Chat({
@@ -25,24 +36,50 @@ function Chat({
   live,
   interactive,
   inputActive,
+  overlay,
   usage,
+  context,
+  dimmed,
   onSubmit,
   onExit,
+  onOverlayResolve,
 }: ChatProps): React.JSX.Element {
   const empty = messages.length === 0 && live === undefined;
   return (
     <Box flexDirection="column" padding={1}>
       <Static items={messages}>
-        {(message, index) => <ChatMessage key={index} message={message} />}
+        {(message, index) => (
+          <ChatMessage key={index} message={message} dimmed={dimmed && overlay !== undefined} />
+        )}
       </Static>
 
-      {empty && <Welcome />}
+      {empty && overlay === undefined && <Welcome />}
 
       {live !== undefined && <StreamingMessage steps={live.steps} content={live.content} />}
 
-      {interactive && <PromptInput active={inputActive} onSubmit={onSubmit} onExit={onExit} />}
+      {overlay?.kind === "picker" && (
+        <PickerOverlay
+          title={overlay.title}
+          {...(overlay.subtitle !== undefined ? { subtitle: overlay.subtitle } : {})}
+          items={overlay.items}
+          createLabel={overlay.createLabel}
+          onResolve={onOverlayResolve}
+        />
+      )}
 
-      {usage !== undefined && <UsageBar usage={usage} />}
+      {overlay?.kind === "prompt" && (
+        <PromptOverlay
+          title={overlay.title}
+          placeholder={overlay.placeholder}
+          onResolve={onOverlayResolve}
+        />
+      )}
+
+      {interactive && overlay === undefined && (
+        <PromptInput active={inputActive} onSubmit={onSubmit} onExit={onExit} />
+      )}
+
+      {usage !== undefined && <UsageBar usage={usage} context={context} />}
     </Box>
   );
 }
@@ -55,9 +92,20 @@ export interface ChatHandle {
   commitStreaming(content?: string): void;
   stream(deltas: AsyncIterable<string>): Promise<string>;
   question(): Promise<string>;
+  pickEntity(opts: {
+    title: string;
+    subtitle?: string | undefined;
+    items: PickerItem[];
+    createLabel: string;
+  }): Promise<string | "create" | null>;
+  promptInModal(opts: { title: string; placeholder: string }): Promise<string | null>;
+  replaceMessages(next: readonly Message[]): void;
   onExit(handler: () => void): void;
   readonly messages: readonly Message[];
   setUsage(usage: UsageSnapshot): void;
+  setContext(context: ChatContextBar): void;
+  readonly conversationId: string;
+  setConversationId(id: string): void;
   unmount(): void;
   waitUntilExit(): Promise<void>;
 }
@@ -67,13 +115,24 @@ export function renderChat(
   {
     interactive = false,
     initialUsage,
-  }: { interactive?: boolean; initialUsage?: UsageSnapshot } = {},
+    initialContext,
+    conversationId = "",
+  }: {
+    interactive?: boolean;
+    initialUsage?: UsageSnapshot;
+    initialContext?: ChatContextBar;
+    conversationId?: string;
+  } = {},
 ): ChatHandle {
   let messages: Message[] = [...initial];
   let live: LiveTurn | undefined;
   let inputActive = false;
+  let overlay: OverlayState | undefined;
   let usage: UsageSnapshot | undefined = initialUsage;
+  let context: ChatContextBar | undefined = initialContext;
+  let activeConversationId = conversationId;
   let submit: ((line: string) => void) | null = null;
+  let overlayResolve: ((value: string | "create" | null) => void) | null = null;
   let exitHandler: (() => void) | null = null;
 
   const handleSubmit = (line: string): void => {
@@ -82,6 +141,14 @@ export function renderChat(
     submit = null;
     update();
     resolve?.(line);
+  };
+
+  const handleOverlayResolve = (value: string | "create" | null): void => {
+    overlay = undefined;
+    const resolve = overlayResolve;
+    overlayResolve = null;
+    update();
+    resolve?.(value);
   };
 
   const handleExit = (): void => {
@@ -94,9 +161,13 @@ export function renderChat(
       live={live}
       interactive={interactive}
       inputActive={inputActive}
+      overlay={overlay}
       usage={usage}
+      context={context}
+      dimmed={overlay !== undefined}
       onSubmit={handleSubmit}
       onExit={handleExit}
+      onOverlayResolve={handleOverlayResolve}
     />
   );
 
@@ -157,6 +228,41 @@ export function renderChat(
         update();
       });
     },
+    pickEntity(opts): Promise<string | "create" | null> {
+      return new Promise((resolve) => {
+        overlayResolve = resolve;
+        overlay = {
+          kind: "picker",
+          title: opts.title,
+          items: [...opts.items],
+          createLabel: opts.createLabel,
+          ...(opts.subtitle !== undefined ? { subtitle: opts.subtitle } : {}),
+        };
+        update();
+      });
+    },
+    promptInModal(opts): Promise<string | null> {
+      return new Promise((resolve) => {
+        overlayResolve = (value) => {
+          if (value === "create") {
+            resolve(null);
+            return;
+          }
+          resolve(value);
+        };
+        overlay = {
+          kind: "prompt",
+          title: opts.title,
+          placeholder: opts.placeholder,
+        };
+        update();
+      });
+    },
+    replaceMessages(next: readonly Message[]): void {
+      messages = [...next];
+      live = undefined;
+      update();
+    },
     onExit(handler: () => void): void {
       exitHandler = handler;
     },
@@ -165,6 +271,17 @@ export function renderChat(
     },
     setUsage(next: UsageSnapshot): void {
       usage = next;
+      update();
+    },
+    setContext(next: ChatContextBar): void {
+      context = next;
+      update();
+    },
+    get conversationId(): string {
+      return activeConversationId;
+    },
+    setConversationId(id: string): void {
+      activeConversationId = id;
       update();
     },
     unmount: () => {

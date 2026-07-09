@@ -12,7 +12,7 @@ import { describeToolCall, executeToolCall, mainTools } from "./tools";
 import { getFunctionCalls, hasFunctionCalls, toReplayInputItems } from "./conversation/items";
 import type { ToolRunContext, TurnContext, TurnProfile } from "./conversation/turn";
 import { AgentConfig } from "./config/types";
-import { DEFAULT_CACHE_KEY, MAX_TOOL_STEPS, MODEL } from "./config";
+import { DEFAULT_CACHE_KEY, MAX_TOOL_STEPS } from "./config";
 import { SYSTEM_INSTRUCTIONS } from "./prompts";
 
 const EMPTY_CONTEXT: TurnContext = { facts: [] };
@@ -47,7 +47,7 @@ export class AgentService {
         : undefined;
 
     return {
-      model: MODEL,
+      model: options.model,
       input: [
         ...input,
         ...buildContextBlock({

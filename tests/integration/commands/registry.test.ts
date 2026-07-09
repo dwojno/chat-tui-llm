@@ -14,7 +14,6 @@ function makeCtx(overrides: Partial<CommandContext> = {}) {
   const addSources = vi.fn().mockReturnValue([]);
   const push = vi.fn();
   const ctx: CommandContext = {
-    temperature: 0.5,
     session: {
       addFact,
       addSources,
@@ -34,6 +33,8 @@ describe("resolveCommand", () => {
     ["/learn", "learn"],
     ["/learn @src/foo.ts", "learn"],
     ["/sources", "sources"],
+    ["/profile", "profile"],
+    ["/conversation", "conversation"],
     ["/structured q", "structured"],
     ["/json q", "json"],
     ["just chatting", "chat"],
@@ -43,13 +44,13 @@ describe("resolveCommand", () => {
 });
 
 describe("runCommand", () => {
-  it("turns a plain line into a streaming turn with the resolved temperature", async () => {
+  it("turns a plain line into a streaming turn", async () => {
     const { ctx } = makeCtx();
     const action = await runCommand("hello there", ctx);
     expect(action).toMatchObject({
       kind: "turn",
       content: "hello there",
-      options: { temperature: 0.5, stream: true },
+      options: { stream: true },
     });
   });
 
@@ -125,7 +126,15 @@ describe("slashCommandCatalog", () => {
   it("lists the user-typeable slash commands only", () => {
     const completions = slashCommandCatalog().map((c) => c.completion);
     expect(completions).toEqual(
-      expect.arrayContaining(["/remember ", "/learn ", "/sources", "/structured ", "/json "]),
+      expect.arrayContaining([
+        "/remember ",
+        "/learn ",
+        "/sources",
+        "/profile",
+        "/conversation",
+        "/structured ",
+        "/json ",
+      ]),
     );
     // `exit` and the `chat` fallback are not slash commands.
     expect(completions.some((c) => c.includes("exit") || c.includes("chat"))).toBe(false);

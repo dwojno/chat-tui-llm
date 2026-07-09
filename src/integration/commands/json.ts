@@ -8,14 +8,13 @@ export const jsonCommand: Command = {
   completion: PREFIX,
   hint: "answer in raw JSON mode",
   matches: (input) => input.startsWith(PREFIX),
-  run: (input, { temperature }) => {
+  run: async (input) => {
     const prompt = input.slice(PREFIX.length).trim();
     return {
       kind: "turn",
       content: `${prompt}\n\nRespond in JSON format.`,
       options: {
         ...DEFAULT_TURN_OPTIONS,
-        temperature,
         json_mode: true,
       },
     };

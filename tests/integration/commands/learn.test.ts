@@ -32,7 +32,6 @@ describe("learn command", () => {
     );
     const push = vi.fn();
     const ctx: CommandContext = {
-      temperature: 0.5,
       session,
       chat: { push } as unknown as ChatHandle,
     };

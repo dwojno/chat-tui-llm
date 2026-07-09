@@ -3,7 +3,6 @@ import type { Session } from "../session";
 import type { ChatHandle } from "../../ui/chat";
 
 export interface CommandContext {
-  temperature: number;
   session: Session;
   chat: ChatHandle;
 }

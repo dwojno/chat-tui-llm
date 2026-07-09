@@ -56,7 +56,7 @@ async function setup(client: OpenAI): Promise<Harness> {
     4,
   );
   const chat = renderChat([], { interactive: false });
-  const ctx: CommandContext = { temperature: 0.7, session, chat };
+  const ctx: CommandContext = { session, chat };
   return {
     chat,
     session,

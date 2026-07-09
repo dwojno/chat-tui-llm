@@ -18,6 +18,9 @@ src/
   integration/   Adapters + wiring: persistence, the OpenAI client, the REPL
                  driver, CLI args, file-mention expansion, and the commands
                  that bridge user input to the agent/session.
+  store/         Store facade → domain facades (profile, conversation, fact,
+                 sources) backed by SQLite via drizzle-orm.
+  db/            Schema, migrations, and the SQLite connection.
   main.ts        Composition root: builds every dependency once and hands them
                  to the REPL, so each layer can be driven with test doubles.
 ```
@@ -40,7 +43,10 @@ is a single-turn pure function. It:
 - copies the input `messages` into a local working array and **retains nothing**
   after the loop returns;
 - loops model → tool calls → repeat until the model stops requesting tools;
-- emits a stream of `TurnEvent`s ([src/agent/events/events.ts](../src/agent/events/events.ts)).
+- emits a stream of `TurnEvent`s ([src/agent/events/events.ts](../src/agent/events/events.ts));
+- reads `options.model` and `options.temperature` on every API call — the agent
+  never touches the `Store`; the Session resolves per-profile overrides before
+  calling `run`.
 
 The event vocabulary has two audiences:
 
@@ -95,17 +101,38 @@ the context window, and persistence. It reads all transcript state from the
 `Store` on each turn — no in-memory `log`. `runTurn`:
 
 1. appends the user message to the store;
-2. loads model input via `queryHistory().forModel()` — the full unsummarized tail
-   after the latest summary row, with evicted turns replaced by the summary text
-   prepended once;
-3. calls `agent.run(messages, options, { facts })`, forwarding presentation
+2. loads model input via `queryHistory(conversationId).forModel()` — the full
+   unsummarized tail after the latest summary row, with evicted turns replaced by
+   the summary text prepended once;
+3. resolves `options.model` and `options.temperature` from the active profile
+   (falling back to `MODEL` and `DEFAULT_TURN_OPTIONS.temperature`);
+4. calls `agent.run(messages, options, { facts })`, forwarding presentation
    events to the caller and persisting `message`/`usage` events;
-4. compacts the window when the unsummarized tail overflows.
+5. compacts the window when the unsummarized tail overflows.
 
 Swapping or extending backends is a new `Store` bundle
 ([src/store/](../src/store/)); nothing in the agent changes. A future
-`CloudStore` might compose API-backed conversation/fact/sources namespaces —
-each as its own sub-client on the facade.
+`CloudStore` might compose API-backed profile/conversation/fact/sources namespaces
+— each as its own sub-client on the facade.
+
+### Profiles and conversations
+
+Durable state is split into two scopes:
+
+- **Profile** — settings (`model`, `temperature`) plus long-lived memory
+  (`fact`, `source`). Facts from `/remember` and paths from `/learn` follow the
+  active profile across conversation switches.
+- **Conversation** — one transcript thread (`conversation_item` rows) under a
+  profile. Windowing and token usage are per-conversation.
+
+The top-level `Store` ([src/store/store.ts](../src/store/store.ts)) exposes
+`profileId` and `conversationId` via a mutable `StoreContext` that facades
+update on switch. On disk, `.chat-state/active.json` remembers the last profile;
+each open creates or restores a conversation. `/profile` and `/conversation`
+commands open an Ink picker ([src/ui/input/picker-overlay.tsx](../src/ui/input/picker-overlay.tsx))
+to switch or create; `applyContextSwitch` rebinds the session, reloads history,
+and refreshes the status bar. `pnpm start --conversation <uuid>` skips the picker
+and resumes a prior thread directly.
 
 ### Context window management
 
@@ -182,6 +209,9 @@ Notable UI details:
 - **Exit report** is written straight to fd 1 with `writeSync`, because Ink
   patches `console.log` while mounted and a normal log would be swallowed in the
   unmount/exit race.
+- **Context bar.** The usage footer shows the active profile (name, model,
+  source/fact counts) and conversation (short id + title). Entity pickers dim the
+  chat underneath while open.
 
 ## Tests and evals
 

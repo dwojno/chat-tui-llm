@@ -5,15 +5,26 @@ import type { TurnOptions } from "../agent/conversation";
 import { countUserTurns, splitAtLastTurns } from "../agent/conversation";
 import type { TurnEvent } from "../agent/events";
 import { summarize } from "../agent/tokens";
-import type { Store } from "../store/store";
-import { responseUsageToTokens } from "../store/derive";
-import type { ConversationItemInsert, ItemKind, TokenColumns } from "../store/types";
+import {
+  type ConversationItemInsert,
+  type ItemKind,
+  type Store,
+  type TokenColumns,
+  responseUsageToTokens,
+} from "../store";
+import { MODEL } from "../agent/config";
+import { DEFAULT_TURN_OPTIONS } from "../agent/conversation/options";
 import { formatReport, usageSnapshot, type UsageSnapshot } from "./usage";
 
 function itemKind(item: ResponseInputItem): ItemKind {
   if ("role" in item) return "message";
   if (item.type === "function_call") return "function_call";
   return "function_call_output";
+}
+
+function titleFromFirstPrompt(prompt: string): string {
+  const trimmed = prompt.trim().replace(/\s+/g, " ");
+  return trimmed.slice(0, 20) || "New chat";
 }
 
 export class Session {
@@ -24,9 +35,13 @@ export class Session {
   private constructor(
     private readonly agent: AgentService,
     private readonly openai: OpenAI,
-    private readonly store: Store,
+    private activeStore: Store,
     private readonly keepLastTurns: number,
   ) {}
+
+  get store(): Store {
+    return this.activeStore;
+  }
 
   static async create(
     agent: AgentService,
@@ -37,39 +52,72 @@ export class Session {
     return new Session(agent, openai, store, keepLastTurns);
   }
 
+  rebind(store: Store): void {
+    this.activeStore = store;
+    this.reset();
+  }
+
+  reset(): void {
+    this.pendingMessages = [];
+    this.pendingUsage = null;
+    this.currentTurnIndex = 0;
+  }
+
+  private async effectiveTurnSettings(): Promise<{ model: string; temperature: number }> {
+    const profile = await this.store.profile
+      .query()
+      .byId(this.store.profileId)
+      .executeAndTakeFirst();
+    return {
+      model: profile?.model ?? MODEL,
+      temperature: profile?.temperature ?? DEFAULT_TURN_OPTIONS.temperature,
+    };
+  }
+
   async facts(): Promise<string[]> {
-    return this.store.fact.list();
+    const rows = await this.store.fact.query().forProfile(this.store.profileId).execute();
+    return rows.map((row) => row.text);
   }
 
   async sources(): Promise<string[]> {
-    return this.store.sources.list();
+    const rows = await this.store.sources.query().forProfile(this.store.profileId).execute();
+    return rows.map((row) => row.path);
   }
 
   async getUsageTotals(): Promise<UsageSnapshot> {
-    const totals = await this.store.conversation.getUsageTotals();
+    const totals = await this.store.conversation.usageTotals(this.store.conversationId);
     return usageSnapshot(totals);
   }
 
   /** Full persisted transcript (all turns, not just the in-context window) for UI replay. */
   history(): Promise<ResponseInputItem[]> {
-    return this.store.conversation.queryHistory().execute();
+    return this.store.conversation.queryHistory(this.store.conversationId).execute();
   }
 
   async report(): Promise<string> {
-    return formatReport(await this.store.conversation.getUsageTotals());
+    return formatReport(await this.store.conversation.usageTotals(this.store.conversationId));
   }
 
   async addFact(fact: string): Promise<void> {
-    await this.store.fact.add(fact);
+    await this.store.fact.create(this.store.profileId, fact);
   }
 
-  async addSources(paths: readonly string[]): Promise<string[]> {
-    return this.store.sources.add(paths);
+  async addSources(paths: string[]): Promise<string[]> {
+    const existing = new Set(
+      (await this.store.sources.query().forProfile(this.store.profileId).execute()).map(
+        (row) => row.path,
+      ),
+    );
+    const toAdd = paths.filter((path) => !existing.has(path));
+    if (!toAdd.length) return [];
+    await this.store.sources.createMany(this.store.profileId, toAdd);
+    for (const path of toAdd) existing.add(path);
+    return toAdd;
   }
 
   async *runTurn(prompt: string, options: TurnOptions): AsyncGenerator<TurnEvent, void> {
-    const { conversation } = this.store;
-    const tail = await conversation.queryHistory().afterLastSummary().execute();
+    const { conversation, conversationId } = this.store;
+    const tail = await conversation.queryHistory(conversationId).afterLastSummary().execute();
     this.currentTurnIndex = countUserTurns(tail);
 
     const userMessage = {
@@ -77,18 +125,30 @@ export class Session {
       content: prompt,
     } satisfies ResponseInputItem;
 
-    await conversation.appendItem({
-      kind: "message",
-      turnIndex: this.currentTurnIndex,
-      payload: userMessage,
-    });
+    let title: string | undefined;
+    if (this.currentTurnIndex === 0) {
+      const row = await conversation.query().byId(conversationId).executeAndTakeFirst();
+      if (row?.title === "New chat") title = titleFromFirstPrompt(prompt);
+    }
 
-    const messages = await conversation.queryHistory().forModel().execute();
+    await conversation.appendUserMessage(
+      conversationId,
+      {
+        kind: "message",
+        turnIndex: this.currentTurnIndex,
+        payload: userMessage,
+      },
+      title,
+    );
+
+    const messages = await conversation.queryHistory(conversationId).forModel().execute();
     const context: TurnContext = {
       facts: await this.facts(),
     };
+    const turnSettings = await this.effectiveTurnSettings();
+    const turnOptions = { ...options, ...turnSettings };
 
-    for await (const event of this.agent.run(messages, options, context)) {
+    for await (const event of this.agent.run(messages, turnOptions, context)) {
       switch (event.type) {
         case "message":
           this.pendingMessages.push(event.item);
@@ -124,20 +184,20 @@ export class Session {
       payload: item,
       tokens: index === messages.length - 1 ? (usage ?? undefined) : undefined,
     }));
-    await this.store.conversation.appendItems(inserts);
+    await this.store.conversation.createItems(this.store.conversationId, inserts);
   }
 
   private async maintainWindow(): Promise<void> {
-    const { conversation } = this.store;
-    const tail = await conversation.queryHistory().afterLastSummary().execute();
+    const { conversation, conversationId } = this.store;
+    const tail = await conversation.queryHistory(conversationId).afterLastSummary().execute();
     if (countUserTurns(tail) <= this.keepLastTurns) return;
 
     const { evicted } = splitAtLastTurns(tail, this.keepLastTurns);
     if (!evicted.length) return;
 
-    const priorSummary = await conversation.readLatestSummaryText();
+    const priorSummary = await conversation.readLatestSummaryText(conversationId);
     const { text, usage } = await summarize(this.openai, priorSummary, evicted);
-    await conversation.appendItem({
+    await conversation.createItems(conversationId, {
       kind: "summary",
       turnIndex: null,
       payload: { content: text },

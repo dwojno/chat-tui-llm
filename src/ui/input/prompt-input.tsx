@@ -2,7 +2,11 @@ import React, { useMemo, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { matchFileMentionToken, type FileSuggestion } from "../file-suggestions";
 import type { SlashCommandInfo } from "../../integration/commands/registry";
-import { activeSuggestions, SuggestionMenu } from "../components/suggestion-menu";
+import {
+  activeSuggestions,
+  isExactSlashCommand,
+  SuggestionMenu,
+} from "../components/suggestion-menu";
 
 const CTRL_C = String.fromCharCode(3);
 const CTRL_D = String.fromCharCode(4);
@@ -84,7 +88,7 @@ export function PromptInput({
       return;
     }
     if (key.return) {
-      if (menuOpen) {
+      if (menuOpen && !(suggestions?.kind === "slash" && isExactSlashCommand(value))) {
         acceptHighlighted();
         return;
       }

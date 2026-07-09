@@ -1,16 +1,27 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
-export const session = sqliteTable("session", {
+export const profile = sqliteTable("profile", {
   id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  model: text("model"),
+  temperature: real("temperature"),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const conversation = sqliteTable("conversation", {
+  id: text("id").primaryKey(),
+  profileId: text("profile_id")
+    .notNull()
+    .references(() => profile.id),
   title: text("title").notNull().default("New chat"),
   createdAt: integer("created_at").notNull(),
 });
 
 export const fact = sqliteTable("fact", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  sessionId: text("session_id")
+  profileId: text("profile_id")
     .notNull()
-    .references(() => session.id),
+    .references(() => profile.id),
   category: text("category").notNull().default("general"),
   text: text("text").notNull(),
   createdAt: integer("created_at").notNull(),
@@ -20,22 +31,22 @@ export const source = sqliteTable(
   "source",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    sessionId: text("session_id")
+    profileId: text("profile_id")
       .notNull()
-      .references(() => session.id),
+      .references(() => profile.id),
     path: text("path").notNull(),
     createdAt: integer("created_at").notNull(),
   },
-  (table) => [uniqueIndex("source_session_path").on(table.sessionId, table.path)],
+  (table) => [uniqueIndex("source_profile_path").on(table.profileId, table.path)],
 );
 
 export const conversationItem = sqliteTable(
   "conversation_item",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    sessionId: text("session_id")
+    conversationId: text("conversation_id")
       .notNull()
-      .references(() => session.id),
+      .references(() => conversation.id),
     turnIndex: integer("turn_index"),
     kind: text("kind").notNull(),
     payload: text("payload").notNull(),
@@ -46,7 +57,7 @@ export const conversationItem = sqliteTable(
     createdAt: integer("created_at").notNull(),
   },
   (table) => [
-    index("conversation_item_session_turn").on(table.sessionId, table.turnIndex),
-    index("conversation_item_session_kind_id").on(table.sessionId, table.kind, table.id),
+    index("conversation_item_conversation_turn").on(table.conversationId, table.turnIndex),
+    index("conversation_item_conversation_kind_id").on(table.conversationId, table.kind, table.id),
   ],
 );

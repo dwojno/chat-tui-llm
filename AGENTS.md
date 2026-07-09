@@ -27,7 +27,7 @@ pnpm lint           # oxlint  (pnpm lint:fix to autofix)
 pnpm format         # oxfmt .  (format:check for CI, no writes)
 pnpm test           # unit + e2e (vitest, model mocked — no API key needed)
 pnpm eval           # prompt evals (needs a real OPENAI_API_KEY)
-pnpm db:generate    # regenerate drizzle migrations after editing store/sqlite/schema.ts
+pnpm db:generate    # regenerate drizzle migrations after editing src/db/schema.ts
 pnpm db:studio      # open drizzle-kit studio against the SQLite db
 ```
 
@@ -52,7 +52,8 @@ src/
     prompts/       # system + fork instructions (tested by evals/)
   ui/            # Ink TUI — a thin for-await…switch adapter over the event stream
   integration/   # wiring: repl.ts, session.ts, OpenAI client, commands/, file-mentions
-  store/         # Store facade → sqlite/ namespace clients (conversation/fact/sources)
+  store/         # Store facade → domain facades (profile/conversation/fact/sources)
+  db/            # SQLite connection, schema, migrations
 docs/            # architecture.md, database.md — the "why"
 tests/           # mirrors src/; e2e/ drives the real REPL. Model mocked (offline)
 evals/           # behavioural prompt tests against the live model (evalite)
@@ -66,6 +67,90 @@ state (transcript, rolling summary, pinned facts, usage) and persists via the
 turns stay verbatim, older ones fold into a summary appended LAST to preserve the
 cached prompt prefix. The model→tool loop is capped at `MAX_TOOL_STEPS` (8);
 config in [src/agent/config/index.ts](src/agent/config/index.ts) (`gpt-4o-mini`).
+
+## Design: SRP and domain boundaries
+
+Layer responsibilities stay narrow — **domain rules live in `store/`, user intent in
+`commands/`, lifecycle in `integration/`**:
+
+| Layer                     | Owns                                                          | Example                                                                                                      |
+| ------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `store/<domain>/`         | Persistence + domain invariants                               | `ConversationFacade.pruneEmpty()` — a conversation with no assistant reply has no value and may be discarded |
+| `integration/commands/`   | Parse user input, call facades, update UI                     | `/conversation` switches context; it does **not** prune or title                                             |
+| `integration/session.ts`  | Turn orchestration (model input, windowing, profile settings) | `runTurn` resolves model/temperature once per turn                                                           |
+| `integration/shutdown.ts` | Exit housekeeping                                             | `buildExitMessage` prunes empty conversations, then prints report + resume hint                              |
+
+**One place per concern.** Profile `model`/`temperature` resolve in `Session.runTurn`;
+empty-conversation cleanup runs in `buildExitMessage` on exit — never in command
+handlers. Commands return `{ kind: "handled" }` or `{ kind: "turn", … }`; they do
+not reach into unrelated domains.
+
+When adding behaviour, ask: _which aggregate owns this rule?_ Put it on that facade
+(or a pure helper next to it), then call it from the thinnest adapter that needs it.
+
+**Facades compose; repositories query.** A facade method should first try to express
+behaviour from existing repository primitives — fluent `query()` filters, `delete`,
+`create`, etc. Add a repository method only when SQL needs a new shape (a filter, a
+join, a bulk statement). Push filters into the query builder (`EXISTS`, `json_extract`,
+aggregates) instead of fetching rows to filter in Node.
+
+```ts
+// ✅ domain rule on the facade — composes query + batch delete
+async pruneEmpty(profileId?: string): Promise<void> {
+  let query = this.query().withoutAssistantReply();
+  if (profileId !== undefined) query = query.forProfile(profileId);
+  const toRemove = await query.execute();
+  await this.delete(toRemove.map((conv) => conv.id));
+}
+
+// ❌ one-off repository method that duplicates what a query filter could express
+async pruneEmpty(): Promise<void> {
+  for (const conv of await this.query().execute()) {
+    if (!(await this.hasAssistantMessage(conv.id))) this.deleteConversation(conv.id);
+  }
+}
+```
+
+**Batch create/delete accept `T | T[]`.** Use `OneOrMany<T>` and `asArray()` from
+[`src/store/helpers.ts`](src/store/helpers.ts) at repository and facade boundaries.
+Facades expose one method; repositories normalise to arrays and use `inArray` (or a
+transaction loop for multi-table deletes).
+
+```ts
+// facade
+async delete(id: OneOrMany<string>): Promise<void> {
+  this.repo.deleteConversations(asArray(id));
+}
+
+async createItems(conversationId: string, items: OneOrMany<ConversationItemInsert>): Promise<void> {
+  this.repo.insertItems(conversationId, items);
+}
+```
+
+Do not split into `createItem` / `createItems` or loop single-row deletes in the
+facade when SQL can batch.
+
+**Wrap multi-step writes in `repository.transaction()`.** Any facade or repository
+method that performs more than one mutating SQL statement on related rows must run
+inside a single transaction — nested calls reuse the same transactional handle.
+
+```ts
+// ✅ append user message + rename in one commit
+appendUserMessage(conversationId, item, title) {
+  this.repo.transaction((repo) => {
+    repo.insertItems(conversationId, item);
+    if (title !== undefined) repo.updateConversation(conversationId, title);
+  });
+}
+
+// ❌ two independent commits — a crash between them leaves inconsistent state
+await createItems(conversationId, item);
+await update(conversationId, { title });
+```
+
+Expose `repository.transaction()` to the facade when a multi-step write must commit
+or roll back atomically. Do not expose raw SQL or the Drizzle handle outside
+`store/<domain>/`.
 
 ## Testing
 
@@ -83,12 +168,11 @@ real REPL flow) and `helpers/` + `fixtures/`. Conventions:
 ## Code style
 
 Optimise for a reader who has never seen the file. Favour **small pure functions
-with descriptive names**, guard clauses over nested branches, and immutable data
-(copy with spread — `{ ...totals }`, `[...items]`; take `readonly` params). Prefer
+with descriptive names**, guard clauses over nested branches. Prefer
 `map`/`filter`/`flatMap` over manual index loops and mutation. Keep stateful
 adapters in classes with dependencies injected as `private readonly` constructor
 params, and keep the logic they call in pure, exported functions
-([src/store/derive.ts](src/store/derive.ts) is the model). Easy to read _is_ easy
+([src/store/conversation/internal/derive.ts](src/store/conversation/internal/derive.ts) is the model). Easy to read _is_ easy
 to maintain — if a block needs a comment to be understood, extract and name it
 instead.
 
@@ -108,7 +192,7 @@ const rows = this.db
 const row = this.db
   .select({ total: sum(conversationItem.outputTokens) })
   .from(conversationItem)
-  .where(eq(conversationItem.sessionId, id))
+  .where(eq(conversationItem.conversationId, id))
   .get();
 // ❌ fetch every row just to add them up in Node
 rows.reduce((n, r) => n + r.outputTokens, 0);
@@ -166,7 +250,7 @@ alongside an eval; add/extend tests; run `typecheck`/`lint`/`format`/`test` free
 
 **Ask first** — adding any npm dependency (especially an LLM/agent library — it
 threatens the frameworkless claim); changing the model, `KEEP_LAST_TURNS`, or
-`MAX_TOOL_STEPS`; editing [store/sqlite/schema.ts](src/store/sqlite/schema.ts) or the
+`MAX_TOOL_STEPS`; editing [src/db/schema.ts](src/db/schema.ts) or the
 `Store` interface (then run `db:generate`); reshaping the `TurnEvent` contract.
 
 **Never** — import `ui/` or `integration/` from `agent/`; introduce an agent

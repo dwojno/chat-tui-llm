@@ -3,7 +3,7 @@ import { AgentService } from "../../src/agent/agent";
 import type { TurnEvent } from "../../src/agent/events/events";
 import { DEFAULT_TURN_OPTIONS } from "../../src/agent/conversation/options";
 import { Session } from "../../src/integration/session";
-import type { Store } from "../../src/store/store";
+import type { Store } from "../../src/store";
 import { createMemoryStore, createMockOpenAI, type MockTurn } from "../helpers/mock-openai";
 
 async function makeSession(
@@ -62,6 +62,27 @@ describe("Session.runTurn", () => {
       turns: 1,
     });
     expect(await session.report()).toContain("Context report — 1 turn");
+  });
+
+  it("renames a new chat from the first user prompt", async () => {
+    const { session, store } = await makeSession([{ text: "hello" }]);
+    await drain(session.runTurn("My first question here", DEFAULT_TURN_OPTIONS));
+
+    const row = await store.conversation.query().byId(store.conversationId).executeAndTakeFirst();
+    expect(row?.title).toBe("My first question he");
+  });
+
+  it("uses profile temperature when set", async () => {
+    const store = await createMemoryStore();
+    await store.profile.update(store.profileId, { temperature: 0.2 });
+    const mock = createMockOpenAI([{ text: "hello" }]);
+    const agent = new AgentService(mock.client);
+    const session = await Session.create(agent, mock.client, store, 4);
+
+    await drain(session.runTurn("hi", DEFAULT_TURN_OPTIONS));
+
+    const params = mock.calls.stream[0] as { temperature?: number };
+    expect(params.temperature).toBe(0.2);
   });
 
   it("summarizes and trims once the window overflows keepLastTurns", async () => {

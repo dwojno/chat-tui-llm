@@ -31,7 +31,11 @@ describe("renderChat handle", () => {
     chat.appendStreaming("Hel");
     chat.appendStreaming("lo");
     chat.commitStreaming();
-    expect(chat.messages.at(-1)).toEqual({ role: "assistant", content: "Hello", steps: undefined });
+    expect(chat.messages.at(-1)).toEqual({
+      role: "assistant",
+      content: "Hello",
+      steps: undefined,
+    });
   });
 
   it("preserves the thinking-step trace on the committed message", () => {
@@ -73,6 +77,7 @@ describe("renderChat handle", () => {
 
   it("stream() consumes an async iterable and returns the full text", async () => {
     const chat = renderChat();
+    // oxlint-disable-next-line unicorn/consistent-function-scoping
     async function* deltas() {
       yield "a";
       yield "b";
@@ -80,7 +85,10 @@ describe("renderChat handle", () => {
     }
     const text = await chat.stream(deltas());
     expect(text).toBe("abc");
-    expect(chat.messages.at(-1)).toMatchObject({ role: "assistant", content: "abc" });
+    expect(chat.messages.at(-1)).toMatchObject({
+      role: "assistant",
+      content: "abc",
+    });
   });
 
   it("setUsage updates the cumulative session token snapshot", () => {

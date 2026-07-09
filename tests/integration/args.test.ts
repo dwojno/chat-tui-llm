@@ -13,22 +13,19 @@ afterEach(() => {
 });
 
 describe("parseCliArgs", () => {
-  it("defaults temperature to 0.7", () => {
-    expect(parseCliArgs([])).toEqual({ temperature: 0.7 });
+  it("returns an empty object with no flags", () => {
+    expect(parseCliArgs([])).toEqual({});
   });
 
-  it("reads -t / --temperature", () => {
-    expect(parseCliArgs(["-t", "0.2"])).toEqual({ temperature: 0.2 });
-    expect(parseCliArgs(["--temperature", "1.5"])).toEqual({ temperature: 1.5 });
-  });
-
-  it("exits non-zero on a non-numeric temperature", () => {
-    expect(() => parseCliArgs(["-t", "hot"])).toThrow("exit:1");
-    expect(console.error).toHaveBeenCalled();
+  it("reads -c / --conversation", () => {
+    const id = "a3f8c2e1-4b2d-4c5e-9f0a-123456789abc";
+    expect(parseCliArgs(["-c", id])).toEqual({ conversationId: id });
+    expect(parseCliArgs(["--conversation", id])).toEqual({ conversationId: id });
   });
 
   it("exits non-zero on an unknown flag", () => {
     expect(() => parseCliArgs(["--nope"])).toThrow("exit:1");
+    expect(() => parseCliArgs(["-t", "0.2"])).toThrow("exit:1");
   });
 
   it("prints usage and exits zero on --help", () => {
