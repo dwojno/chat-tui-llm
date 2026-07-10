@@ -18,7 +18,7 @@ src/
   integration/   Adapters + wiring: persistence, the OpenAI client, the REPL
                  driver, CLI args, file-mention expansion, and the commands
                  that bridge user input to the agent/session.
-  store/         Store facade → domain facades (profile, conversation, fact,
+  store/         Store facade → domain facades (profile, conversation, memory,
                  sources) backed by SQLite via drizzle-orm.
   db/            Schema, migrations, and the SQLite connection.
   main.ts        Composition root: builds every dependency once and hands them
@@ -35,93 +35,54 @@ agent (injected, never wrapped). There is deliberately no LLM/SDK abstraction
 layer. The only port introduced is for _storage_ (`Store`), which is
 not an SDK abstraction.
 
-## The stateless agent
+## The agent loop
 
-`AgentService.run(messages, options, context)` ([src/agent/agent.ts](../src/agent/agent.ts))
-is a single-turn pure function. It:
+`AgentService.run(messages, options, context, profile)`
+([src/agent/agent.ts](../src/agent/agent.ts)) is a single-turn **stateless** pure
+function: it copies the input, loops model → tool calls → repeat until the model
+stops requesting tools, emits a stream of `TurnEvent`s, and retains nothing after
+it returns. The agent never touches the `Store`; the Session resolves per-profile
+settings before calling `run`.
 
-- copies the input `messages` into a local working array and **retains nothing**
-  after the loop returns;
-- loops model → tool calls → repeat until the model stops requesting tools;
-- emits a stream of `TurnEvent`s ([src/agent/events/events.ts](../src/agent/events/events.ts));
-- reads `options.model` and `options.temperature` on every API call — the agent
-  never touches the `Store`; the Session resolves per-profile overrides before
-  calling `run`.
-
-The event vocabulary has two audiences:
-
-- **Presentation** — `delta` (streamed token), `tool` (a tool call started),
-  `status` (e.g. a delegation), `answer` (final formatted answer). Any UI
-  consumes these via `for await`.
-- **Ownership handoff** — `message` (a new transcript item to persist) and
-  `usage` (an API usage record, tagged `response` or `summarizer`). Because the
-  agent keeps no state, it hands each new transcript item and each usage record
-  to its caller through these events.
-
-`MAX_TOOL_STEPS` bounds tool-call rounds per turn; on the final allowed round the
-request is re-issued with tools disabled, forcing the model to answer instead of
-looping on a tool it keeps re-calling.
-
-Independent tool calls in one round run concurrently; a tool that throws becomes
-an error string fed back to the model as a `function_call_output` — the API
-rejects a transcript with a dangling `function_call`, and feeding the error back
-lets the model recover, so a tool failure never aborts the turn.
-
-### Tools are streams
-
-Every tool's `execute(args, ctx)` is an **async generator**: it `yield`s
-`TurnEvent`s as it works and returns its final output string. Plain tools
-(weather, web_search) yield nothing and just return; an agentic tool yields
-(e.g. a sub-agent's activity).
-
-A round of tool calls runs concurrently, so the loop hands all their generators
-to `mergeGenerators` ([src/agent/events/merge.ts](../src/agent/events/merge.ts)),
-which uses [`it-merge`](https://www.npmjs.com/package/it-merge) to interleave
-events:
-
-```ts
-const { events, results } = mergeGenerators(calls.map((call) => this.executeCall(call, context)));
-for await (const event of events) {
-  yield event;
-}
-const outputs = await results;
-```
-
-`mergeGenerators` drives tool generators concurrently, streams their events
-interleaved as they arrive, and resolves outputs in input order (each becomes a
-`function_call_output`). A thin bridge adapter captures each generator's return
-value — `it-merge` only merges yielded values. There is no `emit` callback and
-no per-tool special case in the loop — every call is treated the same way.
+The full mechanics — the loop steps, the `TurnEvent` contract, tools-as-streams,
+**model routing** (orchestrator vs fork vs cheap models, the code-defined
+temperature), **memories in context**, and the **generalized sub-agent**
+(`delegate_task` / `delegate_tasks`, fork profiles, and the structured
+`ForkResult` handoff) — live in **[agent-loop.md](./agent-loop.md)**. The rest of
+this document covers everything the agent deliberately does *not* own: state,
+persistence, retrieval infrastructure, and the UI.
 
 ## The Session (integration owns state)
 
 `Session` ([src/integration/session.ts](../src/integration/session.ts)) owns
-everything the agent does not: pinned facts, indexed sources, token accounting,
-the context window, and persistence. It reads all transcript state from the
-`Store` on each turn — no in-memory `log`. `runTurn`:
+everything the agent does not: pinned memories, indexed sources, token
+accounting, the context window, and persistence. It reads all transcript state
+from the `Store` on each turn — no in-memory `log`. `runTurn`:
 
 1. appends the user message to the store;
 2. loads model input via `queryHistory(conversationId).forModel()` — the full
    unsummarized tail after the latest summary row, with evicted turns replaced by
    the summary text prepended once;
-3. resolves `options.model` and `options.temperature` from the active profile
-   (falling back to `MODEL` and `DEFAULT_TURN_OPTIONS.temperature`);
-4. calls `agent.run(messages, options, { facts })`, forwarding presentation
+3. resolves the orchestrator `model` from the active profile
+   (`userProfile?.model ?? ORCHESTRATOR_MODEL`) into `options` — temperature is a
+   code constant, not resolved here (see [agent-loop.md](./agent-loop.md#model-routing));
+4. calls `agent.run(messages, options, { memories })`, forwarding presentation
    events to the caller and persisting `message`/`usage` events;
 5. compacts the window when the unsummarized tail overflows.
 
 Swapping or extending backends is a new `Store` bundle
 ([src/store/](../src/store/)); nothing in the agent changes. A future
-`CloudStore` might compose API-backed profile/conversation/fact/sources namespaces
-— each as its own sub-client on the facade.
+`CloudStore` might compose API-backed profile/conversation/memory/sources
+namespaces — each as its own sub-client on the facade.
 
 ### Profiles and conversations
 
 Durable state is split into two scopes:
 
-- **Profile** — settings (`model`, `temperature`) plus long-lived memory
-  (`fact`, `source`). Facts from `/remember` and paths from `/learn` follow the
-  active profile across conversation switches.
+- **Profile** — a `model` setting plus long-lived memory (`memory`, `source`).
+  Memories from `/remember` and paths from `/learn` follow the active profile
+  across conversation switches. (Temperature is code-defined, not a per-profile
+  setting.)
 - **Conversation** — one transcript thread (`conversation_item` rows) under a
   profile. Windowing and token usage are per-conversation.
 
@@ -147,14 +108,15 @@ reads. Windowing lives in the Session, not the agent.
 
 ### Prompt caching
 
-Pinned facts are appended **last** in the request input via `buildContextBlock`
+Pinned memories are appended **last** in the request input via `buildContextBlock`
 ([src/agent/dynamicContext/context.ts](../src/agent/dynamicContext/context.ts)),
 after the conversation prefix. The rolling summary is part of that prefix —
 assembled by `forModel()` as a prepended `developer` message replacing evicted
-turns, not duplicated in the facts block. A `/remember` changes only the tail
+turns, not duplicated in the memories block. A `/remember` changes only the tail
 and never invalidates the cached prefix above it. The discretion rules in that
-block (telling the model not to volunteer stored facts) are a single source of
-truth that the prompt evals exercise directly.
+block (telling the model not to volunteer stored memories) are a single source of
+truth that the prompt evals exercise directly. Memories are numbered `M1…Mn` so a
+delegation can pass a subset — see [agent-loop.md](./agent-loop.md#memories-in-context).
 
 ### Token accounting
 
@@ -163,29 +125,6 @@ API usage (from the model's `usage` field — never estimated) and a naive
 append-everything baseline (estimated via `estimateTokens`, chars/4). The exit
 report contrasts the two to show the savings from windowing + caching, charging
 the summarizer overhead against the strategy.
-
-## Sub-agent delegation
-
-Delegation is **just another tool**. `delegate_task`
-([src/agent/tools/delegate-task.ts](../src/agent/tools/delegate-task.ts)) is a
-normal registry tool — the agent loop has no delegation-specific code. Its
-`execute` owns the whole sub-agent flow, using its `ToolRunContext`:
-
-- `ctx.runTurn(...)` **reuses the same agent** to run one child turn under a fork
-  profile — focused `FORK_INSTRUCTIONS`, `forkTools` (which exclude
-  `delegate_task`, preventing recursion), and a fresh per-fork cache key. Safe
-  because `run` is stateless and re-entrant: each invocation keeps its own local
-  working transcript, so a nested delegated turn can't disturb the outer one. The
-  profile is the optional last argument to `run`, defaulting to the main profile.
-- The tool collects the child transcript locally, compresses it into a short
-  handoff ([src/agent/tools/utils/handoff.ts](../src/agent/tools/utils/handoff.ts)), and returns that as
-  its tool output (a normal `function_call_output` — no special transcript
-  injection).
-- It `yield`s the child's tool/status activity tagged with the delegation's title
-  (via the `fork` field) so a UI can nest it, and yields its usage records; the
-  child's answer tokens stay internal — the result is the digest.
-
-Several delegations in one round run in parallel, like any other tool.
 
 ## Knowledge base retrieval
 
@@ -231,6 +170,11 @@ payoff directly: **Retrieval Precision** and **Retrieval F1** alongside the
 existing **Context Recall**, so a change is provable as _tighter context without
 dropping what the answer needs_.
 
+One-shot lookups call these tools directly from the main turn. **Multi-hop**
+retrieval — chained searches where one passage guides the next — is delegated to
+the `rag_research` fork profile, which carries exactly this tool set; see
+[agent-loop.md](./agent-loop.md#fork-profiles).
+
 ## The UI
 
 The Ink TUI ([src/ui/](../src/ui/)) is a thin adapter over the event stream. The
@@ -254,8 +198,8 @@ Notable UI details:
   patches `console.log` while mounted and a normal log would be swallowed in the
   unmount/exit race.
 - **Context bar.** The usage footer shows the active profile (name, model,
-  source/fact counts) and conversation (short id + title). Entity pickers dim the
-  chat underneath while open.
+  source/memory counts) and conversation (short id + title). Entity pickers dim
+  the chat underneath while open.
 
 ## Tests and evals
 

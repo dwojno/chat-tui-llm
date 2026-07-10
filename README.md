@@ -14,7 +14,7 @@ The point isn't the chat — it's the machinery underneath. Every layer an agent
 
 - **Stateless agent loop** — runs the model → tool-call → tool-result cycle by hand until the model stops asking for tools, then streams the answer. Takes the transcript in, keeps nothing after the turn. Independent tool calls in a single turn run in parallel. [`agent.ts`](src/agent/agent.ts)
 - **Context-window management** — only the last 4 turns are kept verbatim; older turns fold into a rolling summary and are dropped, keeping a stable, cacheable prompt prefix. Owned by the session, not the agent. [`summarizer.ts`](src/agent/tokens/summarizer.ts), [`session.ts`](src/integration/session.ts)
-- **Prompt caching** — out-of-window state (facts + summary) is pinned to the _end_ of the input so a `/remember` or a re-summarization never invalidates the cached prefix above it.
+- **Prompt caching** — out-of-window state (memories + summary) is pinned to the _end_ of the input so a `/remember` or a re-summarization never invalidates the cached prefix above it.
 - **Sub-agent delegation** — the model can spin up ephemeral child agents for multi-step work — several in parallel — each with its own context and tools, handing back a compressed digest. The sub-agent's tool activity streams back live under a short, model-chosen label. [`delegate-task.ts`](src/integration/tools/delegate-task.ts), [`handoff.ts`](src/agent/tools/utils/handoff.ts)
 - **Live activity trace** — every tool call and delegation surfaces as a streaming, Gemini-style "thinking" step (with its target — the city, the search query, the sub-task) that freezes above the final answer instead of vanishing. [`ui/`](src/ui/)
 - **Injected tools** — the agent core ships with _no_ tools; the host composes them as one `ToolDefinition` type and injects a main set + a fork set. Tool operations are async generators, so long-running ones (grep, indexing) stream progress to the UI. Built-ins are a demo weather lookup and a keyless Wikipedia web search; compose your own in [src/integration/tools/](src/integration/tools/). [`createAgentTools`](src/integration/tools/index.ts)
@@ -57,24 +57,25 @@ RAG_INTEGRATION=1 pnpm test tests/store/rag/live.integration.test.ts
 ## Usage
 
 ```bash
-pnpm start -- --temperature 0.2   # -t for short; default 0.7
+pnpm start                            # start a fresh conversation
+pnpm start -- --conversation <uuid>   # -c for short; resume a previous conversation
 ```
 
 At the `>` prompt, type a message for a streaming reply, or use a command:
 
 | Command                | Description                                                              |
 | ---------------------- | ------------------------------------------------------------------------ |
-| `/remember <fact>`     | Pin a fact; injected into every later turn (survives truncation)         |
+| `/remember <memory>`   | Pin a memory; injected into every later turn (survives truncation)       |
 | `/learn @file [@…]`    | Convert, upload, chunk, embed and index files for RAG                    |
 | `/sources`             | List the files indexed in the current profile                           |
 | `/reindex`             | Re-index every source in the current profile                            |
-| `/profile`             | Switch or create a profile — each has its own bucket, collection + facts |
+| `/profile`             | Switch or create a profile — each has its own bucket, collection + memory |
 | `/conversation`        | Switch or start a conversation (chat session) within the current profile |
 | `/json <prompt>`       | Reply in JSON output mode                                                |
 | `/structured <prompt>` | Reply validated against a Zod schema (answer + sources)                  |
 | `exit`                 | Leave the REPL (Ctrl+C / Ctrl+D also work)                               |
 
-`/profile` and `/conversation` open an interactive picker: choose an existing entry or create a new one, and the transcript, summary, pinned facts, and knowledge base swap to that context. A **profile** is an isolated workspace (its own MinIO bucket, Qdrant collection, and pinned facts); a **conversation** is a distinct chat thread inside a profile, so you can keep several running side by side without their histories bleeding together.
+`/profile` and `/conversation` open an interactive picker: choose an existing entry or create a new one, and the transcript, summary, pinned memories, and knowledge base swap to that context. A **profile** is an isolated workspace (its own MinIO bucket, Qdrant collection, and pinned memories); a **conversation** is a distinct chat thread inside a profile, so you can keep several running side by side without their histories bleeding together.
 
 ### Attaching files with `@file`
 
@@ -90,9 +91,9 @@ On exit, a token-savings report compares actual input tokens against a naive "re
 
 ## How the agent loop works
 
-Each turn, the service sends the trimmed conversation plus a context block (pinned facts + rolling summary) to the model. If the response contains tool calls, it executes them — independent calls in the same turn run concurrently — appends the results, and asks again, looping until the model answers with no further calls. A tool that throws or rejects — a bad argument, a failed request, a timeout — becomes an error result fed back to the model rather than aborting the turn, so it can recover. A `delegate_task` call is special-cased: instead of running inline, it forks a fresh child agent with its own tools and window (and the model can fan out to several forks at once), streams that sub-agent's tool activity back live, then folds a short handoff into the main thread.
+Each turn, the service sends the trimmed conversation plus a context block (pinned memories + rolling summary) to the model. If the response contains tool calls, it executes them — independent calls in the same turn run concurrently — appends the results, and asks again, looping until the model answers with no further calls. A tool that throws or rejects — a bad argument, a failed request, a timeout — becomes an error result fed back to the model rather than aborting the turn, so it can recover. Delegation is just a tool: `delegate_task` runs one sub-task and `delegate_tasks` fans out several in parallel, each as a child agent running the same loop under a fork profile (`general` web tools, or `rag_research` knowledge-base tools) — their activity streams back live and each transcript is compressed into a structured handoff folded into the thread. The orchestrator runs `gpt-4o`; forks and the summarizer/handoff run `gpt-4o-mini`.
 
-After each answer, the window is trimmed deterministically: keep the last 4 turns, summarize and evict the rest. State (full transcript, summary, pinned facts, sources, usage) persists to `.chat-state/chat.db` between runs.
+After each answer, the window is trimmed deterministically: keep the last 4 turns, summarize and evict the rest. State (full transcript, summary, pinned memories, sources, usage) persists to `.chat-state/chat.db` between runs. For the full mechanics see [docs/agent-loop.md](docs/agent-loop.md).
 
 ## Structure
 
@@ -105,7 +106,7 @@ src/
   integration/      adapters + wiring: session, OpenAI client, REPL, CLI args,
                     file-mentions, commands, and all tools (weather/web-search/
                     delegate + RAG) composed and injected into the agent
-  store/            store facade + domain facades (profile, conversation, fact,
+  store/            store facade + domain facades (profile, conversation, memory,
                     sources); sources/ owns the RAG pipeline behind its facade
   db/               SQLite connection, schema, migrations
 tests/              vitest unit + e2e suites (model mocked; mirrors src/)

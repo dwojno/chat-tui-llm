@@ -3,7 +3,7 @@
 chat-cli persists durable state behind a top-level [`Store`](../src/store/index.ts)
 facade. The store composes namespaced domain facades —
 [`profile`](../src/store/profile/index.ts) (settings), [`conversation`](../src/store/conversation/index.ts) (transcript, summaries,
-usage), [`fact`](../src/store/fact/index.ts) (pinned facts), and
+usage), [`memory`](../src/store/memory/index.ts) (pinned memories), and
 [`sources`](../src/store/sources/index.ts) (learned file paths). SQLite is the
 current backend; its schema is documented below.
 
@@ -17,7 +17,7 @@ const store = await LocalStore.open(DB_PATH);
 const session = await Session.create(agent, openai, store, KEEP_LAST_TURNS);
 
 await store.conversation.createItems(store.conversationId, items);
-await store.fact.create(store.profileId, "likes tea");
+await store.memory.create(store.profileId, "likes tea");
 await store.sources.create(store.profileId, "src/a.ts");
 
 const profiles = await store.profile.query().execute();
@@ -26,7 +26,7 @@ const conversations = await store.conversation
   .forProfile(store.profileId)
   .orderByLastActivity()
   .execute();
-const facts = await store.fact.query().forProfile(store.profileId).execute();
+const memories = await store.memory.query().forProfile(store.profileId).execute();
 const profile = await store.profile.query().byId(store.profileId).executeAndTakeFirst();
 const conversation = await store.conversation
   .query()
@@ -38,9 +38,9 @@ const conversation = await store.conversation
 | ------------------------------------------------------------------------ | ------------------------------------------------- |
 | [`Store`](../src/store/index.ts)                                         | Top-level facade — `profileId` + `conversationId` |
 | [`LocalStore`](../src/store/store.ts)                                    | SQLite bundle (`open(path)` or `":memory:"`)      |
-| [`ProfileFacade`](../src/store/profile/profile.facade.ts)                | Profile settings (model, temperature)             |
+| [`ProfileFacade`](../src/store/profile/profile.facade.ts)                | Profile settings (model)                          |
 | [`ConversationFacade`](../src/store/conversation/conversation.facade.ts) | Transcript, summaries, token usage                |
-| [`FactFacade`](../src/store/fact/fact.facade.ts)                         | Pinned facts (profile-scoped)                     |
+| [`MemoryFacade`](../src/store/memory/memory.facade.ts)                   | Pinned memories (profile-scoped)                  |
 | [`SourcesFacade`](../src/store/sources/source.facade.ts)                 | Learned source paths (profile-scoped)             |
 
 Each domain exposes a single public module (`index.ts`) with an abstract facade class
@@ -59,7 +59,7 @@ A remote or Postgres backend is a new `Store` whose namespaces call `fetch()`
 class CloudStore implements Store {
   readonly profile: ApiProfileFacade;
   readonly conversation: ApiConversationFacade;
-  readonly fact: ApiFactFacade;
+  readonly memory: ApiMemoryFacade;
   readonly sources: ApiSourcesFacade;
 }
 ```
@@ -101,7 +101,7 @@ The whole `.chat-state/` directory is gitignored.
 | ---------------- | ------------------------------------------- | ------------------------ |
 | **Transcript**   | `queryHistory()`                            | UI replay + model window |
 | **Usage totals** | `SUM(...)` over token columns               | status bar, `/report`    |
-| **Facts**        | `fact` table, profile-scoped, `ORDER BY id` | `buildContextBlock()`    |
+| **Memories**     | `memory` table, profile-scoped, `ORDER BY id` | `buildContextBlock()`  |
 
 `queryHistory()` is the fluent transcript read API. Summary rows are never
 returned as UI history items; `forModel()` reads the latest summary text from the
@@ -132,7 +132,7 @@ flowchart LR
 ```mermaid
 erDiagram
   profile ||--o{ conversation : has
-  profile ||--o{ fact : owns
+  profile ||--o{ memory : owns
   profile ||--o{ source : owns
   conversation ||--o{ conversation_item : has
 
@@ -140,7 +140,6 @@ erDiagram
     text id PK
     text name
     text model
-    real temperature
     int created_at
   }
 
@@ -151,7 +150,7 @@ erDiagram
     int created_at
   }
 
-  fact {
+  memory {
     int id PK
     text profile_id FK
     text category
@@ -189,10 +188,10 @@ erDiagram
 | `id`          | `TEXT PK`          | Slug (`personal` is the default, seeded on migrate) |
 | `name`        | `TEXT NOT NULL`    | Display name in the profile picker                  |
 | `model`       | `TEXT`             | Optional per-profile model override                 |
-| `temperature` | `REAL`             | Optional per-profile temperature override           |
 | `created_at`  | `INTEGER NOT NULL` | Unix ms                                             |
 
-- Facts and sources belong to a profile, not a conversation — switching
+- Temperature is code-defined (a `TEMPERATURE` constant), not a per-profile column.
+- Memories and sources belong to a profile, not a conversation — switching
   conversation keeps memory; switching profile does not.
 - The active profile id is persisted in `.chat-state/active.json` (not in the DB).
 
@@ -221,15 +220,17 @@ WHERE c.profile_id = ?
 ORDER BY last_activity_at DESC, c.created_at DESC;
 ```
 
-### `fact` — pinned user notes (`/remember`)
+### `memory` — pinned user notes (`/remember`)
 
 | Column       | Type                              | Notes              |
 | ------------ | --------------------------------- | ------------------ |
 | `id`         | `INTEGER PK AUTOINCREMENT`        | Order by `id ASC`  |
 | `profile_id` | `TEXT NOT NULL FK → profile.id`   |                    |
 | `category`   | `TEXT NOT NULL DEFAULT 'general'` | Free-form grouping |
-| `text`       | `TEXT NOT NULL`                   | Fact body          |
+| `text`       | `TEXT NOT NULL`                   | Memory body        |
 | `created_at` | `INTEGER NOT NULL`                |                    |
+
+Renamed from `fact` in migration `0003_rename_fact_to_memory`.
 
 ### `source` — RAG file registry (`/learn`)
 
@@ -313,13 +314,13 @@ FROM conversation_item WHERE conversation_id = ?;
 
 ```ts
 const messages = await store.conversation.queryHistory(store.conversationId).forModel().execute();
-const facts = (await store.fact.query().forProfile(store.profileId).execute()).map(
+const memories = (await store.memory.query().forProfile(store.profileId).execute()).map(
   (row) => row.text,
 );
 
 const apiInput = [
   ...messages, // full unsummarized tail; summary prepended once when present
-  ...buildContextBlock({ facts }), // facts-only tail for prompt cache
+  ...buildContextBlock({ memories }), // memories-only tail for prompt cache
 ];
 ```
 
@@ -349,7 +350,7 @@ once the schema is current it is a no-op, so there is no separate setup step.
 | [`src/store/store.ts`](../src/store/store.ts)           | `LocalStore` composition                        |
 | [`src/store/profile/`](../src/store/profile/)           | `ProfileFacade` + `ProfileRepository`           |
 | [`src/store/conversation/`](../src/store/conversation/) | `ConversationFacade` + `ConversationRepository` |
-| [`src/store/fact/`](../src/store/fact/)                 | `FactFacade` + `FactRepository`                 |
+| [`src/store/memory/`](../src/store/memory/)             | `MemoryFacade` + `MemoryRepository`             |
 | [`src/store/sources/`](../src/store/sources/)           | `SourcesFacade` + `SourceRepository`            |
 | [`src/db/schema.ts`](../src/db/schema.ts)               | Drizzle table definitions                       |
 | [`src/db/db.ts`](../src/db/db.ts)                       | Connection, WAL, migrations                     |
