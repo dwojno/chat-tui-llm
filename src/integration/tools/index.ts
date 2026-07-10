@@ -4,12 +4,14 @@ import type { OpenAITool } from "../../agent/conversation/turn";
 import type { Store } from "../../store";
 import { createRagTools } from "../rag/tools";
 import { delegateTaskTool } from "./delegate-task";
+import { delegateTasksTool } from "./delegate-tasks";
 import { weatherTool } from "./weather";
 import { webSearchTool } from "./web-search";
 
 export { weatherTool } from "./weather";
 export { webSearchTool } from "./web-search";
 export { delegateTaskTool } from "./delegate-task";
+export { delegateTasksTool } from "./delegate-tasks";
 
 export interface AgentTools {
   /** Tools the main agent may call. */
@@ -24,7 +26,7 @@ export interface AgentTools {
  */
 export function createAgentTools(store: Store): AgentTools {
   return {
-    tools: [weatherTool, delegateTaskTool, ...createRagTools(store)],
+    tools: [weatherTool, delegateTaskTool, delegateTasksTool, ...createRagTools(store)],
     forkTools: [weatherTool, webSearchTool],
   };
 }
@@ -35,5 +37,5 @@ export const forkToolSchemas: OpenAITool[] = (
 ).map(toOpenAITool);
 /** Main tool schemas (generic subset, no store) — for evals/tests. */
 export const mainToolSchemas: OpenAITool[] = (
-  [weatherTool, delegateTaskTool] as ToolDefinition<z.ZodType>[]
+  [weatherTool, delegateTaskTool, delegateTasksTool] as ToolDefinition<z.ZodType>[]
 ).map(toOpenAITool);

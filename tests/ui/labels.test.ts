@@ -6,6 +6,7 @@ describe("toolStepLabel", () => {
     expect(toolStepLabel("get_weather_data")).toBe("Fetching weather data");
     expect(toolStepLabel("web_search")).toBe("Searching the web");
     expect(toolStepLabel("delegate_task")).toBe("Delegating");
+    expect(toolStepLabel("delegate_tasks")).toBe("Delegating");
   });
 
   it("falls back to a readable default for unknown tools", () => {

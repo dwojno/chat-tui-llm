@@ -60,12 +60,17 @@ function buildForkBrief(summary: string, memories: readonly string[], task: stri
   return parts.join("\n\n");
 }
 
-async function* execute(
-  { title, task, relevantMemoryKeys }: DelegateTaskArgs,
-  ctx?: ToolRunContext,
-): AsyncGenerator<TurnEvent, string> {
-  if (!ctx) throw new Error(`${DELEGATE_TASK_NAME} requires a tool context`);
+/** One fork: brief → child turn (events relabelled with `title`) → compressed `ForkResult`. */
+export interface RunForkArgs {
+  title: string;
+  task: string;
+  relevantMemoryKeys: readonly string[] | null;
+}
 
+export async function* runFork(
+  ctx: ToolRunContext,
+  { title, task, relevantMemoryKeys }: RunForkArgs,
+): AsyncGenerator<TurnEvent, ForkResult> {
   const summary = extractConversationSummary(ctx.messages);
   const memories = selectMemories(ctx.context.memories, relevantMemoryKeys);
   const brief = buildForkBrief(summary, memories, task);
@@ -103,6 +108,15 @@ async function* execute(
 
   const { result, usage } = await compressHandoff(ctx.openai, childItems, "");
   yield { type: "usage", kind: "summarizer", usage };
+  return result;
+}
+
+async function* execute(
+  { title, task, relevantMemoryKeys }: DelegateTaskArgs,
+  ctx?: ToolRunContext,
+): AsyncGenerator<TurnEvent, string> {
+  if (!ctx) throw new Error(`${DELEGATE_TASK_NAME} requires a tool context`);
+  const result = yield* runFork(ctx, { title, task, relevantMemoryKeys });
   return JSON.stringify(result satisfies ForkResult);
 }
 

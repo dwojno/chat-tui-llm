@@ -7,6 +7,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_weather_data: "Fetching weather data",
   web_search: "Searching the web",
   delegate_task: "Delegating",
+  delegate_tasks: "Delegating",
   search_knowledge_base: "Searching knowledge base",
   list_files: "Listing knowledge base files",
   grep_files: "Grepping knowledge base",
