@@ -2,8 +2,8 @@ import { createScorer } from "evalite";
 import { AnswerRelevancy, ContextPrecision, ContextRelevancy, Faithfulness } from "autoevals";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import { openai } from "./client";
-import type { RagResult } from "./rag";
+import { openai } from "../client";
+import type { RagResult } from "../rag";
 
 /**
  * Scorers for the RAG eval. The RAGAS-style metrics (Faithfulness, Context
@@ -32,6 +32,8 @@ export interface RagExpected {
   groundTruth?: string;
   /** This query is NOT answerable from the corpus; the answer must say so. */
   expectInsufficient?: boolean;
+  /** The correct response is a refusal (e.g. prompt injection), so answer-quality metrics don't apply. */
+  expectRefusal?: boolean;
   /**
    * Basenames of the source files that SHOULD be retrieved/cited to answer
    * (only for genuine retrieval cases — omit for no-answer/decline cases, where
@@ -56,15 +58,17 @@ const auth = () => ({ client: openai(), model: JUDGE_MODEL });
 export const faithfulness: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Faithfulness",
   description: "answer claims are supported by the retrieved context (no hallucination)",
-  scorer: async ({ input, output }) =>
-    toScore(
+  scorer: async ({ input, output }) => {
+    if (!output.retrievedContext.length) return notApplicable;
+    return toScore(
       await Faithfulness({
         ...auth(),
         input: input.query,
         output: output.answer,
         context: output.retrievedContext,
       }),
-    ),
+    );
+  },
 });
 
 /** Does the answer actually address the question (no padding/evasion)? */
@@ -72,8 +76,8 @@ export const answerRelevancy: RagScorer = createScorer<RagInput, RagResult, RagE
   name: "Answer Relevancy",
   description: "the answer is relevant and complete for the question",
   scorer: async ({ input, output, expected }) => {
-    // A correct refusal on an unanswerable query is intentionally "irrelevant".
-    if (expected?.expectInsufficient) return notApplicable;
+    // A correct refusal/decline is intentionally "irrelevant" to the asked question.
+    if (expected?.expectInsufficient || expected?.expectRefusal) return notApplicable;
     return toScore(
       await AnswerRelevancy({
         ...auth(),

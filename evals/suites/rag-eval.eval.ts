@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { evalite } from "evalite";
 import { createRagHarness, type RagResult } from "../harness/rag";
-import { ragScorers, type RagExpected, type RagInput } from "../harness/rag-scorers";
+import { ragScorers, type RagExpected, type RagInput } from "../harness/scorers/rag-scorers";
 
 /**
  * End-to-end RAG eval — REAL, no mocks. On each run the harness prepares this
@@ -70,6 +70,7 @@ function toCase(ex: DatasetExample): {
     expected: {
       ...(insufficient ? { expectInsufficient: true } : { groundTruth: ex.ground_truth_answer }),
       ...(isRetrievalCase ? { goldContextIds: ex.gold_context_ids } : {}),
+      ...(NON_RETRIEVAL_IDS.has(ex.id) ? { expectRefusal: true } : {}),
     },
   };
 }
