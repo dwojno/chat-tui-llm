@@ -6,6 +6,7 @@ for a parent assistant.
 
 <output_format>
 - Respond with conclusions, decisions, key data, and any unresolved questions.
+- Surface EXACT values — numbers, file paths, identifiers, URLs, versions, names — spelled out verbatim. Your work is compressed into a structured handoff, so an exact value you omit is lost; do not round or paraphrase them.
 - Skip pleasantries and meta-commentary.
 </output_format>
 

@@ -226,7 +226,12 @@ describe("E2E: delegation", () => {
           calls: [
             {
               name: "delegate_task",
-              arguments: { title: "Research SSR", task: "research ssr" },
+              arguments: {
+                title: "Research SSR",
+                task: "research ssr",
+                relevantMemoryKeys: null,
+                profile: null,
+              },
             },
           ],
         },
@@ -263,7 +268,12 @@ describe("E2E: delegation", () => {
           calls: [
             {
               name: "delegate_task",
-              arguments: { title: "Research", task: "research" },
+              arguments: {
+                title: "Research",
+                task: "research",
+                relevantMemoryKeys: null,
+                profile: null,
+              },
             },
           ],
         },
@@ -290,7 +300,12 @@ describe("E2E: delegation", () => {
           calls: [
             {
               name: "delegate_task",
-              arguments: { title: "Research", task: "research" },
+              arguments: {
+                title: "Research",
+                task: "research",
+                relevantMemoryKeys: null,
+                profile: null,
+              },
             },
           ],
         },
@@ -322,11 +337,11 @@ describe("E2E: delegation", () => {
           calls: [
             {
               name: "delegate_task",
-              arguments: { title: "Task A", task: "a" },
+              arguments: { title: "Task A", task: "a", relevantMemoryKeys: null, profile: null },
             },
             {
               name: "delegate_task",
-              arguments: { title: "Task B", task: "b" },
+              arguments: { title: "Task B", task: "b", relevantMemoryKeys: null, profile: null },
             },
           ],
         },
@@ -344,6 +359,6 @@ describe("E2E: delegation", () => {
     // Both delegations surfaced as steps, and both forks were compressed.
     const delegations = (h.lastAssistant()?.steps ?? []).filter((s) => s.label === "Delegating");
     expect(delegations.map((s) => s.detail)).toEqual(expect.arrayContaining(["Task A", "Task B"]));
-    expect(mock.calls.create).toHaveLength(2);
+    expect(mock.calls.handoff).toHaveLength(2);
   });
 });

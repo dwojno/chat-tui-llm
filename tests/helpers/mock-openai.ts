@@ -1,6 +1,22 @@
 import type { OpenAI } from "openai";
 import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
+import type { ForkResult } from "../../src/agent/tools/utils/fork-result";
 import { LocalStore, type RagDeps, type Store } from "../../src/store";
+
+/** A scripted handoff: a bare summary string, or a partial `ForkResult`. */
+export type MockHandoff = string | Partial<ForkResult>;
+
+function toForkResult(entry: MockHandoff | undefined): ForkResult {
+  const base: ForkResult = {
+    summary: "compressed summary",
+    findings: [],
+    sources: null,
+    confidence: "high",
+    needsFollowup: null,
+  };
+  if (entry === undefined) return base;
+  return typeof entry === "string" ? { ...base, summary: entry } : { ...base, ...entry };
+}
 
 /**
  * Test doubles for the OpenAI Responses API. The app injects the client
@@ -107,22 +123,45 @@ export interface MockOpenAI {
     stream: unknown[];
     parse: unknown[];
     create: unknown[];
+    /** Subset of `parse` calls that requested the structured `fork_result` format. */
+    handoff: unknown[];
   };
   /** How many scripted turns remain unconsumed. */
   turnsRemaining: () => number;
 }
 
+/** True when a `responses.parse` request asked for the structured fork handoff. */
+function isForkResultParse(params: unknown): boolean {
+  const format = (params as { text?: { format?: { name?: string } } })?.text?.format;
+  return format?.name === "fork_result";
+}
+
 /**
  * Build a fake OpenAI client that replays `turns` through `stream`/`parse` and
- * `compressions` through `create`. Unscripted calls degrade to an empty answer
- * / generic summary so a test only scripts what it asserts on.
+ * `compressions` through the compression paths. A summarizer call
+ * (`responses.create`) yields a string digest; a fork handoff (`responses.parse`
+ * with the `fork_result` format) yields a structured `ForkResult`. Both draw
+ * from the same `compressions` queue in call order. Unscripted calls degrade to
+ * an empty answer / generic digest so a test only scripts what it asserts on.
  */
-export function createMockOpenAI(turns: MockTurn[] = [], compressions: string[] = []): MockOpenAI {
+export function createMockOpenAI(
+  turns: MockTurn[] = [],
+  compressions: MockHandoff[] = [],
+): MockOpenAI {
   const turnQueue = [...turns];
   const compQueue = [...compressions];
-  const calls = { stream: [] as unknown[], parse: [] as unknown[], create: [] as unknown[] };
+  const calls = {
+    stream: [] as unknown[],
+    parse: [] as unknown[],
+    create: [] as unknown[],
+    handoff: [] as unknown[],
+  };
 
   const nextTurn = (): MockTurn => turnQueue.shift() ?? { text: "" };
+  const compAsText = (): string => {
+    const entry = compQueue.shift();
+    return typeof entry === "string" ? entry : (entry?.summary ?? "compressed summary");
+  };
 
   const client = {
     responses: {
@@ -132,11 +171,20 @@ export function createMockOpenAI(turns: MockTurn[] = [], compressions: string[] 
       },
       parse: async (params: unknown) => {
         calls.parse.push(params);
+        if (isForkResultParse(params)) {
+          calls.handoff.push(params);
+          return {
+            output: [],
+            output_text: "",
+            output_parsed: toForkResult(compQueue.shift()),
+            usage: usage(),
+          };
+        }
         return buildResponse(nextTurn());
       },
       create: async (params: unknown) => {
         calls.create.push(params);
-        return { output_text: compQueue.shift() ?? "compressed summary", usage: usage() };
+        return { output_text: compAsText(), usage: usage() };
       },
     },
   };
