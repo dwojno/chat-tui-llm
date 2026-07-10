@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { AgentService } from "../../../src/agent/agent";
-import { toOpenAITool } from "../../../src/agent/tools/types";
+import { toOpenAITool, type ForkProfiles } from "../../../src/agent/tools/types";
 import type { ToolRunContext } from "../../../src/agent/conversation/turn";
 import type { TurnEvent } from "../../../src/agent/events/events";
-import { forkToolSchemas } from "../../../src/integration/tools";
+import { FORK_MODEL } from "../../../src/agent/config";
+import { FORK_INSTRUCTIONS } from "../../../src/agent/prompts";
 import {
   DELEGATE_TASKS_NAME,
   delegateTasksTool,
@@ -12,15 +13,20 @@ import {
 import type { ForkResult } from "../../../src/agent/tools/utils/fork-result";
 import { createMockOpenAI, type MockHandoff, type MockTurn } from "../../helpers/mock-openai";
 
+const forkProfiles: ForkProfiles = {
+  general: { instructions: FORK_INSTRUCTIONS, tools: [], model: FORK_MODEL },
+  rag_research: { instructions: FORK_INSTRUCTIONS, tools: [], model: FORK_MODEL },
+};
+
 function makeCtx(turns: MockTurn[], handoffs: MockHandoff[]) {
   const mock = createMockOpenAI(turns, handoffs);
-  const agent = new AgentService(mock.client, { forkTools: [] });
+  const agent = new AgentService(mock.client, { forkProfiles });
   const ctx: ToolRunContext = {
     openai: mock.client,
     context: { memories: [] },
     messages: [],
     runTurn: (msgs, options, context, profile) => agent.run(msgs, options, context, profile),
-    forkTools: forkToolSchemas,
+    forkProfiles,
   };
   return { ctx, mock };
 }

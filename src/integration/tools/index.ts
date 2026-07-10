@@ -1,6 +1,8 @@
 import type { z } from "zod";
-import { toOpenAITool, type ToolDefinition } from "../../agent/tools/types";
+import { toOpenAITool, type ForkProfiles, type ToolDefinition } from "../../agent/tools/types";
 import type { OpenAITool } from "../../agent/conversation/turn";
+import { FORK_MODEL } from "../../agent/config";
+import { FORK_INSTRUCTIONS, RAG_FORK_INSTRUCTIONS } from "../../agent/prompts";
 import type { Store } from "../../store";
 import { createRagTools } from "../rag/tools";
 import { delegateTaskTool } from "./delegate-task";
@@ -14,24 +16,30 @@ export { delegateTaskTool } from "./delegate-task";
 export { delegateTasksTool } from "./delegate-tasks";
 
 export interface AgentTools {
-  /** Tools the main agent may call. */
   tools: ToolDefinition<z.ZodType>[];
-  /** Tools available to delegated sub-agents (no `delegate_task` — no recursion). */
-  forkTools: ToolDefinition<z.ZodType>[];
+  forkProfiles: ForkProfiles;
 }
 
-/**
- * Composes every tool the agent runs, here at the integration level, and hands
- * them to `AgentService` via `AgentConfig`. The agent core owns none of these.
- */
 export function createAgentTools(store: Store): AgentTools {
+  const ragTools = createRagTools(store);
   return {
-    tools: [weatherTool, delegateTaskTool, delegateTasksTool, ...createRagTools(store)],
-    forkTools: [weatherTool, webSearchTool],
+    tools: [weatherTool, delegateTaskTool, delegateTasksTool, ...ragTools],
+    forkProfiles: {
+      general: {
+        instructions: FORK_INSTRUCTIONS,
+        tools: [weatherTool, webSearchTool],
+        model: FORK_MODEL,
+      },
+      rag_research: {
+        instructions: RAG_FORK_INSTRUCTIONS,
+        tools: ragTools,
+        model: FORK_MODEL,
+      },
+    },
   };
 }
 
-/** Fork tool schemas without a store — for evals/tests that probe fork behaviour. */
+/** General-fork tool schemas without a store — for evals/tests that probe fork behaviour. */
 export const forkToolSchemas: OpenAITool[] = (
   [weatherTool, webSearchTool] as ToolDefinition<z.ZodType>[]
 ).map(toOpenAITool);

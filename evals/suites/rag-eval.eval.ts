@@ -46,6 +46,14 @@ interface DatasetExample {
  */
 const NON_RETRIEVAL_IDS = new Set(["rag-024"]);
 
+function usedRagResearchFork(output: RagResult): boolean {
+  return output.toolCalls.some(
+    (call) =>
+      (call.name === "delegate_task" || call.name === "delegate_tasks") &&
+      call.arguments.includes("rag_research"),
+  );
+}
+
 function toCase(ex: DatasetExample): {
   input: RagInput;
   expected: RagExpected;
@@ -97,6 +105,7 @@ evalite<RagInput, RagResult, RagExpected>("rag pipeline", {
       value: output.retrievedSources.join(", ") || "(none)",
     },
     { label: "Cited", value: output.citedSources.join(", ") || "(none)" },
+    { label: "rag_research fork", value: usedRagResearchFork(output) ? "yes" : "no" },
     { label: "Hits", value: String(output.retrievedHitCount) },
     {
       label: "Tool calls",

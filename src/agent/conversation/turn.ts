@@ -1,6 +1,7 @@
 import type { OpenAI } from "openai";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import type { TurnEvent } from "../events/events";
+import type { ForkProfiles } from "../tools/types";
 import type { TurnOptions } from "./options";
 
 export type TurnContext = {
@@ -36,5 +37,5 @@ export interface ToolRunContext {
   context: TurnContext;
   messages: readonly ResponseInputItem[];
   runTurn: RunTurn;
-  forkTools: OpenAITool[];
+  forkProfiles: ForkProfiles;
 }

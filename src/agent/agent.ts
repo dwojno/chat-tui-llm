@@ -9,32 +9,42 @@ import { mergeGenerators } from "./events/merge";
 import { formatResponse } from "./conversation/format";
 import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "./conversation/options";
 import { describeToolCall, executeToolCall, toolLabel } from "./tools";
-import { toOpenAITool, type ToolDefinition } from "./tools/types";
+import {
+  FORK_PROFILE_NAMES,
+  toOpenAITool,
+  type ForkProfile,
+  type ForkProfiles,
+  type ToolDefinition,
+} from "./tools/types";
 import { getFunctionCalls, hasFunctionCalls, toReplayInputItems } from "./conversation/items";
-import type { OpenAITool, ToolRunContext, TurnContext, TurnProfile } from "./conversation/turn";
+import type { ToolRunContext, TurnContext, TurnProfile } from "./conversation/turn";
 import { AgentConfig } from "./config/types";
 import type { z } from "zod";
-import { DEFAULT_CACHE_KEY, MAX_TOOL_STEPS, TEMPERATURE } from "./config";
+import { DEFAULT_CACHE_KEY, MAX_TOOL_STEPS, MODEL, TEMPERATURE } from "./config";
 import { SYSTEM_INSTRUCTIONS } from "./prompts";
 
 const EMPTY_CONTEXT: TurnContext = { memories: [] };
+
+const EMPTY_FORK_PROFILE: ForkProfile = { instructions: "", tools: [], model: MODEL };
+const EMPTY_FORK_PROFILES = Object.fromEntries(
+  FORK_PROFILE_NAMES.map((name) => [name, EMPTY_FORK_PROFILE]),
+) as ForkProfiles;
 
 export type { TurnContext } from "./conversation/turn";
 
 export class AgentService {
   private readonly defaultProfile: TurnProfile;
-  /** Union of main + fork tools — everything this service can execute. */
   private readonly registry: ToolDefinition<z.ZodType>[];
-  private readonly forkToolSchemas: OpenAITool[];
+  private readonly forkProfiles: ForkProfiles;
 
   constructor(
     private readonly openai: OpenAI,
     config: AgentConfig = {},
   ) {
     const tools = config.tools ?? [];
-    const forkTools = config.forkTools ?? [];
+    this.forkProfiles = config.forkProfiles ?? EMPTY_FORK_PROFILES;
+    const forkTools = Object.values(this.forkProfiles).flatMap((profile) => profile.tools);
     this.registry = dedupeByName([...tools, ...forkTools]);
-    this.forkToolSchemas = forkTools.map(toOpenAITool);
     this.defaultProfile = {
       instructions: config.instructions ?? SYSTEM_INSTRUCTIONS,
       tools: tools.map(toOpenAITool),
@@ -111,7 +121,7 @@ export class AgentService {
       context,
       messages,
       runTurn: (msgs, options, ctx, profile) => this.run(msgs, options, ctx, profile),
-      forkTools: this.forkToolSchemas,
+      forkProfiles: this.forkProfiles,
     };
   }
 

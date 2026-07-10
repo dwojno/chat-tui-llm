@@ -39,9 +39,9 @@ export async function createE2EHarness(opts?: {
   const store = opts?.store ?? (await createMemoryStore());
   const mock = opts?.client ? null : createMockOpenAI(opts?.turns ?? [], opts?.compressions ?? []);
   const client = opts?.client ?? mock!.client;
-  const { tools, forkTools } = createAgentTools(store);
+  const { tools, forkProfiles } = createAgentTools(store);
   const session = await Session.create(
-    new AgentService(client, { tools, forkTools }),
+    new AgentService(client, { tools, forkProfiles }),
     client,
     store,
     4,

@@ -19,12 +19,21 @@ describe("createAgentTools", () => {
     );
   });
 
-  it("gives forks web_search + weather but never delegate tools (no recursion)", async () => {
+  it("gives the general fork web_search + weather but never delegate tools (no recursion)", async () => {
     const store = await createMemoryStore();
-    const { forkTools } = createAgentTools(store);
-    const names = forkTools.map((t) => t.name);
+    const { forkProfiles } = createAgentTools(store);
+    const names = forkProfiles.general.tools.map((t) => t.name);
     expect(names).toEqual(expect.arrayContaining([WEATHER_TOOL_NAME, WEB_SEARCH_TOOL_NAME]));
     expect(names).not.toContain(DELEGATE_TASK_NAME);
     expect(names).not.toContain(DELEGATE_TASKS_NAME);
+  });
+
+  it("gives the rag_research fork the knowledge-base tools only", async () => {
+    const store = await createMemoryStore();
+    const { forkProfiles } = createAgentTools(store);
+    const names = forkProfiles.rag_research.tools.map((t) => t.name);
+    expect(names).toEqual(["search_knowledge_base", "list_files", "grep_files", "read_file"]);
+    expect(names).not.toContain(WEB_SEARCH_TOOL_NAME);
+    expect(names).not.toContain(DELEGATE_TASK_NAME);
   });
 });

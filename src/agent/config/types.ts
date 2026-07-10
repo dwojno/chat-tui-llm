@@ -1,11 +1,9 @@
 import type { z } from "zod";
-import type { ToolDefinition } from "../tools/types";
+import type { ForkProfiles, ToolDefinition } from "../tools/types";
 
 export type AgentConfig = {
   instructions?: string;
-  /** Tools the main agent may call. Composed and injected by the host. */
   tools?: ToolDefinition<z.ZodType>[];
-  /** Tools available to delegated sub-agents (forks). Injected by the host. */
-  forkTools?: ToolDefinition<z.ZodType>[];
+  forkProfiles?: ForkProfiles;
   cacheKey?: string;
 };

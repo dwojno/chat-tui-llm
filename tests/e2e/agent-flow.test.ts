@@ -51,9 +51,9 @@ interface Harness {
 
 async function setup(client: OpenAI): Promise<Harness> {
   const store = await createMemoryStore();
-  const { tools, forkTools } = createAgentTools(store);
+  const { tools, forkProfiles } = createAgentTools(store);
   const session = await Session.create(
-    new AgentService(client, { tools, forkTools }),
+    new AgentService(client, { tools, forkProfiles }),
     client,
     store,
     4,

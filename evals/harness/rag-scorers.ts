@@ -89,7 +89,8 @@ export const answerRelevancy: RagScorer = createScorer<RagInput, RagResult, RagE
 export const contextRelevancy: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Context Relevancy",
   description: "the retrieved chunks are relevant to the question",
-  scorer: async ({ input, output }) => {
+  scorer: async ({ input, output, expected }) => {
+    if (!expected?.goldContextIds?.length) return notApplicable;
     if (!output.retrievedContext.length) return { score: 0, metadata: { note: "no context" } };
     return toScore(
       await ContextRelevancy({

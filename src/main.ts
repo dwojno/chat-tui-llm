@@ -18,10 +18,10 @@ export async function run(): Promise<void> {
   const openOpts: OpenStoreOptions = { rag: createRagDeps(openai, loadRagConfig()) };
   if (cli.conversationId !== undefined) openOpts.conversationId = cli.conversationId;
   const store = await LocalStore.open(DB_PATH, openOpts);
-  const { tools, forkTools } = createAgentTools(store);
+  const { tools, forkProfiles } = createAgentTools(store);
   const agent = new AgentService(openai, {
     tools,
-    forkTools,
+    forkProfiles,
     cacheKey: `chat-cli:${process.pid}`,
   });
   const session = await Session.create(agent, openai, store, KEEP_LAST_TURNS);

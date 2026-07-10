@@ -144,10 +144,10 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
       // `store.profileId`) hit a dedicated collection + bucket.
       const profile = await store.profile.create(`eval-${opts.suiteId}`);
       await store.profile.switchTo(profile.id);
-      const { tools, forkTools } = createAgentTools(store);
+      const { tools, forkProfiles } = createAgentTools(store);
       const agent = new AgentService(openai, {
         tools,
-        forkTools,
+        forkProfiles,
         cacheKey: `eval-${opts.suiteId}`,
         instructions: `${SYSTEM_INSTRUCTIONS}\n${CITATION_DIRECTIVE}`,
       });

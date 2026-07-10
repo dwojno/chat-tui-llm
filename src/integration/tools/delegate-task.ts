@@ -2,14 +2,17 @@ import { randomUUID } from "node:crypto";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { z } from "zod";
 import { extractConversationSummary, keyMemories } from "../../agent/dynamicContext/context";
-import { FORK_MODEL } from "../../agent/config";
-import { FORK_INSTRUCTIONS } from "../../agent/prompts";
 import { compressHandoff } from "../../agent/tools/utils/handoff";
 import type { ForkResult } from "../../agent/tools/utils/fork-result";
 import { DEFAULT_TURN_OPTIONS } from "../../agent/conversation/options";
 import type { TurnEvent } from "../../agent/events/events";
 import type { ToolRunContext, TurnProfile } from "../../agent/conversation/turn";
-import type { ToolDefinition } from "../../agent/tools/types";
+import {
+  FORK_PROFILE_NAMES,
+  toOpenAITool,
+  type ForkProfileName,
+  type ToolDefinition,
+} from "../../agent/tools/types";
 
 export const DELEGATE_TASK_NAME = "delegate_task" as const;
 
@@ -31,9 +34,13 @@ const parameters = z.object({
         "few that matter, or null/[] to pass none.",
     ),
   profile: z
-    .enum(["general"])
+    .enum(FORK_PROFILE_NAMES)
     .nullable()
-    .describe('Which fork profile to run. null defaults to "general".'),
+    .describe(
+      'Which fork profile to run. "general" (web_search + weather) for open research; ' +
+        '"rag_research" (knowledge-base tools) for multi-hop retrieval over indexed ' +
+        'sources. null defaults to "general".',
+    ),
 });
 
 export type DelegateTaskArgs = z.infer<typeof parameters>;
@@ -64,11 +71,12 @@ export interface RunForkArgs {
   title: string;
   task: string;
   relevantMemoryKeys: readonly string[] | null;
+  profile?: ForkProfileName | null;
 }
 
 export async function* runFork(
   ctx: ToolRunContext,
-  { title, task, relevantMemoryKeys }: RunForkArgs,
+  { title, task, relevantMemoryKeys, profile }: RunForkArgs,
 ): AsyncGenerator<TurnEvent, ForkResult> {
   const summary = extractConversationSummary(ctx.messages);
   const memories = selectMemories(ctx.context.memories, relevantMemoryKeys);
@@ -79,18 +87,19 @@ export async function* runFork(
   } satisfies ResponseInputItem;
   const childItems: ResponseInputItem[] = [userMessage];
 
-  const profile: TurnProfile = {
-    instructions: FORK_INSTRUCTIONS,
-    tools: ctx.forkTools,
+  const forkProfile = ctx.forkProfiles[profile ?? "general"];
+  const turnProfile: TurnProfile = {
+    instructions: forkProfile.instructions,
+    tools: forkProfile.tools.map(toOpenAITool),
     cacheKey: `chat-cli:fork:${randomUUID()}`,
-    model: FORK_MODEL,
+    model: forkProfile.model,
   };
 
   for await (const event of ctx.runTurn(
     [userMessage],
     { ...DEFAULT_TURN_OPTIONS, stream: false },
     { memories },
-    profile,
+    turnProfile,
   )) {
     switch (event.type) {
       case "message":
@@ -112,11 +121,11 @@ export async function* runFork(
 }
 
 async function* execute(
-  { title, task, relevantMemoryKeys }: DelegateTaskArgs,
+  { title, task, relevantMemoryKeys, profile }: DelegateTaskArgs,
   ctx?: ToolRunContext,
 ): AsyncGenerator<TurnEvent, string> {
   if (!ctx) throw new Error(`${DELEGATE_TASK_NAME} requires a tool context`);
-  const result = yield* runFork(ctx, { title, task, relevantMemoryKeys });
+  const result = yield* runFork(ctx, { title, task, relevantMemoryKeys, profile });
   return JSON.stringify(result satisfies ForkResult);
 }
 

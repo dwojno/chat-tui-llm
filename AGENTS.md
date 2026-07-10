@@ -86,10 +86,15 @@ models.
 
 **Delegation** is one generic mechanism (`delegate_task` for a single sub-task,
 `delegate_tasks` for up to `MAX_PARALLEL_TASKS` (6) independent forks fanned out via
-`mergeGenerators`). Both share `runFork`. A fork's transcript is compressed by
-`compressHandoff` into a structured `ForkResult` (`responses.parse`) — exact values
-(numbers/paths/IDs) go verbatim into `findings`, not prose — and returned to the
-parent as JSON, so only a digest re-enters the parent context.
+`mergeGenerators`). Both share `runFork`. A fork runs under a named **fork profile**
+(`forkProfiles` in `createAgentTools`, threaded through `AgentConfig` →
+`AgentService` → `ToolRunContext`), selected by the `profile` arg: `general`
+(web_search + weather) or `rag_research` (knowledge-base tools, for multi-hop
+retrieval). Each profile carries executable `ToolDefinition`s; `AgentService`
+flattens them all into its dispatch registry and derives per-fork schemas. A fork's
+transcript is compressed by `compressHandoff` into a structured `ForkResult`
+(`responses.parse`) — exact values (numbers/paths/IDs) go verbatim into `findings`,
+not prose — and returned to the parent as JSON, so only a digest re-enters context.
 
 ## Design: SRP and domain boundaries
 
@@ -274,8 +279,9 @@ import { renderChat } from "../ui/chat";
 ## Boundaries
 
 **Always OK** — add a tool under [src/agent/tools/](src/agent/tools/) (register it in
-`mainTools`/`forkTools`); edit prompts in [src/agent/prompts/](src/agent/prompts/)
-alongside an eval; add/extend tests; run `typecheck`/`lint`/`format`/`test` freely.
+`createAgentTools`'s `tools` or a `forkProfiles` entry); edit prompts in
+[src/agent/prompts/](src/agent/prompts/) alongside an eval; add/extend tests; run
+`typecheck`/`lint`/`format`/`test` freely.
 
 **Ask first** — adding any npm dependency (especially an LLM/agent library — it
 threatens the frameworkless claim); changing the model, `KEEP_LAST_TURNS`, or

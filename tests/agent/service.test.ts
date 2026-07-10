@@ -16,6 +16,8 @@ import { z } from "zod";
 import { executeToolCall } from "../../src/agent/tools";
 import type { ToolDefinition } from "../../src/agent/tools/types";
 import type { TurnEvent } from "../../src/agent/events/events";
+import type { TurnProfile } from "../../src/agent/conversation/turn";
+import { DEFAULT_TURN_OPTIONS } from "../../src/agent/conversation/options";
 import { AgentService } from "../../src/agent/agent";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { createMockOpenAI, type MockTurn } from "../helpers/mock-openai";
@@ -176,6 +178,28 @@ describe("AgentService.run", () => {
   // Delegation now flows through executeToolCall like any other tool, so it is
   // exercised end-to-end (with real tools + a stubbed fetch) in the e2e suite
   // rather than here, where executeToolCall is mocked.
+
+  it("lets a fork profile's model override options.model in the request", async () => {
+    const { service, mock } = makeService([{ text: "done" }]);
+    const forkProfile: TurnProfile = {
+      instructions: "fork",
+      tools: [],
+      cacheKey: "chat-cli:fork:test",
+      model: "gpt-4o-mini",
+    };
+
+    await collect(
+      service.run(
+        [userMessage("hi")],
+        { ...DEFAULT_TURN_OPTIONS, model: "gpt-4o" },
+        { memories: [] },
+        forkProfile,
+      ),
+    );
+
+    const params = mock.calls.stream[0] as { model?: string };
+    expect(params.model).toBe("gpt-4o-mini");
+  });
 
   it("forbids tools on the final round to stop an infinite tool loop", async () => {
     // 8 tool-calling rounds, then a forced answer.
