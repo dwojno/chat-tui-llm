@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { z } from "zod";
 import { extractConversationSummary, keyMemories } from "../../agent/dynamicContext/context";
+import { FORK_MODEL } from "../../agent/config";
 import { FORK_INSTRUCTIONS } from "../../agent/prompts";
 import { compressHandoff } from "../../agent/tools/utils/handoff";
 import type { ForkResult } from "../../agent/tools/utils/fork-result";
@@ -41,7 +42,6 @@ export function parseDelegateTaskArgs(argsJson: string): DelegateTaskArgs {
   return parameters.parse(JSON.parse(argsJson));
 }
 
-/** Resolve declared memory keys (M1, M2, …) back to their texts, order preserved. */
 export function selectMemories(
   memories: readonly string[],
   keys: readonly string[] | null,
@@ -60,7 +60,6 @@ function buildForkBrief(summary: string, memories: readonly string[], task: stri
   return parts.join("\n\n");
 }
 
-/** One fork: brief → child turn (events relabelled with `title`) → compressed `ForkResult`. */
 export interface RunForkArgs {
   title: string;
   task: string;
@@ -84,6 +83,7 @@ export async function* runFork(
     instructions: FORK_INSTRUCTIONS,
     tools: ctx.forkTools,
     cacheKey: `chat-cli:fork:${randomUUID()}`,
+    model: FORK_MODEL,
   };
 
   for await (const event of ctx.runTurn(

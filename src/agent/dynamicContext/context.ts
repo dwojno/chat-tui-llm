@@ -21,12 +21,6 @@ export function extractConversationSummary(messages: readonly ResponseInputItem[
   return "";
 }
 
-/**
- * Assign each memory a stable per-turn key (`M1`, `M2`, …) over the ordered
- * list. `Session` fetches memories fresh per turn, so these indices are stable
- * within a turn — the orchestrator can reference `M2` and `delegate_task` can
- * resolve `relevantMemoryKeys: ["M2"]` back to the same text.
- */
 export function keyMemories(memories: readonly string[]): { key: string; text: string }[] {
   return memories.map((text, index) => ({ key: `M${index + 1}`, text }));
 }

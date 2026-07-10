@@ -9,21 +9,18 @@ export type Profile = {
   id: string;
   name: string;
   model: string | null;
-  temperature: number | null;
   createdAt: number;
 };
 
 export type ProfilePatch = {
   name?: string;
   model?: string | null;
-  temperature?: number | null;
 };
 
 const profileShape = {
   id: profile.id,
   name: profile.name,
   model: profile.model,
-  temperature: profile.temperature,
   createdAt: profile.createdAt,
 };
 
@@ -72,7 +69,6 @@ export class ProfileRepository {
     const values: Partial<typeof profile.$inferInsert> = {};
     if (patch.name !== undefined) values.name = patch.name;
     if (patch.model !== undefined) values.model = patch.model;
-    if (patch.temperature !== undefined) values.temperature = patch.temperature;
     if (!Object.keys(values).length) return;
     this.db.update(profile).set(values).where(eq(profile.id, id)).run();
   }

@@ -14,7 +14,7 @@ import { getFunctionCalls, hasFunctionCalls, toReplayInputItems } from "./conver
 import type { OpenAITool, ToolRunContext, TurnContext, TurnProfile } from "./conversation/turn";
 import { AgentConfig } from "./config/types";
 import type { z } from "zod";
-import { DEFAULT_CACHE_KEY, MAX_TOOL_STEPS } from "./config";
+import { DEFAULT_CACHE_KEY, MAX_TOOL_STEPS, TEMPERATURE } from "./config";
 import { SYSTEM_INSTRUCTIONS } from "./prompts";
 
 const EMPTY_CONTEXT: TurnContext = { memories: [] };
@@ -56,7 +56,7 @@ export class AgentService {
         : undefined;
 
     return {
-      model: options.model,
+      model: profile.model ?? options.model,
       input: [
         ...input,
         ...buildContextBlock({
@@ -65,7 +65,8 @@ export class AgentService {
       ],
       instructions: profile.instructions,
       ...(text ? { text } : {}),
-      ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
+      temperature: TEMPERATURE,
+      ...(profile.reasoningEffort ? { reasoning: { effort: profile.reasoningEffort } } : {}),
       ...(options.max_output_tokens !== undefined
         ? { max_output_tokens: options.max_output_tokens }
         : {}),

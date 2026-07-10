@@ -20,6 +20,8 @@ export type TurnProfile = {
   instructions: string;
   tools: OpenAITool[];
   cacheKey: string;
+  model?: string;
+  reasoningEffort?: "low" | "medium" | "high";
 };
 
 export type RunTurn = (
@@ -34,6 +36,5 @@ export interface ToolRunContext {
   context: TurnContext;
   messages: readonly ResponseInputItem[];
   runTurn: RunTurn;
-  /** Tool schemas a delegated sub-agent may use (e.g. for `delegate_task`). */
   forkTools: OpenAITool[];
 }

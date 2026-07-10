@@ -1,10 +1,9 @@
-import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const profile = sqliteTable("profile", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   model: text("model"),
-  temperature: real("temperature"),
   createdAt: integer("created_at").notNull(),
 });
 

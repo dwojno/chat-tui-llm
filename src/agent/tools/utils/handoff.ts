@@ -1,7 +1,7 @@
 import type { OpenAI } from "openai";
 import type { ResponseInputItem, ResponseUsage } from "openai/resources/responses/responses.mjs";
 import { zodTextFormat } from "openai/helpers/zod";
-import { MODEL } from "../../config";
+import { CHEAP_MODEL } from "../../config";
 import { renderItemsText } from "../../conversation/items";
 import { ForkResultSchema, type ForkResult } from "./fork-result";
 
@@ -17,7 +17,6 @@ const HANDOFF_INSTRUCTIONS =
   "'low'. `needsFollowup` names the single most important unresolved question, " +
   "or null. Omit tool names, retries, and boilerplate.";
 
-/** Used when the model returns no parseable structured output. */
 const fallbackResult = (summary: string): ForkResult => ({
   summary,
   findings: [],
@@ -45,7 +44,7 @@ export async function compressHandoff(
     .join("\n");
 
   const response = await openai.responses.parse({
-    model: MODEL,
+    model: CHEAP_MODEL,
     instructions: HANDOFF_INSTRUCTIONS,
     input,
     text: { format: zodTextFormat(ForkResultSchema, "fork_result") },

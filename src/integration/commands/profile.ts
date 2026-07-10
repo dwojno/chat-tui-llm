@@ -1,4 +1,4 @@
-import { MODEL } from "../../agent/config";
+import { ORCHESTRATOR_MODEL } from "../../agent/config";
 import type { Command } from "./types";
 import { applyContextSwitch } from "../switch";
 import type { PickerItem } from "../../ui/input/picker-keys";
@@ -6,7 +6,7 @@ import type { PickerItem } from "../../ui/input/picker-keys";
 const COMMAND = "/profile";
 
 function profileMeta(model: string | null, sourceCount: number, memoryCount: number): string {
-  const effectiveModel = model ?? MODEL;
+  const effectiveModel = model ?? ORCHESTRATOR_MODEL;
   if (sourceCount > 0) return `${sourceCount} sources`;
   if (memoryCount > 0) return `${memoryCount} memories`;
   return effectiveModel;

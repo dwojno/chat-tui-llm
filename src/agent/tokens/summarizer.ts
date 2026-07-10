@@ -1,6 +1,6 @@
 import type { OpenAI } from "openai";
 import type { ResponseInputItem, ResponseUsage } from "openai/resources/responses/responses.mjs";
-import { MODEL } from "../config";
+import { CHEAP_MODEL } from "../config";
 import { renderItemsText } from "../conversation/items";
 
 const SUMMARIZER_INSTRUCTIONS =
@@ -29,7 +29,7 @@ export async function summarize(
     .join("\n\n");
 
   const response = await openai.responses.create({
-    model: MODEL,
+    model: CHEAP_MODEL,
     instructions: SUMMARIZER_INSTRUCTIONS,
     input,
     temperature: 0.2,

@@ -44,7 +44,7 @@ export class SqliteProfileFacade extends ProfileFacade {
     const createdAt = Date.now();
     const trimmed = name.trim();
     this.repo.insert({ id, name: trimmed, createdAt });
-    return { id, name: trimmed, model: null, temperature: null, createdAt };
+    return { id, name: trimmed, model: null, createdAt };
   }
 
   async update(id: string, patch: ProfilePatch): Promise<void> {

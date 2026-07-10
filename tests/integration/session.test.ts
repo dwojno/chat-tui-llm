@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AgentService } from "../../src/agent/agent";
+import { ORCHESTRATOR_MODEL, TEMPERATURE } from "../../src/agent/config";
 import { DEFAULT_TURN_OPTIONS } from "../../src/agent/conversation/options";
 import { Session } from "../../src/integration/session";
 import type { Store } from "../../src/store";
@@ -65,17 +66,27 @@ describe("Session.runTurn", () => {
     expect(row?.title).toBe("My first question he");
   });
 
-  it("uses profile temperature when set", async () => {
-    const store = await createMemoryStore();
-    await store.profile.update(store.profileId, { temperature: 0.2 });
-    const mock = createMockOpenAI([{ text: "hello" }]);
-    const agent = new AgentService(mock.client);
-    const session = await Session.create(agent, mock.client, store, 4);
-
+  it("sends the code-defined temperature constant regardless of profile", async () => {
+    const { session, mock } = await makeSession([{ text: "hello" }]);
     await collect(session.runTurn("hi", DEFAULT_TURN_OPTIONS));
-
     const params = mock.calls.stream[0] as { temperature?: number };
-    expect(params.temperature).toBe(0.2);
+    expect(params.temperature).toBe(TEMPERATURE);
+  });
+
+  it("defaults the orchestrator model to ORCHESTRATOR_MODEL", async () => {
+    const { session, mock } = await makeSession([{ text: "hi" }]);
+    await collect(session.runTurn("hi", DEFAULT_TURN_OPTIONS));
+    const params = mock.calls.stream[0] as { model?: string };
+    expect(params.model).toBe(ORCHESTRATOR_MODEL);
+  });
+
+  it("uses the profile model when set", async () => {
+    const store = await createMemoryStore();
+    await store.profile.update(store.profileId, { model: "gpt-4o-mini" });
+    const { session, mock } = await makeSession([{ text: "hi" }], [], 4, store);
+    await collect(session.runTurn("hi", DEFAULT_TURN_OPTIONS));
+    const params = mock.calls.stream[0] as { model?: string };
+    expect(params.model).toBe("gpt-4o-mini");
   });
 
   it("summarizes and trims once the window overflows keepLastTurns", async () => {

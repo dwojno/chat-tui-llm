@@ -189,7 +189,6 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
     const options: TurnOptions = {
       ...DEFAULT_TURN_OPTIONS,
       stream: false,
-      temperature: 0,
       model: CHAT_MODEL,
     };
 

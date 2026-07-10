@@ -3,7 +3,6 @@ import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
 import type { ForkResult } from "../../src/agent/tools/utils/fork-result";
 import { LocalStore, type RagDeps, type Store } from "../../src/store";
 
-/** A scripted handoff: a bare summary string, or a partial `ForkResult`. */
 export type MockHandoff = string | Partial<ForkResult>;
 
 function toForkResult(entry: MockHandoff | undefined): ForkResult {
@@ -130,7 +129,6 @@ export interface MockOpenAI {
   turnsRemaining: () => number;
 }
 
-/** True when a `responses.parse` request asked for the structured fork handoff. */
 function isForkResultParse(params: unknown): boolean {
   const format = (params as { text?: { format?: { name?: string } } })?.text?.format;
   return format?.name === "fork_result";

@@ -14,8 +14,7 @@ import {
   type TokenColumns,
   responseUsageToTokens,
 } from "../store";
-import { MODEL } from "../agent/config";
-import { DEFAULT_TURN_OPTIONS } from "../agent/conversation/options";
+import { ORCHESTRATOR_MODEL } from "../agent/config";
 import { formatReport, usageSnapshot, type UsageSnapshot } from "./usage";
 
 function itemKind(item: ResponseInputItem): ItemKind {
@@ -65,39 +64,50 @@ export class Session {
     this.currentTurnIndex = 0;
   }
 
-  private async effectiveTurnSettings(): Promise<{ model: string; temperature: number }> {
-    const profile = await this.store.profile
+  private async effectiveTurnSettings(): Promise<{ model: string }> {
+    const userProfile = await this.store.profile
       .query()
       .byId(this.store.profileId)
       .executeAndTakeFirst();
     return {
-      model: profile?.model ?? MODEL,
-      temperature: profile?.temperature ?? DEFAULT_TURN_OPTIONS.temperature,
+      model: userProfile?.model ?? ORCHESTRATOR_MODEL,
     };
   }
 
   async memories(): Promise<string[]> {
-    const rows = await this.store.memory.query().forProfile(this.store.profileId).execute();
+    const rows = await this.store.memory
+      .query()
+      .forProfile(this.store.profileId)
+      .execute();
     return rows.map((row) => row.text);
   }
 
   async sources(): Promise<string[]> {
-    const rows = await this.store.sources.query().forProfile(this.store.profileId).execute();
+    const rows = await this.store.sources
+      .query()
+      .forProfile(this.store.profileId)
+      .execute();
     return rows.map((row) => row.path);
   }
 
   async getUsageTotals(): Promise<UsageSnapshot> {
-    const totals = await this.store.conversation.usageTotals(this.store.conversationId);
+    const totals = await this.store.conversation.usageTotals(
+      this.store.conversationId,
+    );
     return usageSnapshot(totals);
   }
 
   /** Full persisted transcript (all turns, not just the in-context window) for UI replay. */
   history(): Promise<ResponseInputItem[]> {
-    return this.store.conversation.queryHistory(this.store.conversationId).execute();
+    return this.store.conversation
+      .queryHistory(this.store.conversationId)
+      .execute();
   }
 
   async report(): Promise<string> {
-    return formatReport(await this.store.conversation.usageTotals(this.store.conversationId));
+    return formatReport(
+      await this.store.conversation.usageTotals(this.store.conversationId),
+    );
   }
 
   async addMemory(memory: string): Promise<void> {
@@ -114,9 +124,15 @@ export class Session {
     return this.store.sources.reindex(this.store.profileId);
   }
 
-  async *runTurn(prompt: string, options: TurnOptions): AsyncGenerator<TurnEvent, void> {
+  async *runTurn(
+    prompt: string,
+    options: TurnOptions,
+  ): AsyncGenerator<TurnEvent, void> {
     const { conversation, conversationId } = this.store;
-    const tail = await conversation.queryHistory(conversationId).afterLastSummary().execute();
+    const tail = await conversation
+      .queryHistory(conversationId)
+      .afterLastSummary()
+      .execute();
     this.currentTurnIndex = countUserTurns(tail);
 
     const userMessage = {
@@ -126,7 +142,10 @@ export class Session {
 
     let title: string | undefined;
     if (this.currentTurnIndex === 0) {
-      const row = await conversation.query().byId(conversationId).executeAndTakeFirst();
+      const row = await conversation
+        .query()
+        .byId(conversationId)
+        .executeAndTakeFirst();
       if (row?.title === "New chat") title = titleFromFirstPrompt(prompt);
     }
 
@@ -140,7 +159,10 @@ export class Session {
       title,
     );
 
-    const messages = await conversation.queryHistory(conversationId).forModel().execute();
+    const messages = await conversation
+      .queryHistory(conversationId)
+      .forModel()
+      .execute();
     const context: TurnContext = {
       memories: await this.memories(),
     };
@@ -183,18 +205,25 @@ export class Session {
       payload: item,
       tokens: index === messages.length - 1 ? (usage ?? undefined) : undefined,
     }));
-    await this.store.conversation.createItems(this.store.conversationId, inserts);
+    await this.store.conversation.createItems(
+      this.store.conversationId,
+      inserts,
+    );
   }
 
   private async maintainWindow(): Promise<void> {
     const { conversation, conversationId } = this.store;
-    const tail = await conversation.queryHistory(conversationId).afterLastSummary().execute();
+    const tail = await conversation
+      .queryHistory(conversationId)
+      .afterLastSummary()
+      .execute();
     if (countUserTurns(tail) <= this.keepLastTurns) return;
 
     const { evicted } = splitAtLastTurns(tail, this.keepLastTurns);
     if (!evicted.length) return;
 
-    const priorSummary = await conversation.readLatestSummaryText(conversationId);
+    const priorSummary =
+      await conversation.readLatestSummaryText(conversationId);
     const { text, usage } = await summarize(this.openai, priorSummary, evicted);
     await conversation.createItems(conversationId, {
       kind: "summary",

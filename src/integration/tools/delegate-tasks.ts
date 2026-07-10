@@ -7,12 +7,6 @@ import { runFork } from "./delegate-task";
 
 export const DELEGATE_TASKS_NAME = "delegate_tasks" as const;
 
-/**
- * Hard cap on the fan-out so a single call can't spawn 15–20 concurrent forks —
- * each is an OpenAI request (plus a RAG-store load), so this is cheap insurance
- * against a cost / rate-limit spike. The implicit path (several single
- * `delegate_task` calls in one turn) stays unbounded by design.
- */
 const MAX_PARALLEL_TASKS = 6;
 
 const parameters = z.object({

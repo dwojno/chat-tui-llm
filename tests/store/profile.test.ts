@@ -45,13 +45,11 @@ describe("Profile domain", () => {
     await store.profile.update(created.id, {
       name: "Configured",
       model: "gpt-4o",
-      temperature: 0.2,
     });
 
     expect(await store.profile.query().byId(created.id).executeAndTakeFirst()).toMatchObject({
       name: "Configured",
       model: "gpt-4o",
-      temperature: 0.2,
     });
   });
 
@@ -104,12 +102,11 @@ describe("Profile domain", () => {
   it("clears nullable fields when set to null", async () => {
     const store = await openMemoryStore();
     const created = await store.profile.create("Nullable");
-    await store.profile.update(created.id, { model: "gpt-4o", temperature: 0.5 });
-    await store.profile.update(created.id, { model: null, temperature: null });
+    await store.profile.update(created.id, { model: "gpt-4o" });
+    await store.profile.update(created.id, { model: null });
 
     expect(await store.profile.query().byId(created.id).executeAndTakeFirst()).toMatchObject({
       model: null,
-      temperature: null,
     });
   });
 

@@ -1,3 +1,4 @@
+import { ORCHESTRATOR_MODEL } from "../agent/config";
 import type { ChatHandle } from "../ui/chat";
 import { messagesFromTranscript } from "../ui/history";
 import type { Session } from "./session";
@@ -21,7 +22,7 @@ export async function buildChatContext(store: Store): Promise<{
 }> {
   const profile = await store.profile.query().byId(store.profileId).executeAndTakeFirst();
   const name = profile?.name ?? store.profileId;
-  const model = profile?.model ?? "gpt-4o-mini";
+  const model = profile?.model ?? ORCHESTRATOR_MODEL;
   const [sources, memories] = await Promise.all([
     store.sources.query().forProfile(store.profileId).execute(),
     store.memory.query().forProfile(store.profileId).execute(),

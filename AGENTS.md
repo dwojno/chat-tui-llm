@@ -52,7 +52,7 @@ src/
     prompts/       # system + fork instructions (tested by evals/)
   ui/            # Ink TUI — a thin for-await…switch adapter over the event stream
   integration/   # wiring: repl.ts, session.ts, OpenAI client, commands/, file-mentions
-  store/         # Store facade → domain facades (profile/conversation/fact/sources)
+  store/         # Store facade → domain facades (profile/conversation/memory/sources)
   db/            # SQLite connection, schema, migrations
 docs/            # architecture.md, database.md — the "why"
 tests/           # mirrors src/; e2e/ drives the real REPL. Model mocked (offline)
@@ -62,11 +62,34 @@ evals/           # behavioural prompt tests against the live model (evalite)
 **Data flow:** input → `processLine` ([repl.ts](src/integration/repl.ts)) →
 `Session.runTurn` ([session.ts](src/integration/session.ts)) → `AgentService.run`
 yields `TurnEvent`s → repl `for await…switch` → Ink chat. The Session owns all
-state (transcript, rolling summary, pinned facts, usage) and persists via the
+state (transcript, rolling summary, pinned memories, usage) and persists via the
 `Store`; the agent **retains nothing** after a turn. Last `KEEP_LAST_TURNS` (4)
 turns stay verbatim, older ones fold into a summary appended LAST to preserve the
 cached prompt prefix. The model→tool loop is capped at `MAX_TOOL_STEPS` (8);
-config in [src/agent/config/index.ts](src/agent/config/index.ts) (`gpt-4o-mini`).
+config in [src/agent/config/index.ts](src/agent/config/index.ts).
+
+**Models are role-routed** (config constants): the orchestrator turn runs
+`ORCHESTRATOR_MODEL` (`gpt-4o`, overridable per user-profile via the `model`
+column); forks run `FORK_MODEL`; the handoff compressor and rolling summarizer
+run `CHEAP_MODEL`. Precedence is `turnProfile.model ?? options.model` in
+`buildRequestParams` — the orchestrator leaves `turnProfile.model` unset so the
+user-profile/`ORCHESTRATOR_MODEL` (via `options.model`) wins, while a fork sets
+`turnProfile.model = FORK_MODEL`. **Temperature is code-defined only** (`TEMPERATURE`
+constant, sent on every main turn) — not exposed on `TurnOptions` or the user
+profile. `reasoningEffort` is plumbed on `TurnProfile` but inert on non-reasoning
+models.
+
+**Memories** (persistent per-profile notes, formerly "facts") ride in
+`TurnContext.memories`, render as numbered `M1…Mn` in `<user_known_memories>`, and
+`/remember` pins them. When delegating, the orchestrator passes only the
+`relevantMemoryKeys` a sub-task needs — the fork sees that subset, not the whole set.
+
+**Delegation** is one generic mechanism (`delegate_task` for a single sub-task,
+`delegate_tasks` for up to `MAX_PARALLEL_TASKS` (6) independent forks fanned out via
+`mergeGenerators`). Both share `runFork`. A fork's transcript is compressed by
+`compressHandoff` into a structured `ForkResult` (`responses.parse`) — exact values
+(numbers/paths/IDs) go verbatim into `findings`, not prose — and returned to the
+parent as JSON, so only a digest re-enters the parent context.
 
 ## Design: SRP and domain boundaries
 
@@ -77,10 +100,10 @@ Layer responsibilities stay narrow — **domain rules live in `store/`, user int
 | ------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `store/<domain>/`         | Persistence + domain invariants                               | `ConversationFacade.pruneEmpty()` — a conversation with no assistant reply has no value and may be discarded |
 | `integration/commands/`   | Parse user input, call facades, update UI                     | `/conversation` switches context; it does **not** prune or title                                             |
-| `integration/session.ts`  | Turn orchestration (model input, windowing, profile settings) | `runTurn` resolves model/temperature once per turn                                                           |
+| `integration/session.ts`  | Turn orchestration (model input, windowing, profile settings) | `runTurn` resolves the orchestrator model once per turn                                                       |
 | `integration/shutdown.ts` | Exit housekeeping                                             | `buildExitMessage` prunes empty conversations, then prints report + resume hint                              |
 
-**One place per concern.** Profile `model`/`temperature` resolve in `Session.runTurn`;
+**One place per concern.** The orchestrator `model` resolves in `Session.runTurn`;
 empty-conversation cleanup runs in `buildExitMessage` on exit — never in command
 handlers. Commands return `{ kind: "handled" }` or `{ kind: "turn", … }`; they do
 not reach into unrelated domains.
@@ -172,9 +195,15 @@ with descriptive names**, guard clauses over nested branches. Prefer
 `map`/`filter`/`flatMap` over manual index loops and mutation. Keep stateful
 adapters in classes with dependencies injected as `private readonly` constructor
 params, and keep the logic they call in pure, exported functions
-([src/store/conversation/internal/derive.ts](src/store/conversation/internal/derive.ts) is the model). Easy to read _is_ easy
-to maintain — if a block needs a comment to be understood, extract and name it
-instead.
+([src/store/conversation/internal/derive.ts](src/store/conversation/internal/derive.ts) is the model).
+
+**Naming carries the meaning, not comments.** Name variables, function arguments,
+and helpers so the code reads without annotation. Needing a comment is a signal the
+code is too hard to reason about — extract and name it, or simplify, instead of
+explaining it. Escalate only when naming can't carry it: crucial context goes to
+`docs/`; something genuinely long/crucial/irreducibly complex goes **here in Code
+style**, never as an inline comment. `.describe()` schema strings and prompt text
+are model-facing content, not comments.
 
 **Push computation into the database; Node.js does as little as possible.** Filter,
 order, limit, and aggregate in SQL via the drizzle query builder — never pull rows
@@ -254,5 +283,5 @@ threatens the frameworkless claim); changing the model, `KEEP_LAST_TURNS`, or
 `Store` interface (then run `db:generate`); reshaping the `TurnEvent` contract.
 
 **Never** — import `ui/` or `integration/` from `agent/`; introduce an agent
-framework or SDK abstraction over `openai`; give `delegate_task` to forks (infinite
-recursion); re-introduce heavy inline rationale comments.
+framework or SDK abstraction over `openai`; give `delegate_task`/`delegate_tasks` to
+forks (infinite recursion); re-introduce heavy inline rationale comments.
