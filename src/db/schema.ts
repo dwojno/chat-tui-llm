@@ -17,7 +17,7 @@ export const conversation = sqliteTable("conversation", {
   createdAt: integer("created_at").notNull(),
 });
 
-export const fact = sqliteTable("fact", {
+export const memory = sqliteTable("memory", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   profileId: text("profile_id")
     .notNull()

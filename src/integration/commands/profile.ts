@@ -5,10 +5,10 @@ import type { PickerItem } from "../../ui/input/picker-keys";
 
 const COMMAND = "/profile";
 
-function profileMeta(model: string | null, sourceCount: number, factCount: number): string {
+function profileMeta(model: string | null, sourceCount: number, memoryCount: number): string {
   const effectiveModel = model ?? MODEL;
   if (sourceCount > 0) return `${sourceCount} sources`;
-  if (factCount > 0) return `${factCount} facts`;
+  if (memoryCount > 0) return `${memoryCount} memories`;
   return effectiveModel;
 }
 
@@ -24,14 +24,14 @@ export const profileCommand: Command = {
     const profiles = await store.profile.query().execute();
     const items: PickerItem[] = await Promise.all(
       profiles.map(async (entry) => {
-        const [sources, facts] = await Promise.all([
+        const [sources, memories] = await Promise.all([
           store.sources.query().forProfile(entry.id).execute(),
-          store.fact.query().forProfile(entry.id).execute(),
+          store.memory.query().forProfile(entry.id).execute(),
         ]);
         return {
           id: entry.id,
           label: entry.name,
-          meta: profileMeta(entry.model, sources.length, facts.length),
+          meta: profileMeta(entry.model, sources.length, memories.length),
           current: entry.id === store.profileId,
         };
       }),

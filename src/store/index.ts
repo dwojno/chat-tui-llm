@@ -13,7 +13,7 @@ export type {
   TokenColumns,
 } from "./conversation";
 export { ZERO_TOKENS, responseUsageToTokens, summaryDeveloperMessage } from "./conversation";
-export type { Fact, FactFacade } from "./fact";
+export type { Memory, MemoryFacade } from "./memory";
 export type {
   GrepMatch,
   GrepOptions,
@@ -33,5 +33,5 @@ export type ProfileContext = {
   name: string;
   model: string;
   sourceCount: number;
-  factCount: number;
+  memoryCount: number;
 };

@@ -26,10 +26,10 @@ export function parseDelegateTaskArgs(argsJson: string): z.infer<typeof paramete
   return parameters.parse(JSON.parse(argsJson));
 }
 
-function buildForkBrief(summary: string, facts: readonly string[], task: string): string {
+function buildForkBrief(summary: string, memories: readonly string[], task: string): string {
   const parts = [
     summary ? `Parent context:\n${summary}` : "",
-    facts.length ? `Known facts:\n- ${facts.join("\n- ")}` : "",
+    memories.length ? `Known memories:\n- ${memories.join("\n- ")}` : "",
     `Your task:\n${task}`,
   ].filter(Boolean);
   return parts.join("\n\n");
@@ -53,7 +53,7 @@ async function* execute(
   if (!ctx) throw new Error(`${DELEGATE_TASK_NAME} requires a tool context`);
 
   const summary = extractConversationSummary(ctx.messages);
-  const brief = buildForkBrief(summary, ctx.context.facts, task);
+  const brief = buildForkBrief(summary, ctx.context.memories, task);
   const userMessage = {
     role: "user",
     content: brief,
@@ -69,7 +69,7 @@ async function* execute(
   for await (const event of ctx.runTurn(
     [userMessage],
     { ...DEFAULT_TURN_OPTIONS, stream: false },
-    { facts: ctx.context.facts },
+    { memories: ctx.context.memories },
     profile,
   )) {
     switch (event.type) {

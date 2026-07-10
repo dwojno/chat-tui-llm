@@ -10,12 +10,12 @@ import {
 import type { CommandContext } from "../../../src/integration/commands/types";
 
 function makeCtx(overrides: Partial<CommandContext> = {}) {
-  const addFact = vi.fn();
+  const addMemory = vi.fn();
   const indexSource = vi.fn().mockResolvedValue({ path: "x", chunkCount: 1, status: "indexed" });
   const push = vi.fn();
   const ctx: CommandContext = {
     session: {
-      addFact,
+      addMemory,
       indexSource,
       sources: vi.fn().mockResolvedValue([]),
       ...overrides.session,
@@ -23,7 +23,7 @@ function makeCtx(overrides: Partial<CommandContext> = {}) {
     chat: { push, ...overrides.chat } as unknown as ChatHandle,
     ...overrides,
   };
-  return { ctx, addFact, indexSource, push };
+  return { ctx, addMemory, indexSource, push };
 }
 
 describe("resolveCommand", () => {
@@ -79,17 +79,17 @@ describe("runCommand", () => {
   });
 
   it("/remember pins the fact and echoes it, without a model turn", async () => {
-    const { ctx, addFact, push } = makeCtx();
+    const { ctx, addMemory, push } = makeCtx();
     const action = await runCommand("/remember I like tea", ctx);
     expect(action).toEqual({ kind: "handled" });
-    expect(addFact).toHaveBeenCalledWith("I like tea");
+    expect(addMemory).toHaveBeenCalledWith("I like tea");
     expect(push).toHaveBeenCalledTimes(2); // the user line + the confirmation
   });
 
   it("/remember with an empty fact is a no-op", async () => {
-    const { ctx, addFact } = makeCtx();
+    const { ctx, addMemory } = makeCtx();
     expect(await runCommand("/remember   ", ctx)).toEqual({ kind: "handled" });
-    expect(addFact).not.toHaveBeenCalled();
+    expect(addMemory).not.toHaveBeenCalled();
   });
 
   it("/learn without @mentions shows usage", async () => {

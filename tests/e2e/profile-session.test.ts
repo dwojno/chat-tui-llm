@@ -50,11 +50,11 @@ describe("E2E: profiles", () => {
     await h.run("/profile");
     await h.run("/remember uses vim");
 
-    expect(await h.session.facts()).toEqual(["uses vim"]);
+    expect(await h.session.memories()).toEqual(["uses vim"]);
 
     h.queuePicker(DEFAULT_PROFILE_ID);
     await h.run("/profile");
-    expect(await h.session.facts()).toEqual(["I like tea"]);
+    expect(await h.session.memories()).toEqual(["I like tea"]);
   });
 
   it("re-selecting the active profile does not switch conversations", async () => {
@@ -89,7 +89,7 @@ describe("E2E: profiles", () => {
 
     const reopened = await LocalStore.open(tempDbPath(dir));
     const h2 = await createE2EHarness({ store: reopened });
-    expect(await h2.session.facts()).toEqual(["survives reopen"]);
+    expect(await h2.session.memories()).toEqual(["survives reopen"]);
   });
 });
 

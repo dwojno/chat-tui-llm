@@ -27,7 +27,7 @@ export function storeContract(name: string, createStore: () => Promise<Store>): 
   describe(`Store contract (${name})`, () => {
     it("starts empty", async () => {
       const store = await createStore();
-      expect(await store.fact.query().forProfile(store.profileId).execute()).toEqual([]);
+      expect(await store.memory.query().forProfile(store.profileId).execute()).toEqual([]);
       expect(await store.sources.query().forProfile(store.profileId).execute()).toEqual([]);
       expect(await store.conversation.queryHistory(store.conversationId).execute()).toEqual([]);
       expect(
@@ -284,10 +284,10 @@ export function storeContract(name: string, createStore: () => Promise<Store>): 
     it("stores facts in order", async () => {
       const store = await createStore();
       const { profileId } = store;
-      await store.fact.create(profileId, "likes tea");
-      await store.fact.create(profileId, "uses vim");
+      await store.memory.create(profileId, "likes tea");
+      await store.memory.create(profileId, "uses vim");
 
-      expect(await store.fact.query().forProfile(profileId).execute()).toEqual([
+      expect(await store.memory.query().forProfile(profileId).execute()).toEqual([
         expect.objectContaining({ text: "likes tea" }),
         expect.objectContaining({ text: "uses vim" }),
       ]);

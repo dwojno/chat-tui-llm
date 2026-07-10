@@ -76,8 +76,8 @@ export class Session {
     };
   }
 
-  async facts(): Promise<string[]> {
-    const rows = await this.store.fact.query().forProfile(this.store.profileId).execute();
+  async memories(): Promise<string[]> {
+    const rows = await this.store.memory.query().forProfile(this.store.profileId).execute();
     return rows.map((row) => row.text);
   }
 
@@ -100,8 +100,8 @@ export class Session {
     return formatReport(await this.store.conversation.usageTotals(this.store.conversationId));
   }
 
-  async addFact(fact: string): Promise<void> {
-    await this.store.fact.create(this.store.profileId, fact);
+  async addMemory(memory: string): Promise<void> {
+    await this.store.memory.create(this.store.profileId, memory);
   }
 
   /** Add + index a single source file, streaming progress steps then the result. */
@@ -142,7 +142,7 @@ export class Session {
 
     const messages = await conversation.queryHistory(conversationId).forModel().execute();
     const context: TurnContext = {
-      facts: await this.facts(),
+      memories: await this.memories(),
     };
     const turnSettings = await this.effectiveTurnSettings();
     const turnOptions = { ...options, ...turnSettings };

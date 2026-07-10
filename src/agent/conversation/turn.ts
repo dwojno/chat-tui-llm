@@ -4,7 +4,7 @@ import type { TurnEvent } from "../events/events";
 import type { TurnOptions } from "./options";
 
 export type TurnContext = {
-  facts: readonly string[];
+  memories: readonly string[];
 };
 
 export type OpenAITool = {

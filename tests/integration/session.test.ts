@@ -22,7 +22,7 @@ async function makeSession(
 describe("Session state", () => {
   it("starts fresh when the client is empty", async () => {
     const { session } = await makeSession();
-    expect(await session.facts()).toEqual([]);
+    expect(await session.memories()).toEqual([]);
     expect(await session.sources()).toEqual([]);
     expect(await session.report()).toContain("No turns recorded");
   });
@@ -31,11 +31,11 @@ describe("Session state", () => {
     const store = await createMemoryStore();
     const { session } = await makeSession([], [], 4, store);
 
-    await session.addFact("likes tea");
+    await session.addMemory("likes tea");
     await store.sources.createMany(store.profileId, ["src/a.ts", "src/b.ts", "src/c.ts"]);
 
     const reloaded = (await makeSession([], [], 4, store)).session;
-    expect(await reloaded.facts()).toEqual(["likes tea"]);
+    expect(await reloaded.memories()).toEqual(["likes tea"]);
     expect(await reloaded.sources()).toEqual(["src/a.ts", "src/b.ts", "src/c.ts"]);
   });
 });

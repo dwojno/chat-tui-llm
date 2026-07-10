@@ -22,16 +22,16 @@ export async function buildChatContext(store: Store): Promise<{
   const profile = await store.profile.query().byId(store.profileId).executeAndTakeFirst();
   const name = profile?.name ?? store.profileId;
   const model = profile?.model ?? "gpt-4o-mini";
-  const [sources, facts] = await Promise.all([
+  const [sources, memories] = await Promise.all([
     store.sources.query().forProfile(store.profileId).execute(),
-    store.fact.query().forProfile(store.profileId).execute(),
+    store.memory.query().forProfile(store.profileId).execute(),
   ]);
   const conv = await store.conversation.query().byId(store.conversationId).executeAndTakeFirst();
   const title = conv?.title ?? "New chat";
   const shortId = store.conversationId.slice(0, 8);
 
   return {
-    profileLabel: `${name} (${model} · ${sources.length} sources · ${facts.length} facts)`,
+    profileLabel: `${name} (${model} · ${sources.length} sources · ${memories.length} memories)`,
     conversationLabel: `${shortId} · ${title}`,
     conversationId: store.conversationId,
   };

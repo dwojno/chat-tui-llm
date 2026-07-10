@@ -17,7 +17,7 @@ import type { z } from "zod";
 import { DEFAULT_CACHE_KEY, MAX_TOOL_STEPS } from "./config";
 import { SYSTEM_INSTRUCTIONS } from "./prompts";
 
-const EMPTY_CONTEXT: TurnContext = { facts: [] };
+const EMPTY_CONTEXT: TurnContext = { memories: [] };
 
 export type { TurnContext } from "./conversation/turn";
 
@@ -60,7 +60,7 @@ export class AgentService {
       input: [
         ...input,
         ...buildContextBlock({
-          facts: context.facts,
+          memories: context.memories,
         }),
       ],
       instructions: profile.instructions,

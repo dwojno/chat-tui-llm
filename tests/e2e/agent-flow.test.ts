@@ -111,7 +111,7 @@ describe("E2E: happy paths", () => {
     const h = await mocked([]);
     const result = await h.run("/remember I like tea");
     expect(result).toBe("continue");
-    expect(await h.session.facts()).toContain("I like tea");
+    expect(await h.session.memories()).toContain("I like tea");
     expect(h.lastAssistant()?.content).toContain("Remembered");
   });
 

@@ -21,7 +21,7 @@ describe("LocalStore (sqlite)", () => {
       sqlite.close();
 
       expect(tables.map((table) => table.name)).toEqual(
-        expect.arrayContaining(["profile", "conversation", "fact", "source", "conversation_item"]),
+        expect.arrayContaining(["profile", "conversation", "memory", "source", "conversation_item"]),
       );
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -51,11 +51,11 @@ describe("LocalStore (sqlite)", () => {
 
     try {
       const first = await LocalStore.open(dbPath);
-      await first.fact.create(first.profileId, "persistent fact");
+      await first.memory.create(first.profileId, "persistent fact");
 
       const second = await LocalStore.open(dbPath);
       expect(second.profileId).toBe(first.profileId);
-      expect(await second.fact.query().forProfile(second.profileId).execute()).toEqual([
+      expect(await second.memory.query().forProfile(second.profileId).execute()).toEqual([
         expect.objectContaining({ text: "persistent fact" }),
       ]);
       expect(second.conversationId).not.toBe(first.conversationId);

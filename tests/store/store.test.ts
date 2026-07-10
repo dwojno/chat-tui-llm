@@ -18,9 +18,9 @@ describe("LocalStore edge cases", () => {
 
   it("isolates facts across separate in-memory stores", async () => {
     const first = await openMemoryStore();
-    await first.fact.create(first.profileId, "only in first");
+    await first.memory.create(first.profileId, "only in first");
 
     const second = await openMemoryStore();
-    expect(await second.fact.query().forProfile(second.profileId).execute()).toEqual([]);
+    expect(await second.memory.query().forProfile(second.profileId).execute()).toEqual([]);
   });
 });

@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { openDatabase, type SqliteDb } from "../db/db";
 import { ConversationFacade, SqliteConversationFacade } from "./conversation";
 import { ConversationRepository } from "./conversation/conversation.repository";
-import { FactFacade, SqliteFactFacade } from "./fact";
-import { FactRepository } from "./fact/fact.repository";
+import { MemoryFacade, SqliteMemoryFacade } from "./memory";
+import { MemoryRepository } from "./memory/memory.repository";
 import { ProfileFacade, SqliteProfileFacade } from "./profile";
 import { ProfileRepository } from "./profile/profile.repository";
 import { SourcesFacade, SqliteSourcesFacade, type RagDeps } from "./sources";
@@ -24,37 +24,37 @@ export interface Store {
   readonly conversationId: string;
   readonly profile: ProfileFacade;
   readonly conversation: ConversationFacade;
-  readonly fact: FactFacade;
+  readonly memory: MemoryFacade;
   readonly sources: SourcesFacade;
 }
 
 interface StoreFacades {
   profile: ProfileFacade;
   conversation: ConversationFacade;
-  fact: FactFacade;
+  memory: MemoryFacade;
   sources: SourcesFacade;
 }
 
 function createFacades(db: SqliteDb, ctx: StoreContext, rag?: RagDeps): StoreFacades {
   const profileRepo = new ProfileRepository(db);
   const conversationRepo = new ConversationRepository(db);
-  const factRepo = new FactRepository(db);
+  const memoryRepo = new MemoryRepository(db);
   const sourceRepo = new SourceRepository(db);
 
   profileRepo.ensureDefault();
 
   const conversation = new SqliteConversationFacade(conversationRepo, ctx);
   const profile = new SqliteProfileFacade(profileRepo, ctx, conversation);
-  const fact = new SqliteFactFacade(factRepo);
+  const memory = new SqliteMemoryFacade(memoryRepo);
   const sources = new SqliteSourcesFacade(sourceRepo, rag);
 
-  return { profile, conversation, fact, sources };
+  return { profile, conversation, memory, sources };
 }
 
 export class LocalStore implements Store {
   readonly profile: ProfileFacade;
   readonly conversation: ConversationFacade;
-  readonly fact: FactFacade;
+  readonly memory: MemoryFacade;
   readonly sources: SourcesFacade;
 
   private constructor(
@@ -63,7 +63,7 @@ export class LocalStore implements Store {
   ) {
     this.profile = facades.profile;
     this.conversation = facades.conversation;
-    this.fact = facades.fact;
+    this.memory = facades.memory;
     this.sources = facades.sources;
   }
 

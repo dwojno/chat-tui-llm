@@ -1,23 +1,23 @@
 import type { OneOrMany } from "../helpers";
-import { FactRepository, type Fact, type FactQuery } from "./fact.repository";
+import { MemoryRepository, type Memory, type MemoryQuery } from "./memory.repository";
 
-export abstract class FactFacade {
-  abstract query(): FactQuery;
-  abstract create(profileId: string, text: string, category?: string): Promise<Fact>;
+export abstract class MemoryFacade {
+  abstract query(): MemoryQuery;
+  abstract create(profileId: string, text: string, category?: string): Promise<Memory>;
   abstract update(id: number, patch: { text?: string; category?: string }): Promise<void>;
   abstract delete(id: OneOrMany<number>): Promise<void>;
 }
 
-export class SqliteFactFacade extends FactFacade {
-  constructor(private readonly repo: FactRepository) {
+export class SqliteMemoryFacade extends MemoryFacade {
+  constructor(private readonly repo: MemoryRepository) {
     super();
   }
 
-  query(): FactQuery {
+  query(): MemoryQuery {
     return this.repo.query();
   }
 
-  async create(profileId: string, text: string, category = "general"): Promise<Fact> {
+  async create(profileId: string, text: string, category = "general"): Promise<Memory> {
     return this.repo.insert(profileId, text, category);
   }
 
