@@ -21,8 +21,7 @@ const HANDOFF_MAX_OUTPUT_TOKENS = 1500;
 const MAX_FALLBACK_SUMMARY_CHARS = 500;
 
 const TRUNCATED_SUMMARY =
-  "Sub-agent result could not be compressed cleanly; see child spans for the " +
-  "full transcript.";
+  "Sub-agent result could not be compressed cleanly; see child spans for the full transcript.";
 
 const fallbackResult = (summary: string): ForkResult => ({
   summary,

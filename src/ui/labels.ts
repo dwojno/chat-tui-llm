@@ -11,7 +11,10 @@ const TOOL_LABELS: Record<string, string> = {
   search_knowledge_base: "Searching knowledge base",
   list_files: "Listing knowledge base files",
   grep_files: "Grepping knowledge base",
-  read_file: "Reading knowledge base file",
+  read_source: "Reading knowledge base file",
+  read_file: "Reading file",
+  write_file: "Writing file",
+  edit_file: "Editing file",
 };
 
 export function toolStepLabel(name: string): string {

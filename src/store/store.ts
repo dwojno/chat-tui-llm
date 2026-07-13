@@ -8,7 +8,8 @@ import { ProfileFacade, SqliteProfileFacade } from "./profile";
 import { ProfileRepository } from "./profile/profile.repository";
 import { SourcesFacade, SqliteSourcesFacade, type RagDeps } from "./sources";
 import { SourceRepository } from "./sources/source.repository";
-import { DEFAULT_PROFILE_ID, readActivePointer, writeActivePointer } from "./profile/helpers";
+import { DEFAULT_PROFILE_ID } from "./profile/helpers";
+import { readActiveState } from "./active-state";
 import { StoreContext } from "./context";
 
 const IN_MEMORY = ":memory:";
@@ -81,6 +82,7 @@ export class LocalStore implements Store {
     const ctx = new StoreContext(DEFAULT_PROFILE_ID, "", dbPath, inMemory);
     const facades = createFacades(db, ctx, opts.rag);
 
+    // Explicit override (e.g. `--conversation <id>`) wins over the pointer.
     if (opts.conversationId) {
       const restored = await facades.conversation
         .query()
@@ -88,17 +90,18 @@ export class LocalStore implements Store {
         .executeAndTakeFirst();
       if (!restored) throw new Error(`Conversation not found: ${opts.conversationId}`);
       ctx.bind(restored.profileId, restored.id);
-      if (!inMemory) writeActivePointer(dbPath, { profileId: restored.profileId });
       return new LocalStore(ctx, facades);
     }
 
-    const pointer = inMemory ? { profileId: DEFAULT_PROFILE_ID } : readActivePointer(dbPath);
+    // Restore the last active profile, but always start a fresh conversation on
+    // open (resume a specific one via `--conversation <id>`). bind() persists the
+    // pointer with the new conversation id.
+    const pointer = inMemory ? { profileId: DEFAULT_PROFILE_ID } : readActiveState(dbPath);
     const profileRow = await facades.profile.query().byId(pointer.profileId).executeAndTakeFirst();
     const profileId = profileRow ? pointer.profileId : DEFAULT_PROFILE_ID;
 
     const created = await facades.conversation.create(profileId);
     ctx.bind(profileId, created.id);
-    if (!inMemory) writeActivePointer(dbPath, { profileId });
 
     return new LocalStore(ctx, facades);
   }

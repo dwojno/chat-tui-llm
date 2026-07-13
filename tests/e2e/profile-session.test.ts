@@ -130,7 +130,7 @@ describe("E2E: conversations", () => {
     ]);
   });
 
-  it("restores history when switching back to a prior conversation", async () => {
+  it("clears the chat view when switching conversations (no prior transcript shown)", async () => {
     const h = await createE2EHarness({ turns: [{ text: "in A" }, { text: "in B" }] });
     const convA = h.store.conversationId;
     await h.run("message A");
@@ -143,9 +143,9 @@ describe("E2E: conversations", () => {
     h.queuePicker(convA);
     await h.run("/conversation");
 
+    // Switching back binds convA but shows a clean view — convA's transcript is
+    // NOT replayed; only the switch acknowledgement is present.
     expect(h.chat.messages).toEqual([
-      { role: "user", content: "message A" },
-      { role: "assistant", content: "in A", steps: undefined },
       { role: "assistant", content: expect.stringContaining("Switched to conversation") },
     ]);
     expect(h.store.conversationId).toBe(convA);
@@ -187,7 +187,7 @@ describe("E2E: conversations", () => {
     expect(history[1]).toMatchObject({ role: "assistant" });
   });
 
-  it("reopen without a conversation id starts a fresh conversation", async () => {
+  it("reopen without a conversation id starts a fresh conversation, keeping the profile", async () => {
     const store = await openFileStore(dir);
     const h = await createE2EHarness({ store, turns: [{ text: "hello" }] });
     const firstConversationId = store.conversationId;
@@ -195,6 +195,7 @@ describe("E2E: conversations", () => {
 
     const reopened = await LocalStore.open(tempDbPath(dir));
     expect(reopened.profileId).toBe(store.profileId);
+    // A new session starts a fresh conversation; resume a prior one via --conversation.
     expect(reopened.conversationId).not.toBe(firstConversationId);
     expect(await reopened.conversation.queryHistory(reopened.conversationId).execute()).toEqual([]);
   });

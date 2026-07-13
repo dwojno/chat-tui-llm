@@ -16,8 +16,8 @@ import type {
 } from "./types";
 
 const NOT_CONFIGURED =
-  "Knowledge base is not configured. Start MinIO + Qdrant (docker compose up) " +
-  "and set the MINIO_*/QDRANT_* env vars.";
+  "Knowledge base is not configured. Start Qdrant (docker compose up) and set " +
+  "QDRANT_URL; blobs default to local disk (RAG_BLOB_DIR).";
 
 const DEFAULT_SEARCH_LIMIT = 8;
 

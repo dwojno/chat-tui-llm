@@ -9,26 +9,17 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import type { BlobStore } from "./blob-store";
 import type { RagConfig } from "./config";
 
 const S3_MAX_ATTEMPTS = 4;
 
-/** Per-profile object storage contract (S3/MinIO in prod, fake in tests). */
-export interface ObjectStore {
-  ensureBucket(profileId: string): Promise<void>;
-  put(profileId: string, key: string, body: string): Promise<void>;
-  getText(profileId: string, key: string): Promise<string>;
-  getRange(profileId: string, key: string, start: number, end: number): Promise<string>;
-  getStream(profileId: string, key: string): Promise<Readable>;
-  list(profileId: string): Promise<string[]>;
-  remove(profileId: string, key: string): Promise<void>;
-}
-
 /**
- * Per-profile object storage on MinIO/S3 (internal to the `sources` domain).
- * Each profile gets its own bucket: `${prefix}${profileId}`.
+ * S3/MinIO adapter for `BlobStore`. Each namespace maps to its own bucket
+ * (`${prefix}${namespace}`) — a private detail of this adapter, not part of the
+ * neutral contract.
  */
-export class BlobStore implements ObjectStore {
+export class S3BlobStore implements BlobStore {
   private readonly client: S3Client;
   private readonly ensured = new Set<string>();
 
@@ -45,15 +36,15 @@ export class BlobStore implements ObjectStore {
     });
   }
 
-  bucketFor(profileId: string): string {
-    const raw = `${this.config.minioBucketPrefix}${profileId}`.toLowerCase();
+  private bucketFor(namespace: string): string {
+    const raw = `${this.config.minioBucketPrefix}${namespace}`.toLowerCase();
     const name = raw.replace(/[^a-z0-9.-]/g, "-").replace(/-+/g, "-");
     assert(name.length >= 3 && name.length <= 63, `Invalid bucket name: ${name}`);
     return name;
   }
 
-  async ensureBucket(profileId: string): Promise<void> {
-    const bucket = this.bucketFor(profileId);
+  async init(namespace: string): Promise<void> {
+    const bucket = this.bucketFor(namespace);
     if (this.ensured.has(bucket)) return;
     try {
       await this.client.send(new HeadBucketCommand({ Bucket: bucket }));
@@ -63,10 +54,10 @@ export class BlobStore implements ObjectStore {
     this.ensured.add(bucket);
   }
 
-  async put(profileId: string, key: string, body: string): Promise<void> {
+  async put(namespace: string, key: string, body: string): Promise<void> {
     await this.client.send(
       new PutObjectCommand({
-        Bucket: this.bucketFor(profileId),
+        Bucket: this.bucketFor(namespace),
         Key: key,
         Body: body,
         ContentType: "text/markdown; charset=utf-8",
@@ -74,19 +65,18 @@ export class BlobStore implements ObjectStore {
     );
   }
 
-  async getText(profileId: string, key: string): Promise<string> {
+  async getText(namespace: string, key: string): Promise<string> {
     const response = await this.client.send(
-      new GetObjectCommand({ Bucket: this.bucketFor(profileId), Key: key }),
+      new GetObjectCommand({ Bucket: this.bucketFor(namespace), Key: key }),
     );
     assert(response.Body, `Missing object body: ${key}`);
     return response.Body.transformToString("utf-8");
   }
 
-  /** Byte range read via S3 `Range` (inclusive start/end). */
-  async getRange(profileId: string, key: string, start: number, end: number): Promise<string> {
+  async getRange(namespace: string, key: string, start: number, end: number): Promise<string> {
     const response = await this.client.send(
       new GetObjectCommand({
-        Bucket: this.bucketFor(profileId),
+        Bucket: this.bucketFor(namespace),
         Key: key,
         Range: `bytes=${start}-${end}`,
       }),
@@ -95,22 +85,21 @@ export class BlobStore implements ObjectStore {
     return response.Body.transformToString("utf-8");
   }
 
-  /** Streaming read for line-by-line processing (grep). */
-  async getStream(profileId: string, key: string): Promise<Readable> {
+  async getStream(namespace: string, key: string): Promise<Readable> {
     const response = await this.client.send(
-      new GetObjectCommand({ Bucket: this.bucketFor(profileId), Key: key }),
+      new GetObjectCommand({ Bucket: this.bucketFor(namespace), Key: key }),
     );
     assert(response.Body, `Missing object body: ${key}`);
     return response.Body as Readable;
   }
 
-  async list(profileId: string): Promise<string[]> {
+  async list(namespace: string): Promise<string[]> {
     const keys: string[] = [];
     let token: string | undefined;
     do {
       const response = await this.client.send(
         new ListObjectsV2Command({
-          Bucket: this.bucketFor(profileId),
+          Bucket: this.bucketFor(namespace),
           ContinuationToken: token,
         }),
       );
@@ -122,9 +111,9 @@ export class BlobStore implements ObjectStore {
     return keys;
   }
 
-  async remove(profileId: string, key: string): Promise<void> {
+  async remove(namespace: string, key: string): Promise<void> {
     await this.client.send(
-      new DeleteObjectCommand({ Bucket: this.bucketFor(profileId), Key: key }),
+      new DeleteObjectCommand({ Bucket: this.bucketFor(namespace), Key: key }),
     );
   }
 }

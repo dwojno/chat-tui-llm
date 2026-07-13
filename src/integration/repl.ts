@@ -2,7 +2,7 @@ import { writeSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { runCommand } from "./commands/registry";
 import type { CommandContext } from "./commands/types";
-import { expandFileMentions } from "./file-mentions";
+import { resolveFileMentions } from "./file-mentions";
 import type { Session } from "./session";
 import { buildChatContext } from "./switch";
 import { buildExitMessage } from "./shutdown";
@@ -36,7 +36,7 @@ export async function processLine(
   try {
     chat.push({ role: "user", content: action.content });
 
-    const expanded = await expandFileMentions(action.content);
+    const expanded = await resolveFileMentions(action.content);
     chat.setStreaming("");
     for await (const event of session.runTurn(expanded, action.options)) {
       switch (event.type) {

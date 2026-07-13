@@ -1,14 +1,18 @@
 import { z } from "zod";
+import { defaultBlobDir } from "./paths";
 
 /**
  * Environment-driven configuration for the sources RAG pipeline (OpenAI
- * embeddings, MinIO/S3 blob storage, Qdrant vector search, chunking params).
+ * embeddings, blob storage, Qdrant vector search, chunking params).
  *
  * Internal to the `sources` domain — only the facade consumes it. Parsing is
  * separated from `process.env` so tests can pass an explicit env map.
  */
 const schema = z.object({
   openaiEmbeddingModel: z.string().min(1).default("text-embedding-3-small"),
+  // Blob storage backend: "disk" (default, local filesystem) or "s3" (MinIO/S3).
+  blobBackend: z.enum(["disk", "s3"]).default("disk"),
+  blobDir: z.string().min(1).default(defaultBlobDir()),
   minioEndpoint: z.url().default("http://localhost:9000"),
   minioAccessKey: z.string().min(1).default("minioadmin"),
   minioSecretKey: z.string().min(1).default("minioadmin"),
@@ -40,6 +44,8 @@ export const DENSE_VECTOR_SIZE = 1536;
 export function loadRagConfig(env: Record<string, string | undefined> = process.env): RagConfig {
   const config = schema.parse({
     openaiEmbeddingModel: env.OPENAI_EMBEDDING_MODEL,
+    blobBackend: env.RAG_BLOB_BACKEND,
+    blobDir: env.RAG_BLOB_DIR,
     minioEndpoint: env.MINIO_ENDPOINT,
     minioAccessKey: env.MINIO_ACCESS_KEY,
     minioSecretKey: env.MINIO_SECRET_KEY,

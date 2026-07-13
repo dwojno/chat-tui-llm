@@ -1,7 +1,7 @@
 import type { OneOrMany } from "../helpers";
 import type { StoreContext } from "../context";
 import type { ConversationFacade } from "../conversation/conversation.facade";
-import { slugifyProfileId, writeActivePointer } from "./helpers";
+import { slugifyProfileId } from "./helpers";
 import {
   ProfileRepository,
   type Profile,
@@ -10,7 +10,6 @@ import {
 } from "./profile.repository";
 
 export { DEFAULT_PROFILE_ID } from "./profile.repository";
-export { readActivePointer, writeActivePointer } from "./helpers";
 
 export abstract class ProfileFacade {
   abstract query(): ProfileQuery;
@@ -60,9 +59,6 @@ export class SqliteProfileFacade extends ProfileFacade {
       throw new Error(`Profile not found: ${profileId}`);
     }
     const created = await this.conversations.create(profileId);
-    this.ctx.bind(profileId, created.id);
-    if (!this.ctx.inMemory) {
-      writeActivePointer(this.ctx.dbPath, { profileId });
-    }
+    this.ctx.bind(profileId, created.id); // persists the active-state pointer
   }
 }

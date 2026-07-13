@@ -1,5 +1,5 @@
 import { Readable } from "node:stream";
-import type { ObjectStore } from "../../src/store/sources/rag/blob";
+import type { BlobStore } from "../../src/store/sources/rag/blob-store";
 import { loadRagConfig, type RagConfig } from "../../src/store/sources/rag/config";
 import { encodeSparse, type DenseEmbedder } from "../../src/store/sources/rag/embeddings";
 import { RagEngine } from "../../src/store/sources/rag/engine";
@@ -35,7 +35,7 @@ export class DeterministicEmbedder implements DenseEmbedder {
   }
 }
 
-export class FakeObjectStore implements ObjectStore {
+export class FakeObjectStore implements BlobStore {
   readonly buckets = new Map<string, Map<string, string>>();
 
   private bucket(profileId: string): Map<string, string> {
@@ -47,7 +47,7 @@ export class FakeObjectStore implements ObjectStore {
     return bucket;
   }
 
-  async ensureBucket(profileId: string): Promise<void> {
+  async init(profileId: string): Promise<void> {
     this.bucket(profileId);
   }
 

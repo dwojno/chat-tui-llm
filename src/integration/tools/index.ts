@@ -4,13 +4,16 @@ import type { OpenAITool } from "../../agent/conversation/turn";
 import { FORK_MODEL } from "../../agent/config";
 import { FORK_INSTRUCTIONS, RAG_FORK_INSTRUCTIONS } from "../../agent/prompts";
 import type { Store } from "../../store";
-import { createRagTools } from "../rag/tools";
 import { askUserTool } from "./ask-user";
 import { delegateTaskTool } from "./delegate-task";
 import { delegateTasksTool } from "./delegate-tasks";
+import { editFileTool } from "./edit-file";
+import { createRagTools } from "./rag";
+import { readFileTool } from "./read-file";
 import { requestApprovalTool } from "./request-approval";
 import { weatherTool } from "./weather";
 import { webSearchTool } from "./web-search";
+import { writeFileTool } from "./write-file";
 
 export { weatherTool } from "./weather";
 export { webSearchTool } from "./web-search";
@@ -18,23 +21,32 @@ export { delegateTaskTool } from "./delegate-task";
 export { delegateTasksTool } from "./delegate-tasks";
 export { requestApprovalTool } from "./request-approval";
 export { askUserTool } from "./ask-user";
+export { readFileTool } from "./read-file";
+export { writeFileTool } from "./write-file";
+export { editFileTool } from "./edit-file";
 
 export interface AgentTools {
   tools: ToolDefinition<z.ZodType>[];
   forkProfiles: ForkProfiles;
 }
 
+// Disk tools are main-only; knowledge-base tools are fork-only. The main agent
+// reaches the knowledge base by delegating to the rag_research fork — keeping raw
+// chunks out of the orchestrator's context.
+const mainTools: ToolDefinition<z.ZodType>[] = [
+  weatherTool,
+  delegateTaskTool,
+  delegateTasksTool,
+  requestApprovalTool,
+  askUserTool,
+  readFileTool,
+  writeFileTool,
+  editFileTool,
+];
+
 export function createAgentTools(store: Store): AgentTools {
-  const ragTools = createRagTools(store);
   return {
-    tools: [
-      weatherTool,
-      delegateTaskTool,
-      delegateTasksTool,
-      requestApprovalTool,
-      askUserTool,
-      ...ragTools,
-    ],
+    tools: mainTools,
     forkProfiles: {
       general: {
         instructions: FORK_INSTRUCTIONS,
@@ -43,7 +55,7 @@ export function createAgentTools(store: Store): AgentTools {
       },
       rag_research: {
         instructions: RAG_FORK_INSTRUCTIONS,
-        tools: ragTools,
+        tools: createRagTools(store),
         model: FORK_MODEL,
       },
     },
@@ -56,5 +68,12 @@ export const forkToolSchemas: OpenAITool[] = (
 ).map(toOpenAITool);
 /** Main tool schemas (generic subset, no store) — for evals/tests. */
 export const mainToolSchemas: OpenAITool[] = (
-  [weatherTool, delegateTaskTool, delegateTasksTool] as ToolDefinition<z.ZodType>[]
+  [
+    weatherTool,
+    delegateTaskTool,
+    delegateTasksTool,
+    readFileTool,
+    writeFileTool,
+    editFileTool,
+  ] as ToolDefinition<z.ZodType>[]
 ).map(toOpenAITool);

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createRagTools } from "../../../src/integration/rag/tools";
+import { createRagTools } from "../../../src/integration/tools/rag";
 import { LocalStore, type Store } from "../../../src/store";
 import { createFakeRag } from "../../helpers/fake-rag";
 import { drain } from "../../../src/utils/async-gen";
@@ -43,16 +43,16 @@ describe("createRagTools", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("exposes the four RAG tools", () => {
+  it("exposes search, list, grep, and read_source (no main-agent read_file)", () => {
     expect(tools.map((t) => t.name).toSorted()).toEqual([
       "grep_files",
       "list_files",
-      "read_file",
+      "read_source",
       "search_knowledge_base",
     ]);
   });
 
-  it("search_knowledge_base returns path:line citations", async () => {
+  it("search_knowledge_base returns path:line pointers and points at read_source", async () => {
     const out = await drain(
       tool(tools, "search_knowledge_base").execute(
         { query: "bearer token authorization header", limit: 3 },
@@ -60,7 +60,7 @@ describe("createRagTools", () => {
       ),
     );
     expect(out).toContain("api.md:");
-    expect(out).toContain("Authorization");
+    expect(out).toContain("read_source");
   });
 
   it("list_files lists indexed files", async () => {
@@ -79,14 +79,13 @@ describe("createRagTools", () => {
       events.push(next.value);
       next = await gen.next();
     }
-    // At least one streamed status event (grep header + per-match) before the result.
     expect(events.some((e) => (e as { type?: string }).type === "status")).toBe(true);
     expect(next.value).toMatch(/api\.md:\d+:.*bearer/i);
   });
 
-  it("read_file returns a line range", async () => {
+  it("read_source returns a line range", async () => {
     const out = await drain(
-      tool(tools, "read_file").execute(
+      tool(tools, "read_source").execute(
         { path: "api.md", mode: "lines", start: 1, end: 1 },
         undefined,
       ),

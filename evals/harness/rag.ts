@@ -8,6 +8,7 @@ import { SYSTEM_INSTRUCTIONS } from "../../src/agent/prompts";
 import { MODEL } from "../../src/agent/config";
 import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "../../src/agent/conversation/options";
 import { createAgentTools } from "../../src/integration/tools";
+import { createRagTools } from "../../src/integration/tools/rag";
 import {
   createRagDeps,
   loadRagConfig,
@@ -35,7 +36,7 @@ import {
  */
 
 /** Knowledge-base tools whose output counts as "retrieved context". */
-const KB_TOOLS = new Set(["search_knowledge_base", "read_file", "grep_files"]);
+const KB_TOOLS = new Set(["search_knowledge_base", "read_source", "grep_files"]);
 
 /**
  * Grounding directive appended to the real system prompt *for the eval only*
@@ -48,7 +49,7 @@ const CITATION_DIRECTIVE = `
 <grounding>
 You are being evaluated on grounded, cited answers. For every reply:
 - Answer ONLY from the knowledge-base tools (search_knowledge_base, grep_files,
-  read_file). Never use outside knowledge.
+  read_source). Never use outside knowledge.
 - If the knowledge base does not contain the answer, say you do not have enough
   information to answer — do not guess.
 - End the reply with a final line naming the source files you actually used,
@@ -145,8 +146,13 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
       const profile = await store.profile.create(`eval-${opts.suiteId}`);
       await store.profile.switchTo(profile.id);
       const { tools, forkProfiles } = createAgentTools(store);
+      // In production the knowledge base is reached only via the rag_research
+      // fork (whose tool calls don't surface as top-level message events). This
+      // eval scores retrieval directly, so it gives its own agent the KB tools at
+      // the top level — the harness captures search/read_source/grep calls from
+      // the run stream to measure what was actually retrieved.
       const agent = new AgentService(openai, {
-        tools,
+        tools: [...tools, ...createRagTools(store)],
         forkProfiles,
         cacheKey: `eval-${opts.suiteId}`,
         instructions: `${SYSTEM_INSTRUCTIONS}\n${CITATION_DIRECTIVE}`,
@@ -207,7 +213,7 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
         if (item.type === "function_call") {
           callNames.set(item.call_id, item.name);
           toolCalls.push({ name: item.name, arguments: item.arguments });
-          // read_file / grep_files name their target(s) in the call arguments.
+          // read_source / grep_files name their target(s) in the call arguments.
           if (KB_TOOLS.has(item.name)) {
             for (const path of pathsFromArgs(item.arguments)) sources.add(basename(path));
           }
@@ -249,7 +255,7 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
 /** A `path:line…` token at the start of a tool-output line (search/grep hits). */
 const OUTPUT_PATH = /(?:^|\n)\s*([^\s:]+\.[A-Za-z0-9]+):\d/g;
 
-/** File paths named in a KB tool call's arguments (`read_file`/`grep_files`). */
+/** File paths named in a KB tool call's arguments (`read_source`/`grep_files`). */
 function pathsFromArgs(argsJson: string): string[] {
   try {
     const parsed = JSON.parse(argsJson) as { path?: unknown; paths?: unknown };

@@ -5,7 +5,7 @@ import type { GrepMatch, GrepOptions, ReadRange, SearchHit, SourceProgress } fro
 import { chunkMarkdown, embedText } from "./chunking";
 import type { RagConfig } from "./config";
 import type { DenseEmbedder } from "./embeddings";
-import type { ObjectStore } from "./blob";
+import type { BlobStore } from "./blob-store";
 import { toMarkdown } from "./markdown";
 import type { ChunkPayload, SearchResult, VectorIndex, VectorPoint } from "./qdrant";
 import type { RerankCandidate, Reranker } from "./reranker";
@@ -25,7 +25,7 @@ export class RagEngine {
   constructor(
     private readonly config: RagConfig,
     private readonly embedder: DenseEmbedder,
-    private readonly blob: ObjectStore,
+    private readonly blob: BlobStore,
     private readonly index: VectorIndex,
     private readonly reranker: Reranker,
   ) {}
@@ -43,8 +43,8 @@ export class RagEngine {
     const markdown = await toMarkdown(path, bytes);
     const key = this.s3KeyFor(path);
 
-    yield { message: "uploading to object storage" };
-    await this.blob.ensureBucket(profileId);
+    yield { message: "storing source blob" };
+    await this.blob.init(profileId);
     await this.blob.put(profileId, key, markdown);
 
     const chunks = chunkMarkdown(markdown, {

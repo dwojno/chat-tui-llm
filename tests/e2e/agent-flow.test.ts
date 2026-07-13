@@ -127,7 +127,7 @@ describe("E2E: happy paths", () => {
     expect(h.lastAssistant()?.content).toBe("42\n\nSources: s1");
   });
 
-  it("expands @file mentions for the model while keeping @refs in the transcript", async () => {
+  it("injects resolved @file paths for the model while keeping @refs in the transcript", async () => {
     const mock = createMockOpenAI([{ text: "summarized" }]);
     const h = await setup(mock.client);
     const fixture = "tests/fixtures/small.txt";
@@ -139,11 +139,15 @@ describe("E2E: happy paths", () => {
       content: `summarize @${fixture}`,
     });
     const transcript = await h.session.history();
+    // The @ref is resolved to a real path (no @, no inlined body, no instruction).
     expect(transcript[0]).toMatchObject({
       role: "user",
-      content: expect.stringContaining('<file path="tests/fixtures/small.txt">'),
+      content: expect.stringContaining(fixture),
     });
-    expect(transcript[0]).toMatchObject({
+    expect(transcript[0]).not.toMatchObject({
+      content: expect.stringContaining(`@${fixture}`),
+    });
+    expect(transcript[0]).not.toMatchObject({
       content: expect.stringContaining("hello from fixture"),
     });
     expect(h.lastAssistant()?.content).toBe("summarized");
