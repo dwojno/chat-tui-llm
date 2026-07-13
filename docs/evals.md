@@ -17,8 +17,8 @@ Requires a real `OPENAI_API_KEY` — loaded from `.env` via `setupFiles` in
 
 ## What's covered
 
-The tests live in [`suites/`](suites/); the reusable machinery lives in
-[`harness/`](harness/); the runner config is [`evalite.config.ts`](../../evalite.config.ts)
+The tests live in [`suites/`](../evals/suites/); the reusable machinery lives in
+[`harness/`](../evals/harness/); the runner config is [`evalite.config.ts`](../../evalite.config.ts)
 at the repo root.
 
 ```
@@ -45,7 +45,7 @@ src/eval/
 `suites/rag-eval.eval.ts` is unlike the others: it is a **true end-to-end test
 with no mocks**. Each run resets its own isolated Qdrant collection + MinIO
 bucket (`kb_eval-rag`), ingests the corpus in
-[`rag-corpus/`](rag-corpus/) through the app's production `store.sources`
+[`rag-corpus/`](../evals/harness/rag-corpus/) through the app's production `store.sources`
 pipeline, then runs the **actual `AgentService` loop** (with the real
 store-backed RAG tools) once per query. `retrievedContext` is captured from the
 agent's genuine `search_knowledge_base` / `read_file` / `grep_files` tool
@@ -93,14 +93,14 @@ answer needs** — re-run with `RAG_RERANK_ENABLED=false` for a pure-RRF baselin
 Evalite's model is `data → task → scorers`:
 
 - **`data`** — the rows. Each is `{ input, expected }`. `input` is a
-  [`ProbeSpec`](harness/probe.ts) (prompt + optional context/schema); `expected`
-  is an [`Expected`](harness/scorers.ts) describing what a good answer does.
-- **`task`** — [`probePrompt`](harness/probe.ts) runs _one_ model turn against
+  [`ProbeSpec`](../evals/harness/probe.ts) (prompt + optional context/schema); `expected`
+  is an [`Expected`](../evals/harness/scorers.ts) describing what a good answer does.
+- **`task`** — [`probePrompt`](../evals/harness/probe.ts) runs _one_ model turn against
   the real system prompt + tools and returns the observable surface (`text`,
   `toolCalls`, `parsed`). It does **not** execute tools or run the loop, so it
   captures the model's _decision_ — exactly what routing evals score.
-- **`scorers`** — one file each under [`harness/scorers/`](harness/scorers/),
-  shared bits in [`common.ts`](harness/scorers/common.ts). The deterministic
+- **`scorers`** — one file each under [`harness/scorers/`](../evals/harness/scorers/),
+  shared bits in [`common.ts`](../evals/harness/scorers/common.ts). The deterministic
   checks (`routing`, `toolArgument`, `conciseArg`, `avoidsTools`,
   `mentionsRequired`, `avoidsForbidden`, `matchesSchema`, `withinWordLimit`)
   inspect structured tool-call data or free text. The LLM judge (`judged`)

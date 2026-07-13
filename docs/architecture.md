@@ -130,50 +130,19 @@ the summarizer overhead against the strategy.
 
 The RAG pipeline lives entirely in the `sources` store domain
 ([src/store/sources/](../src/store/sources/)) behind its facade; the agent core
-never learns it exists. `/learn @file` runs **ingest**: convert to Markdown →
-upload to a per-profile MinIO bucket → chunk (heading-aware, line-tracked,
-~512 tokens with overlap) → embed → upsert into a per-profile Qdrant collection.
-Each chunk carries its heading breadcrumb and line range, so a hit can cite
-`path:startLine-endLine` and `read_file` can slice the exact region.
+never learns it exists — it reaches the model only as four store-backed tools.
+`/learn @file` runs **ingest** (convert to Markdown → per-profile MinIO bucket →
+heading-aware chunking → OpenAI embeddings → per-profile Qdrant collection), and
+`search()` runs a four-stage **retrieval** pipeline (hybrid dense+sparse RRF fetch
+→ LLM rerank → relative-cutoff filter → return whole chunks) that turns "top-N
+regardless of relevance" into "only what's actually relevant". Each chunk carries
+its heading breadcrumb and line range, so hits cite `path:startLine-endLine` and
+`read_file` slices the exact region.
 
-**Retrieval** ([`engine.ts`](../src/store/sources/rag/engine.ts) `search()`) is a
-four-stage pipeline, because raw hybrid search alone over-serves the agent:
-
-1. **Hybrid fetch.** Qdrant runs dense (embedding) and sparse (BM25) prefetches
-   and fuses them with **RRF**. RRF is recall-first — it returns the top-N hits
-   regardless of how relevant each actually is, and its fused scores sit in a
-   narrow rank-reciprocal band with no meaningful absolute scale. Left as-is, the
-   agent "gets all the things."
-2. **Rerank.** So `search()` over-fetches a larger candidate pool
-   (`limit × RAG_RERANK_CANDIDATE_MULTIPLIER`, capped at `RAG_RERANK_MAX_CANDIDATES`)
-   and hands it to a **reranker** ([`reranker.ts`](../src/store/sources/rag/reranker.ts)).
-   The default `LlmReranker` makes one structured-output call that scores each
-   candidate 0–1 for true relevance and returns them most-relevant-first, omitting
-   off-topic ones. It returns **indices only** — the engine keeps the authoritative
-   results and reorders them, so the model can't fabricate chunk content — and
-   **must not throw**: any failure degrades to the fused order (search never fails
-   because reranking did). `Reranker` is an interface, so a Cohere/cross-encoder
-   implementation is a one-line swap in [`deps.ts`](../src/store/sources/rag/deps.ts).
-3. **Relative filter.** Hits below `RAG_RELATIVE_CUTOFF × topScore` are dropped
-   (relative to this query's own best hit, since a good match for a broad query can
-   score lower than a weak match for a precise one). At least the top hit always
-   survives, so a real match never filters to nothing.
-4. **Return whole.** Surviving hits are returned with their heading breadcrumb and
-   the full chunk body (capped at `RAG_SNIPPET_MAX_CHARS` ≈ a whole chunk), not a
-   320-char mid-sentence stub — grounding is better when there are fewer, complete
-   passages.
-
-Setting `RAG_RERANK_ENABLED=false` skips stages 2–3 for a pure-RRF baseline. The
-knobs live in [`config.ts`](../src/store/sources/rag/config.ts) and default in
-[`.env.example`](../.env.example). The [RAG eval](../evals/README.md) measures the
-payoff directly: **Retrieval Precision** and **Retrieval F1** alongside the
-existing **Context Recall**, so a change is provable as _tighter context without
-dropping what the answer needs_.
-
-One-shot lookups call these tools directly from the main turn. **Multi-hop**
-retrieval — chained searches where one passage guides the next — is delegated to
-the `rag_research` fork profile, which carries exactly this tool set; see
-[agent-loop.md](./agent-loop.md#fork-profiles).
+The full reference — ingest, the retrieval stages and their rationale, the
+per-profile infra layout, the four tools, every config knob, and the RAG evals —
+lives in **[rag.md](./rag.md)**. Multi-hop retrieval is delegated to the
+`rag_research` fork profile; see [agent-loop.md](./agent-loop.md#fork-profiles).
 
 ## The UI
 

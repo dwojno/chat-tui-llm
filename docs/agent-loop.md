@@ -255,6 +255,7 @@ It falls back to a low-confidence result if parsing returns null. Only this dige
 RAG never touches the loop. It is exposed purely as store-backed tools
 ([integration/rag/tools.ts](../src/integration/rag/tools.ts)); the model decides
 when to call them, and a multi-hop chain can be delegated to the `rag_research`
-fork. The retrieval pipeline itself (hybrid fetch → rerank → filter) lives in the
-`sources` store domain — see [architecture.md](./architecture.md#knowledge-base-retrieval).
+fork. The retrieval pipeline itself (ingest → hybrid fetch → rerank → filter)
+lives in the `sources` store domain — see **[rag.md](./rag.md)** for the full
+reference.
 ```

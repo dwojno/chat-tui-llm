@@ -114,4 +114,6 @@ evals/              prompt evals against the live model (evalite)
 docs/               architecture notes (see docs/architecture.md)
 ```
 
-See [docs/architecture.md](docs/architecture.md) for how the layers fit together.
+See [docs/architecture.md](docs/architecture.md) for how the layers fit together,
+[docs/agent-loop.md](docs/agent-loop.md) for the turn/delegation mechanics, and
+[docs/rag.md](docs/rag.md) for the knowledge-base pipeline.
