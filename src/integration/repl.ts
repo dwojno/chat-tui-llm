@@ -60,6 +60,14 @@ export async function processLine(
           void session.getUsageTotals().then((usage) => chat.setUsage(usage));
           void buildChatContext(session.store).then((context) => chat.setContext(context));
           break;
+        case "approval_request":
+          chat.addStep({ label: `Awaiting approval — ${event.label ?? event.toolName}` });
+          break;
+        case "approval_resolved":
+          chat.addStep({
+            label: event.outcome === "reject" ? "Rejected" : "Approved",
+          });
+          break;
       }
     }
   } catch (error) {

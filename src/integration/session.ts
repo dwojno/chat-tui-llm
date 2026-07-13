@@ -1,6 +1,7 @@
 import type { OpenAI } from "openai";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import type { AgentService, TurnContext } from "../agent";
+import type { ApprovalDecision, ApprovalGate, ApprovalRequest } from "../agent/tools/approval";
 import type { TurnOptions } from "../agent/conversation";
 import { countUserTurns, splitAtLastTurns } from "../agent/conversation";
 import type { TurnEvent } from "../agent/events";
@@ -41,6 +42,9 @@ export class Session {
   private pendingUsage: TokenColumns | null = null;
   private pendingMessages: ResponseInputItem[] = [];
   private currentTurnIndex = 0;
+  private alwaysAllowed = new Set<string>();
+  private handler: ApprovalGate | undefined;
+  private approvalChain: Promise<unknown> = Promise.resolve();
 
   private constructor(
     private readonly agent: AgentService,
@@ -71,6 +75,32 @@ export class Session {
     this.pendingMessages = [];
     this.pendingUsage = null;
     this.currentTurnIndex = 0;
+    this.alwaysAllowed.clear();
+  }
+
+  setApprovalHandler(handler: ApprovalGate): void {
+    this.handler = handler;
+  }
+
+  get hasApprovalHandler(): boolean {
+    return this.handler !== undefined;
+  }
+
+  private approvalGate: ApprovalGate = (request) => {
+    const decision = this.approvalChain.then(() => this.decide(request));
+    this.approvalChain = decision.catch(() => undefined);
+    return decision;
+  };
+
+  private async decide(request: ApprovalRequest): Promise<ApprovalDecision> {
+    if (this.alwaysAllowed.has(request.toolName)) return { outcome: "approve" };
+    const handler = this.handler;
+    if (!handler) return { outcome: "approve" };
+    const decision = await handler(request);
+    if (decision.outcome === "always" && request.allowAlways !== false) {
+      this.alwaysAllowed.add(request.toolName);
+    }
+    return decision;
   }
 
   private async effectiveTurnSettings(): Promise<{ model: string }> {
@@ -151,6 +181,7 @@ export class Session {
     const turnSettings = await this.effectiveTurnSettings();
     const context: TurnContext = {
       memories: await this.memories(),
+      ...(this.handler ? { requestApproval: this.approvalGate } : {}),
     };
     const turnOptions = { ...options, ...turnSettings };
 

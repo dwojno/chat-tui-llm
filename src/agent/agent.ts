@@ -9,6 +9,7 @@ import { mergeGenerators } from "./events/merge";
 import { formatResponse } from "./conversation/format";
 import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "./conversation/options";
 import { describeToolCall, executeToolCall, toolLabel } from "./tools";
+import { APPROVAL_DENIED_OUTPUT, evaluateApproval, type ApprovalNeed } from "./tools/approval";
 import {
   FORK_PROFILE_NAMES,
   toOpenAITool,
@@ -35,7 +36,11 @@ import { SYSTEM_INSTRUCTIONS } from "./prompts";
 
 const EMPTY_CONTEXT: TurnContext = { memories: [] };
 
-const EMPTY_FORK_PROFILE: ForkProfile = { instructions: "", tools: [], model: MODEL };
+const EMPTY_FORK_PROFILE: ForkProfile = {
+  instructions: "",
+  tools: [],
+  model: MODEL,
+};
 const EMPTY_FORK_PROFILES = Object.fromEntries(
   FORK_PROFILE_NAMES.map((name) => [name, EMPTY_FORK_PROFILE]),
 ) as ForkProfiles;
@@ -162,7 +167,18 @@ export class AgentService {
       messages,
       runTurn: (msgs, options, ctx, profile) => this.run(msgs, options, ctx, profile),
       forkProfiles: this.forkProfiles,
+      ...(context.requestApproval ? { requestApproval: context.requestApproval } : {}),
     };
+  }
+
+  private approvalFor(call: { name: string; arguments: string }): ApprovalNeed {
+    const tool = this.registry.find((t) => t.name === call.name);
+    if (!tool) return { required: false };
+    try {
+      return evaluateApproval(tool, tool.parameters.parse(JSON.parse(call.arguments)));
+    } catch {
+      return { required: tool.requiresApproval === true };
+    }
   }
 
   private executeCall(
@@ -225,8 +241,63 @@ export class AgentService {
         };
       }
 
+      const denied = new Map<number, string>();
+      const gate = context.requestApproval;
+      if (gate) {
+        for (const [index, call] of calls.entries()) {
+          const need = this.approvalFor(call);
+          if (!need.required) continue;
+
+          const label = toolLabel(this.registry, call.name);
+          const detail = describeToolCall(this.registry, call.name, call.arguments);
+          yield {
+            type: "approval_request",
+            toolName: call.name,
+            ...(label !== undefined ? { label } : {}),
+            ...(detail !== undefined ? { detail } : {}),
+            ...(need.reason !== undefined ? { reason: need.reason } : {}),
+            ...(need.risk !== undefined ? { risk: need.risk } : {}),
+          };
+          const span = startSpan(`approval ${call.name}`, {
+            attributes: {
+              "gen_ai.tool.name": call.name,
+              ...(need.risk !== undefined ? { "approval.risk": need.risk } : {}),
+            },
+          });
+          setSpanIO(span, { input: detail ?? call.arguments });
+          try {
+            const decision = await gate({
+              toolName: call.name,
+              label,
+              detail,
+              reason: need.reason,
+              risk: need.risk,
+            });
+            span.setAttribute("approval.outcome", decision.outcome);
+            setSpanIO(span, { output: decision.outcome });
+            endSpan(span);
+            yield {
+              type: "approval_resolved",
+              toolName: call.name,
+              outcome: decision.outcome,
+            };
+            if (decision.outcome === "reject") {
+              denied.set(index, APPROVAL_DENIED_OUTPUT);
+            }
+          } catch (error) {
+            endSpan(span, error);
+            throw error;
+          }
+        }
+      }
+
       const { events, results } = mergeGenerators(
-        calls.map((call) => this.executeCall(call, context, input)),
+        calls.map((call, index) => {
+          const declined = denied.get(index);
+          return declined !== undefined
+            ? deniedResult(declined)
+            : this.executeCall(call, context, input);
+        }),
       );
       for await (const event of events) {
         yield event;
@@ -263,6 +334,10 @@ export class AgentService {
 
     yield { type: "answer", content: formatResponse(response, options) };
   }
+}
+
+async function* deniedResult(output: string): AsyncGenerator<TurnEvent, string> {
+  return output;
 }
 
 function dedupeByName(tools: ToolDefinition<z.ZodType>[]): ToolDefinition<z.ZodType>[] {

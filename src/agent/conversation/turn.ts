@@ -2,10 +2,12 @@ import type { OpenAI } from "openai";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import type { TurnEvent } from "../events/events";
 import type { ForkProfiles } from "../tools/types";
+import type { ApprovalGate } from "../tools/approval";
 import type { TurnOptions } from "./options";
 
 export type TurnContext = {
   memories: readonly string[];
+  requestApproval?: ApprovalGate;
 };
 
 export type OpenAITool = {
@@ -38,4 +40,5 @@ export interface ToolRunContext {
   messages: readonly ResponseInputItem[];
   runTurn: RunTurn;
   forkProfiles: ForkProfiles;
+  requestApproval?: ApprovalGate;
 }

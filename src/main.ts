@@ -2,6 +2,7 @@ import { OpenAI } from "openai";
 import { parseCliArgs } from "./integration/args";
 import { runRepl } from "./integration/repl";
 import { buildChatContext } from "./integration/switch";
+import { approvalsEnabled } from "./integration/env";
 import { DB_PATH, KEEP_LAST_TURNS } from "./integration/config";
 import { AgentService } from "./agent/agent";
 import { createAgentTools } from "./integration/tools";
@@ -15,7 +16,9 @@ export async function run(): Promise<void> {
   const cli = parseCliArgs();
 
   const openai = new OpenAI();
-  const openOpts: OpenStoreOptions = { rag: createRagDeps(openai, loadRagConfig()) };
+  const openOpts: OpenStoreOptions = {
+    rag: createRagDeps(openai, loadRagConfig()),
+  };
   if (cli.conversationId !== undefined) openOpts.conversationId = cli.conversationId;
   const store = await LocalStore.open(DB_PATH, openOpts);
   const { tools, forkProfiles } = createAgentTools(store);
@@ -32,6 +35,10 @@ export async function run(): Promise<void> {
     initialContext: await buildChatContext(store),
     conversationId: store.conversationId,
   });
+
+  if (interactive && approvalsEnabled()) {
+    session.setApprovalHandler((req) => chat.promptApproval(req));
+  }
 
   await runRepl({ chat, session, interactive, store });
 }

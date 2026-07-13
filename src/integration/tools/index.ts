@@ -7,6 +7,7 @@ import type { Store } from "../../store";
 import { createRagTools } from "../rag/tools";
 import { delegateTaskTool } from "./delegate-task";
 import { delegateTasksTool } from "./delegate-tasks";
+import { requestApprovalTool } from "./request-approval";
 import { weatherTool } from "./weather";
 import { webSearchTool } from "./web-search";
 
@@ -14,6 +15,7 @@ export { weatherTool } from "./weather";
 export { webSearchTool } from "./web-search";
 export { delegateTaskTool } from "./delegate-task";
 export { delegateTasksTool } from "./delegate-tasks";
+export { requestApprovalTool } from "./request-approval";
 
 export interface AgentTools {
   tools: ToolDefinition<z.ZodType>[];
@@ -23,7 +25,7 @@ export interface AgentTools {
 export function createAgentTools(store: Store): AgentTools {
   const ragTools = createRagTools(store);
   return {
-    tools: [weatherTool, delegateTaskTool, delegateTasksTool, ...ragTools],
+    tools: [weatherTool, delegateTaskTool, delegateTasksTool, requestApprovalTool, ...ragTools],
     forkProfiles: {
       general: {
         instructions: FORK_INSTRUCTIONS,

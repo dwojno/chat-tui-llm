@@ -4,6 +4,16 @@ import type { ToolRunContext } from "../conversation/turn";
 import type { ToolDefinition } from "./types";
 
 export { toOpenAITool, type ToolDefinition } from "./types";
+export {
+  evaluateApproval,
+  APPROVAL_DENIED_OUTPUT,
+  type ApprovalDecision,
+  type ApprovalGate,
+  type ApprovalNeed,
+  type ApprovalOutcome,
+  type ApprovalRequest,
+  type ApprovalRisk,
+} from "./approval";
 
 /**
  * Tool-registry helpers. The agent core ships with no tools of its own — the

@@ -8,14 +8,17 @@ import { Welcome } from "./components/welcome";
 import { UsageBar, type ChatContextBar } from "./components/usage-bar";
 import { PromptInput } from "./input/prompt-input";
 import { PickerOverlay, PromptOverlay } from "./input/picker-overlay";
+import { ApprovalOverlay } from "./input/approval-overlay";
 import type { PickerItem } from "./input/picker-keys";
+import type { ApprovalDecision, ApprovalRequest } from "../agent/tools/approval";
 
 export type { Message, Step, Role } from "./types";
 export type { ChatContextBar } from "./components/usage-bar";
 
 type OverlayState =
   | { kind: "picker"; title: string; subtitle?: string; items: PickerItem[]; createLabel: string }
-  | { kind: "prompt"; title: string; placeholder: string };
+  | { kind: "prompt"; title: string; placeholder: string }
+  | { kind: "approval"; request: ApprovalRequest };
 
 interface ChatProps {
   messages: Message[];
@@ -75,6 +78,10 @@ function Chat({
         />
       )}
 
+      {overlay?.kind === "approval" && (
+        <ApprovalOverlay request={overlay.request} onResolve={onOverlayResolve} />
+      )}
+
       {interactive && overlay === undefined && (
         <PromptInput active={inputActive} onSubmit={onSubmit} onExit={onExit} />
       )}
@@ -99,6 +106,7 @@ export interface ChatHandle {
     createLabel: string;
   }): Promise<string | "create" | null>;
   promptInModal(opts: { title: string; placeholder: string }): Promise<string | null>;
+  promptApproval(request: ApprovalRequest): Promise<ApprovalDecision>;
   replaceMessages(next: readonly Message[]): void;
   onExit(handler: () => void): void;
   readonly messages: readonly Message[];
@@ -255,6 +263,17 @@ export function renderChat(
           title: opts.title,
           placeholder: opts.placeholder,
         };
+        update();
+      });
+    },
+    promptApproval(request: ApprovalRequest): Promise<ApprovalDecision> {
+      return new Promise((resolve) => {
+        overlayResolve = (value) => {
+          if (value === "approve") resolve({ outcome: "approve" });
+          else if (value === "always") resolve({ outcome: "always" });
+          else resolve({ outcome: "reject" });
+        };
+        overlay = { kind: "approval", request };
         update();
       });
     },

@@ -170,4 +170,8 @@ export const delegateTaskTool: ToolDefinition<typeof parameters> = {
   parameters,
   execute,
   summarize: ({ title }) => title,
+  approvalPolicy: ({ task, relevantMemoryKeys }) =>
+    !relevantMemoryKeys?.length && task.length > 600
+      ? { required: true, reason: "Broad delegation with no referenced memories.", risk: "low" }
+      : false,
 };

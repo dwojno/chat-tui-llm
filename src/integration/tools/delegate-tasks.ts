@@ -81,4 +81,5 @@ export const delegateTasksTool: ToolDefinition<typeof parameters> = {
   parameters,
   execute,
   summarize: ({ tasks }) => tasks.map((t) => t.title).join(", "),
+  requiresApproval: true,
 };

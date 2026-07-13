@@ -14,18 +14,18 @@ const schema = z.object({
   WEB_SEARCH_MAX_RESULTS: z
     .string()
     .optional()
-    .refine(
-      (v) =>
-        v == null || v === "" || (Number.isInteger(Number(v)) && Number(v) > 0),
-      {
-        message: "WEB_SEARCH_MAX_RESULTS must be a positive integer",
-      },
-    ),
+    .refine((v) => v == null || v === "" || (Number.isInteger(Number(v)) && Number(v) > 0), {
+      message: "WEB_SEARCH_MAX_RESULTS must be a positive integer",
+    }),
 });
 
-export function validateEnv(
-  env: Record<string, string | undefined> = process.env,
-): void {
+export function approvalsEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  const raw = env.CHAT_APPROVALS_DISABLED?.trim().toLowerCase();
+  const disabled = raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+  return !disabled;
+}
+
+export function validateEnv(env: Record<string, string | undefined> = process.env): void {
   const issues: string[] = [];
 
   const result = schema.safeParse(env);
@@ -48,8 +48,6 @@ export function validateEnv(
   }
 
   if (issues.length) {
-    throw new Error(
-      `Invalid environment configuration:\n  - ${issues.join("\n  - ")}`,
-    );
+    throw new Error(`Invalid environment configuration:\n  - ${issues.join("\n  - ")}`);
   }
 }
