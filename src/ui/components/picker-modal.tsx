@@ -14,12 +14,14 @@ function PickerRow({
   selected,
   createLabel,
   isCreate,
+  plain,
 }: {
   number: string;
   item?: PickerItem | undefined;
   selected: boolean;
   createLabel?: string | undefined;
   isCreate: boolean;
+  plain: boolean;
 }): React.JSX.Element {
   const prefix = selected ? "▸" : " ";
 
@@ -28,6 +30,14 @@ function PickerRow({
     return (
       <Text {...(selected ? { color: "cyan", bold: true } : { dimColor: true })}>
         {prefix} {label}
+      </Text>
+    );
+  }
+
+  if (plain) {
+    return (
+      <Text {...(selected ? { color: "cyan", bold: true } : { dimColor: true })}>
+        {prefix} {number} {item?.label ?? ""}
       </Text>
     );
   }
@@ -50,12 +60,14 @@ export function PickerModal({
   items,
   createLabel,
   selected,
+  plain = false,
 }: {
   title: string;
   subtitle?: string | undefined;
   items: readonly PickerItem[];
   createLabel: string;
   selected: number;
+  plain?: boolean;
 }): React.JSX.Element {
   const heading = subtitle ? `${title} — ${subtitle}` : title;
 
@@ -73,6 +85,7 @@ export function PickerModal({
               item={item}
               selected={selected === index}
               isCreate={false}
+              plain={plain}
             />
           ))}
           <PickerRow
@@ -80,6 +93,7 @@ export function PickerModal({
             selected={selected === items.length}
             createLabel={createLabel}
             isCreate
+            plain={plain}
           />
         </Box>
         <Box marginTop={1}>

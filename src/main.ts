@@ -43,6 +43,7 @@ export async function run(): Promise<void> {
 
   if (interactive && approvalsEnabled()) {
     session.setApprovalHandler((req) => chat.promptApproval(req));
+    session.setClarificationHandler((req) => chat.promptClarification(req));
   }
 
   await runRepl({ chat, session, interactive, store });

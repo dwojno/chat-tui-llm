@@ -2,6 +2,11 @@ import type { OpenAI } from "openai";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import type { AgentService, TurnContext } from "../agent";
 import type { ApprovalDecision, ApprovalGate, ApprovalRequest } from "../agent/tools/approval";
+import type {
+  ClarificationGate,
+  ClarificationRequest,
+  ClarificationResponse,
+} from "../agent/tools/clarification";
 import type { TurnOptions } from "../agent/conversation";
 import { countUserTurns, splitAtLastTurns } from "../agent/conversation";
 import type { TurnEvent } from "../agent/events";
@@ -25,6 +30,7 @@ import {
   responseUsageToTokens,
 } from "../store";
 import { CHEAP_MODEL, ORCHESTRATOR_MODEL } from "../agent/config";
+import { createSerialQueue } from "../utils/serial-queue";
 import { formatReport, usageSnapshot, type UsageSnapshot } from "./usage";
 
 function itemKind(item: ResponseInputItem): ItemKind {
@@ -44,7 +50,8 @@ export class Session {
   private currentTurnIndex = 0;
   private alwaysAllowed = new Set<string>();
   private handler: ApprovalGate | undefined;
-  private approvalChain: Promise<unknown> = Promise.resolve();
+  private clarificationHandler: ClarificationGate | undefined;
+  private readonly humanPrompts = createSerialQueue();
 
   private constructor(
     private readonly agent: AgentService,
@@ -86,11 +93,19 @@ export class Session {
     return this.handler !== undefined;
   }
 
-  private approvalGate: ApprovalGate = (request) => {
-    const decision = this.approvalChain.then(() => this.decide(request));
-    this.approvalChain = decision.catch(() => undefined);
-    return decision;
-  };
+  setClarificationHandler(handler: ClarificationGate): void {
+    this.clarificationHandler = handler;
+  }
+
+  get hasClarificationHandler(): boolean {
+    return this.clarificationHandler !== undefined;
+  }
+
+  private approvalGate: ApprovalGate = (request) =>
+    this.humanPrompts.enqueue(() => this.decide(request));
+
+  private clarificationGate: ClarificationGate = (request) =>
+    this.humanPrompts.enqueue(() => this.clarify(request));
 
   private async decide(request: ApprovalRequest): Promise<ApprovalDecision> {
     if (this.alwaysAllowed.has(request.toolName)) return { outcome: "approve" };
@@ -101,6 +116,12 @@ export class Session {
       this.alwaysAllowed.add(request.toolName);
     }
     return decision;
+  }
+
+  private async clarify(request: ClarificationRequest): Promise<ClarificationResponse> {
+    const handler = this.clarificationHandler;
+    if (!handler) return { answer: null };
+    return handler(request);
   }
 
   private async effectiveTurnSettings(): Promise<{ model: string }> {
@@ -182,6 +203,7 @@ export class Session {
     const context: TurnContext = {
       memories: await this.memories(),
       ...(this.handler ? { requestApproval: this.approvalGate } : {}),
+      ...(this.clarificationHandler ? { requestClarification: this.clarificationGate } : {}),
     };
     const turnOptions = { ...options, ...turnSettings };
 

@@ -3,11 +3,13 @@ import type { ResponseInputItem } from "openai/resources/responses/responses.mjs
 import type { TurnEvent } from "../events/events";
 import type { ForkProfiles } from "../tools/types";
 import type { ApprovalGate } from "../tools/approval";
+import type { ClarificationGate } from "../tools/clarification";
 import type { TurnOptions } from "./options";
 
 export type TurnContext = {
   memories: readonly string[];
   requestApproval?: ApprovalGate;
+  requestClarification?: ClarificationGate;
 };
 
 export type OpenAITool = {
@@ -41,4 +43,5 @@ export interface ToolRunContext {
   runTurn: RunTurn;
   forkProfiles: ForkProfiles;
   requestApproval?: ApprovalGate;
+  requestClarification?: ClarificationGate;
 }

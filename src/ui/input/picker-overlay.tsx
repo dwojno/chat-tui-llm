@@ -8,12 +8,14 @@ export function PickerOverlay({
   subtitle,
   items,
   createLabel,
+  plain,
   onResolve,
 }: {
   title: string;
   subtitle?: string | undefined;
   items: readonly PickerItem[];
   createLabel: string;
+  plain?: boolean;
   onResolve(value: string | "create" | null): void;
 }): React.JSX.Element {
   const [selected, setSelected] = useState(0);
@@ -66,6 +68,7 @@ export function PickerOverlay({
       items={items}
       createLabel={createLabel}
       selected={selected}
+      {...(plain !== undefined ? { plain } : {})}
     />
   );
 }

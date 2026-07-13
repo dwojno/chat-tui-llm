@@ -168,6 +168,9 @@ export class AgentService {
       runTurn: (msgs, options, ctx, profile) => this.run(msgs, options, ctx, profile),
       forkProfiles: this.forkProfiles,
       ...(context.requestApproval ? { requestApproval: context.requestApproval } : {}),
+      ...(context.requestClarification
+        ? { requestClarification: context.requestClarification }
+        : {}),
     };
   }
 

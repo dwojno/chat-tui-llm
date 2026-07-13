@@ -11,6 +11,7 @@ import { PickerOverlay, PromptOverlay } from "./input/picker-overlay";
 import { ApprovalOverlay } from "./input/approval-overlay";
 import type { PickerItem } from "./input/picker-keys";
 import type { ApprovalDecision, ApprovalRequest } from "../agent/tools/approval";
+import type { ClarificationRequest, ClarificationResponse } from "../agent/tools/clarification";
 
 export type { Message, Step, Role } from "./types";
 export type { ChatContextBar } from "./components/usage-bar";
@@ -18,7 +19,8 @@ export type { ChatContextBar } from "./components/usage-bar";
 type OverlayState =
   | { kind: "picker"; title: string; subtitle?: string; items: PickerItem[]; createLabel: string }
   | { kind: "prompt"; title: string; placeholder: string }
-  | { kind: "approval"; request: ApprovalRequest };
+  | { kind: "approval"; request: ApprovalRequest }
+  | { kind: "clarification"; request: ClarificationRequest };
 
 interface ChatProps {
   messages: Message[];
@@ -82,6 +84,16 @@ function Chat({
         <ApprovalOverlay request={overlay.request} onResolve={onOverlayResolve} />
       )}
 
+      {overlay?.kind === "clarification" && (
+        <PickerOverlay
+          title={overlay.request.question}
+          items={(overlay.request.options ?? []).map((option) => ({ id: option, label: option }))}
+          createLabel="Type my own answer"
+          plain
+          onResolve={onOverlayResolve}
+        />
+      )}
+
       {interactive && overlay === undefined && (
         <PromptInput active={inputActive} onSubmit={onSubmit} onExit={onExit} />
       )}
@@ -107,6 +119,7 @@ export interface ChatHandle {
   }): Promise<string | "create" | null>;
   promptInModal(opts: { title: string; placeholder: string }): Promise<string | null>;
   promptApproval(request: ApprovalRequest): Promise<ApprovalDecision>;
+  promptClarification(request: ClarificationRequest): Promise<ClarificationResponse>;
   replaceMessages(next: readonly Message[]): void;
   onExit(handler: () => void): void;
   readonly messages: readonly Message[];
@@ -274,6 +287,25 @@ export function renderChat(
           else resolve({ outcome: "reject" });
         };
         overlay = { kind: "approval", request };
+        update();
+      });
+    },
+    promptClarification(request: ClarificationRequest): Promise<ClarificationResponse> {
+      return new Promise((resolve) => {
+        const askFreeText = (): void => {
+          overlayResolve = (value) => resolve({ answer: typeof value === "string" ? value : null });
+          overlay = { kind: "prompt", title: request.question, placeholder: "Type your answer…" };
+          update();
+        };
+        if (!request.options?.length) {
+          askFreeText();
+          return;
+        }
+        overlayResolve = (value) => {
+          if (value === "create") askFreeText();
+          else resolve({ answer: typeof value === "string" ? value : null });
+        };
+        overlay = { kind: "clarification", request };
         update();
       });
     },

@@ -5,6 +5,7 @@ import { FORK_MODEL } from "../../agent/config";
 import { FORK_INSTRUCTIONS, RAG_FORK_INSTRUCTIONS } from "../../agent/prompts";
 import type { Store } from "../../store";
 import { createRagTools } from "../rag/tools";
+import { askUserTool } from "./ask-user";
 import { delegateTaskTool } from "./delegate-task";
 import { delegateTasksTool } from "./delegate-tasks";
 import { requestApprovalTool } from "./request-approval";
@@ -16,6 +17,7 @@ export { webSearchTool } from "./web-search";
 export { delegateTaskTool } from "./delegate-task";
 export { delegateTasksTool } from "./delegate-tasks";
 export { requestApprovalTool } from "./request-approval";
+export { askUserTool } from "./ask-user";
 
 export interface AgentTools {
   tools: ToolDefinition<z.ZodType>[];
@@ -25,7 +27,14 @@ export interface AgentTools {
 export function createAgentTools(store: Store): AgentTools {
   const ragTools = createRagTools(store);
   return {
-    tools: [weatherTool, delegateTaskTool, delegateTasksTool, requestApprovalTool, ...ragTools],
+    tools: [
+      weatherTool,
+      delegateTaskTool,
+      delegateTasksTool,
+      requestApprovalTool,
+      askUserTool,
+      ...ragTools,
+    ],
     forkProfiles: {
       general: {
         instructions: FORK_INSTRUCTIONS,
