@@ -55,7 +55,7 @@ the mention, then streams `session.indexSource(path)` →
    passthrough; `html`/`docx` via Turndown (docx first through mammoth); `pdf` via
    unpdf text extraction; `xlsx`/`xls`/`csv` rendered as Markdown tables (one
    `## sheet` heading per worksheet); any other UTF-8 text or source file is
-   fenced with a language hint (`.ts` → ```` ```typescript ````). A file that
+   fenced with a language hint (`.ts` → ` ```typescript `). A file that
    looks binary (a NUL byte in the first 8 KB) throws rather than indexing garbage.
 2. **Upload** the Markdown to the profile's object-storage bucket under a
    sanitized key (`s3KeyFor(path)` → `<path>.md`). The raw text is kept so
@@ -118,6 +118,7 @@ regardless of how relevant each one actually is ("gets all the things"). So
 
    `Reranker` is an interface, so a Cohere/cross-encoder implementation is a
    one-line swap in [deps.ts](../src/store/sources/rag/deps.ts).
+
 3. **Relative filter** (`applyRelativeCutoff`). Because rerank scores now have real
    0–1 spread, drop any hit below `RAG_RELATIVE_CUTOFF × topScore`. The cutoff is
    **relative to this query's own best hit** — a good match for a broad query can
@@ -129,7 +130,7 @@ regardless of how relevant each one actually is ("gets all the things"). So
    complete passages.
 
 Setting `RAG_RERANK_ENABLED=false` skips stages 2–3 and keeps the RRF top-N as-is
-— a clean pure-hybrid baseline (the relative cutoff is deliberately *not* applied
+— a clean pure-hybrid baseline (the relative cutoff is deliberately _not_ applied
 to raw RRF scores, since they have no absolute scale).
 
 ## The tools
@@ -139,12 +140,12 @@ Composed in `createRagTools(store)`
 the agent; each closes over the live `Store` and calls `store.sources.*` for the
 **active profile**.
 
-| Tool                  | Purpose                                                                    |
-| --------------------- | -------------------------------------------------------------------------- |
-| `search_knowledge_base` | Hybrid + reranked semantic search. Returns `path:startLine-endLine (score)` + snippet per hit. `limit` defaults to 8; the model is told to raise it only when top results miss. |
-| `list_files`          | The indexed files in the current profile.                                  |
-| `grep_files`          | Regex over the raw Markdown (streamed line-by-line from object storage), returning `path:line: text`. For exact strings/identifiers/errors. Streams `status` events as matches are found. |
-| `read_file`           | Read a line range (or byte range) of an indexed file — used to expand a truncated hit into its full context. |
+| Tool                    | Purpose                                                                                                                                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `search_knowledge_base` | Hybrid + reranked semantic search. Returns `path:startLine-endLine (score)` + snippet per hit. `limit` defaults to 8; the model is told to raise it only when top results miss.           |
+| `list_files`            | The indexed files in the current profile.                                                                                                                                                 |
+| `grep_files`            | Regex over the raw Markdown (streamed line-by-line from object storage), returning `path:line: text`. For exact strings/identifiers/errors. Streams `status` events as matches are found. |
+| `read_file`             | Read a line range (or byte range) of an indexed file — used to expand a truncated hit into its full context.                                                                              |
 
 The tool descriptions steer usage: focused queries over broad ones,
 `search_knowledge_base` for concepts vs `grep_files` for exact strings, and
@@ -168,21 +169,21 @@ Knobs live in [config.ts](../src/store/sources/rag/config.ts), parsed from the
 environment (defaults in [.env.example](../.env.example)). Parsing is separated
 from `process.env` so tests pass an explicit env map.
 
-| Env var                          | Default                    | Meaning                                            |
-| -------------------------------- | -------------------------- | -------------------------------------------------- |
-| `OPENAI_EMBEDDING_MODEL`         | `text-embedding-3-small`   | Dense embedding model (1536-dim).                  |
-| `MINIO_ENDPOINT` / `_ACCESS_KEY` / `_SECRET_KEY` | `localhost:9000` / `minioadmin` | Object storage connection.        |
-| `MINIO_BUCKET_PREFIX`            | `chat-cli-`                | Per-profile bucket = `${prefix}${profileId}`.      |
-| `QDRANT_URL`                     | `localhost:6333`           | Vector DB connection.                              |
-| `QDRANT_SPARSE_MODEL`            | `Qdrant/bm25`              | Server-side sparse-vector inference model.         |
-| `RAG_CHUNK_TOKENS`               | `512`                      | Target chunk size.                                 |
-| `RAG_CHUNK_OVERLAP`              | `64`                       | Token overlap between chunks (must be `<` tokens). |
-| `RAG_RERANK_ENABLED`            | `true`                     | `false` → pure-RRF baseline (skips stages 2–3).    |
-| `RAG_RERANK_MODEL`               | `gpt-4o-mini`              | Reranker LLM.                                      |
-| `RAG_RERANK_CANDIDATE_MULTIPLIER`| `3`                        | Over-fetch `limit × this` candidates to rerank.    |
-| `RAG_RERANK_MAX_CANDIDATES`      | `24`                       | Absolute cap on the candidate pool.                |
-| `RAG_RELATIVE_CUTOFF`            | `0.5`                      | Drop hits below this fraction of the top relevance.|
-| `RAG_SNIPPET_MAX_CHARS`          | `1200`                     | Per-hit snippet cap (≈ a full chunk).              |
+| Env var                                          | Default                         | Meaning                                             |
+| ------------------------------------------------ | ------------------------------- | --------------------------------------------------- |
+| `OPENAI_EMBEDDING_MODEL`                         | `text-embedding-3-small`        | Dense embedding model (1536-dim).                   |
+| `MINIO_ENDPOINT` / `_ACCESS_KEY` / `_SECRET_KEY` | `localhost:9000` / `minioadmin` | Object storage connection.                          |
+| `MINIO_BUCKET_PREFIX`                            | `chat-cli-`                     | Per-profile bucket = `${prefix}${profileId}`.       |
+| `QDRANT_URL`                                     | `localhost:6333`                | Vector DB connection.                               |
+| `QDRANT_SPARSE_MODEL`                            | `Qdrant/bm25`                   | Server-side sparse-vector inference model.          |
+| `RAG_CHUNK_TOKENS`                               | `512`                           | Target chunk size.                                  |
+| `RAG_CHUNK_OVERLAP`                              | `64`                            | Token overlap between chunks (must be `<` tokens).  |
+| `RAG_RERANK_ENABLED`                             | `true`                          | `false` → pure-RRF baseline (skips stages 2–3).     |
+| `RAG_RERANK_MODEL`                               | `gpt-4o-mini`                   | Reranker LLM.                                       |
+| `RAG_RERANK_CANDIDATE_MULTIPLIER`                | `3`                             | Over-fetch `limit × this` candidates to rerank.     |
+| `RAG_RERANK_MAX_CANDIDATES`                      | `24`                            | Absolute cap on the candidate pool.                 |
+| `RAG_RELATIVE_CUTOFF`                            | `0.5`                           | Drop hits below this fraction of the top relevance. |
+| `RAG_SNIPPET_MAX_CHARS`                          | `1200`                          | Per-hit snippet cap (≈ a full chunk).               |
 
 ## Running it
 

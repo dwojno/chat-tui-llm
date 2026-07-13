@@ -97,11 +97,11 @@ The whole `.chat-state/` directory is gitignored.
 
 ## Read patterns
 
-| Concern          | SQL query                                   | Used for                 |
-| ---------------- | ------------------------------------------- | ------------------------ |
-| **Transcript**   | `queryHistory()`                            | UI replay + model window |
-| **Usage totals** | `SUM(...)` over token columns               | status bar, `/report`    |
-| **Memories**     | `memory` table, profile-scoped, `ORDER BY id` | `buildContextBlock()`  |
+| Concern          | SQL query                                     | Used for                 |
+| ---------------- | --------------------------------------------- | ------------------------ |
+| **Transcript**   | `queryHistory()`                              | UI replay + model window |
+| **Usage totals** | `SUM(...)` over token columns                 | status bar, `/report`    |
+| **Memories**     | `memory` table, profile-scoped, `ORDER BY id` | `buildContextBlock()`    |
 
 `queryHistory()` is the fluent transcript read API. Summary rows are never
 returned as UI history items; `forModel()` reads the latest summary text from the
@@ -183,12 +183,12 @@ erDiagram
 
 ### `profile` — settings and memory scope
 
-| Column        | Type               | Notes                                               |
-| ------------- | ------------------ | --------------------------------------------------- |
-| `id`          | `TEXT PK`          | Slug (`personal` is the default, seeded on migrate) |
-| `name`        | `TEXT NOT NULL`    | Display name in the profile picker                  |
-| `model`       | `TEXT`             | Optional per-profile model override                 |
-| `created_at`  | `INTEGER NOT NULL` | Unix ms                                             |
+| Column       | Type               | Notes                                               |
+| ------------ | ------------------ | --------------------------------------------------- |
+| `id`         | `TEXT PK`          | Slug (`personal` is the default, seeded on migrate) |
+| `name`       | `TEXT NOT NULL`    | Display name in the profile picker                  |
+| `model`      | `TEXT`             | Optional per-profile model override                 |
+| `created_at` | `INTEGER NOT NULL` | Unix ms                                             |
 
 - Temperature is code-defined (a `TEMPERATURE` constant), not a per-profile column.
 - Memories and sources belong to a profile, not a conversation — switching

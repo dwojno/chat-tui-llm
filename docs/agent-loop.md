@@ -53,12 +53,12 @@ and any front-end ([events/events.ts](../src/agent/events/events.ts)):
 
 ```ts
 type TurnEvent =
-  | { type: "delta";   text: string }
-  | { type: "tool";    name: string; label?: string; detail?: string; fork?: string }
-  | { type: "status";  text: string; fork?: string }
-  | { type: "answer";  content: string }
+  | { type: "delta"; text: string }
+  | { type: "tool"; name: string; label?: string; detail?: string; fork?: string }
+  | { type: "status"; text: string; fork?: string }
+  | { type: "answer"; content: string }
   | { type: "message"; item: ResponseInputItem }
-  | { type: "usage";   kind: "response" | "summarizer"; usage: ResponseUsage | undefined };
+  | { type: "usage"; kind: "response" | "summarizer"; usage: ResponseUsage | undefined };
 ```
 
 `delta`/`tool`/`status`/`answer` are for display; `message`/`usage` are the
@@ -77,11 +77,11 @@ async generator, so a tool can stream `status`/`tool` events while it runs and
 ```ts
 interface ToolDefinition<TArgs extends z.ZodType> {
   name: string;
-  label: string;                 // UI verb, e.g. "Searching knowledge base"
-  description: string;           // sent to the model
-  parameters: TArgs;             // zod → strict JSON Schema
+  label: string; // UI verb, e.g. "Searching knowledge base"
+  description: string; // sent to the model
+  parameters: TArgs; // zod → strict JSON Schema
   execute: (args, ctx?) => AsyncGenerator<TurnEvent, string>;
-  summarize?: (args) => string;  // short UI detail, e.g. the query text
+  summarize?: (args) => string; // short UI detail, e.g. the query text
 }
 ```
 
@@ -103,13 +103,13 @@ Current tools: `get_weather_data`, `web_search`, `delegate_task`,
 Models are role-routed. The constants live in
 [config/index.ts](../src/agent/config/index.ts):
 
-| Constant             | Value         | Used by                                        |
-| -------------------- | ------------- | ---------------------------------------------- |
-| `ORCHESTRATOR_MODEL` | `gpt-4o`      | the top-level assistant turn                   |
-| `FORK_MODEL`         | `gpt-4o-mini` | delegated sub-agents (forks)                   |
-| `CHEAP_MODEL`        | `gpt-4o-mini` | handoff compression + rolling summarizer       |
-| `MODEL`              | `gpt-4o-mini` | base default when nothing else applies         |
-| `TEMPERATURE`        | `0.7`         | every main turn (code-defined, see below)      |
+| Constant             | Value         | Used by                                   |
+| -------------------- | ------------- | ----------------------------------------- |
+| `ORCHESTRATOR_MODEL` | `gpt-4o`      | the top-level assistant turn              |
+| `FORK_MODEL`         | `gpt-4o-mini` | delegated sub-agents (forks)              |
+| `CHEAP_MODEL`        | `gpt-4o-mini` | handoff compression + rolling summarizer  |
+| `MODEL`              | `gpt-4o-mini` | base default when nothing else applies    |
+| `TEMPERATURE`        | `0.7`         | every main turn (code-defined, see below) |
 
 `buildRequestParams` resolves the request model by precedence
 **`turnProfile.model ?? options.model`**:
@@ -159,8 +159,8 @@ interface ToolRunContext {
   openai: OpenAI;
   context: TurnContext;
   messages: readonly ResponseInputItem[];
-  runTurn: RunTurn;             // === AgentService.run, bound
-  forkProfiles: ForkProfiles;   // named fork profiles a delegation may run under
+  runTurn: RunTurn; // === AgentService.run, bound
+  forkProfiles: ForkProfiles; // named fork profiles a delegation may run under
 }
 ```
 
@@ -200,17 +200,21 @@ from which the `ForkProfileName` type, the `ForkProfiles` map type, and the
 
 ```ts
 export const FORK_PROFILE_NAMES = ["general", "rag_research"] as const;
-export interface ForkProfile { instructions: string; tools: ToolDefinition<z.ZodType>[]; model: string }
+export interface ForkProfile {
+  instructions: string;
+  tools: ToolDefinition<z.ZodType>[];
+  model: string;
+}
 export type ForkProfiles = Record<ForkProfileName, ForkProfile>;
 ```
 
 The concrete profiles are built in `createAgentTools` (it needs the `store` for
 the RAG tools):
 
-| Profile        | Instructions             | Tools                                                |
-| -------------- | ------------------------ | ---------------------------------------------------- |
-| `general`      | `FORK_INSTRUCTIONS`      | `web_search`, `get_weather_data`                     |
-| `rag_research` | `RAG_FORK_INSTRUCTIONS`  | `search_knowledge_base`, `list_files`, `grep_files`, `read_file` |
+| Profile        | Instructions            | Tools                                                            |
+| -------------- | ----------------------- | ---------------------------------------------------------------- |
+| `general`      | `FORK_INSTRUCTIONS`     | `web_search`, `get_weather_data`                                 |
+| `rag_research` | `RAG_FORK_INSTRUCTIONS` | `search_knowledge_base`, `list_files`, `grep_files`, `read_file` |
 
 `rag_research` is for **multi-hop** retrieval — chained searches where one
 passage guides the next; one-shot lookups stay as direct `search_knowledge_base`
@@ -234,7 +238,7 @@ than prose, so exact values survive:
 
 ```ts
 const ForkResultSchema = z.object({
-  summary: z.string(),                                        // ≤80-word digest
+  summary: z.string(), // ≤80-word digest
   findings: z.array(z.object({ key: z.string(), value: z.string() })),
   sources: z.array(z.string()).nullable(),
   confidence: z.enum(["high", "low"]),
@@ -258,4 +262,7 @@ when to call them, and a multi-hop chain can be delegated to the `rag_research`
 fork. The retrieval pipeline itself (ingest → hybrid fetch → rerank → filter)
 lives in the `sources` store domain — see **[rag.md](./rag.md)** for the full
 reference.
+
+```
+
 ```

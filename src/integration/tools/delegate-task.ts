@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { z } from "zod";
+import { CHEAP_MODEL } from "../../agent/config";
+import { endSpan, recordLlmSpan, setSpanIO, startSpan, withSpan } from "../../agent/telemetry";
 import { extractConversationSummary, keyMemories } from "../../agent/dynamicContext/context";
 import { compressHandoff } from "../../agent/tools/utils/handoff";
 import type { ForkResult } from "../../agent/tools/utils/fork-result";
@@ -95,29 +97,54 @@ export async function* runFork(
     model: forkProfile.model,
   };
 
-  for await (const event of ctx.runTurn(
-    [userMessage],
-    { ...DEFAULT_TURN_OPTIONS, stream: false },
-    { memories },
-    turnProfile,
-  )) {
-    switch (event.type) {
-      case "message":
-        childItems.push(event.item);
-        break;
-      case "usage":
-        yield event;
-        break;
-      case "tool":
-      case "status":
-        yield { ...event, fork: title };
-        break;
-    }
-  }
+  return yield* withSpan(
+    "chat.turn",
+    {
+      attributes: {
+        "chat.fork.title": title,
+        "chat.fork.profile": profile ?? "general",
+        "chat.fork.memories": memories.length,
+      },
+      input: brief,
+    },
+    async function* (forkSpan) {
+      for await (const event of ctx.runTurn(
+        [userMessage],
+        { ...DEFAULT_TURN_OPTIONS, stream: false },
+        { memories },
+        turnProfile,
+      )) {
+        switch (event.type) {
+          case "message":
+            childItems.push(event.item);
+            break;
+          case "usage":
+            yield event;
+            break;
+          case "tool":
+          case "status":
+            yield { ...event, fork: title };
+            break;
+        }
+      }
 
-  const { result, usage } = await compressHandoff(ctx.openai, childItems, "");
-  yield { type: "usage", kind: "summarizer", usage };
-  return result;
+      const handoffSpan = startSpan(`gen_ai.handoff ${CHEAP_MODEL}`, { parent: forkSpan });
+      const { result, usage } = await compressHandoff(ctx.openai, childItems, "");
+      recordLlmSpan(handoffSpan, {
+        model: CHEAP_MODEL,
+        operation: "handoff",
+        usage,
+        input: JSON.stringify(childItems),
+        output: JSON.stringify(result),
+      });
+      handoffSpan.setAttribute("chat.fork.confidence", result.confidence);
+      endSpan(handoffSpan);
+
+      setSpanIO(forkSpan, { output: JSON.stringify(result) });
+      yield { type: "usage", kind: "summarizer", usage };
+      return result;
+    },
+  );
 }
 
 async function* execute(

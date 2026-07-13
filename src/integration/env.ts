@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { loadRagConfig } from "../store";
+import { loadTelemetryConfig } from "./telemetry/config";
 
 /**
  * App-level process-env validation, run once at startup so misconfiguration
@@ -23,6 +24,12 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
 
   try {
     loadRagConfig(env);
+  } catch (error) {
+    issues.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    loadTelemetryConfig(env);
   } catch (error) {
     issues.push(error instanceof Error ? error.message : String(error));
   }

@@ -66,9 +66,7 @@ evalite<ProbeSpec, ProbeResult, Expected>("context discretion", {
 
     // ── Must USE the fact when clearly relevant ──────────────────────────
     {
-      input: withMemories(
-        "Can you suggest a quick snack I could make for myself?",
-      ),
+      input: withMemories("Can you suggest a quick snack I could make for myself?"),
       expected: {
         judge:
           "A passing answer accounts for the user being allergic to peanuts — " +
@@ -87,9 +85,7 @@ evalite<ProbeSpec, ProbeResult, Expected>("context discretion", {
     },
     // EDGE: indirect allergy probe — must surface the allergy.
     {
-      input: withMemories(
-        "Do I have any food allergies I should watch out for?",
-      ),
+      input: withMemories("Do I have any food allergies I should watch out for?"),
       expected: { mustContain: ["peanut"] },
     },
     // EDGE: relevance requires COMBINING facts — a local dinner rec should use

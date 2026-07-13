@@ -42,7 +42,7 @@ pnpm start
 The `/learn` pipeline needs MinIO (S3) and Qdrant. Start them with Docker and copy the RAG env vars:
 
 ```bash
-pnpm infra:start              # MinIO on :9000 (console :9001), Qdrant on :6333
+pnpm infra:start              # MinIO :9000, Qdrant :6333, and Langfuse :3000 (observability)
 cp .env.example .env          # then set OPENAI_API_KEY; defaults point at localhost
 ```
 
@@ -54,6 +54,15 @@ Defaults (endpoints, credentials, embedding model `text-embedding-3-small`, spar
 RAG_INTEGRATION=1 pnpm test tests/store/rag/live.integration.test.ts
 ```
 
+### Observability (OpenTelemetry → Langfuse)
+
+The agent is instrumented with OpenTelemetry using the GenAI semantic conventions
+and exports traces + metrics over OTLP. `pnpm infra:start` includes a self-hosted
+Langfuse (`:3000`); set `OTEL_ENABLED=true` and the OTLP endpoint/headers in `.env`
+to see the full turn → LLM-call → tool → fork → handoff span tree, token usage, and
+cost. It's off by default and vendor-neutral (point it at LangSmith or any OTLP
+collector instead). See [docs/observability.md](docs/observability.md).
+
 ## Usage
 
 ```bash
@@ -63,17 +72,17 @@ pnpm start -- --conversation <uuid>   # -c for short; resume a previous conversa
 
 At the `>` prompt, type a message for a streaming reply, or use a command:
 
-| Command                | Description                                                              |
-| ---------------------- | ------------------------------------------------------------------------ |
-| `/remember <memory>`   | Pin a memory; injected into every later turn (survives truncation)       |
-| `/learn @file [@…]`    | Convert, upload, chunk, embed and index files for RAG                    |
-| `/sources`             | List the files indexed in the current profile                           |
-| `/reindex`             | Re-index every source in the current profile                            |
+| Command                | Description                                                               |
+| ---------------------- | ------------------------------------------------------------------------- |
+| `/remember <memory>`   | Pin a memory; injected into every later turn (survives truncation)        |
+| `/learn @file [@…]`    | Convert, upload, chunk, embed and index files for RAG                     |
+| `/sources`             | List the files indexed in the current profile                             |
+| `/reindex`             | Re-index every source in the current profile                              |
 | `/profile`             | Switch or create a profile — each has its own bucket, collection + memory |
-| `/conversation`        | Switch or start a conversation (chat session) within the current profile |
-| `/json <prompt>`       | Reply in JSON output mode                                                |
-| `/structured <prompt>` | Reply validated against a Zod schema (answer + sources)                  |
-| `exit`                 | Leave the REPL (Ctrl+C / Ctrl+D also work)                               |
+| `/conversation`        | Switch or start a conversation (chat session) within the current profile  |
+| `/json <prompt>`       | Reply in JSON output mode                                                 |
+| `/structured <prompt>` | Reply validated against a Zod schema (answer + sources)                   |
+| `exit`                 | Leave the REPL (Ctrl+C / Ctrl+D also work)                                |
 
 `/profile` and `/conversation` open an interactive picker: choose an existing entry or create a new one, and the transcript, summary, pinned memories, and knowledge base swap to that context. A **profile** is an isolated workspace (its own MinIO bucket, Qdrant collection, and pinned memories); a **conversation** is a distinct chat thread inside a profile, so you can keep several running side by side without their histories bleeding together.
 

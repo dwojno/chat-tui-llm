@@ -6,6 +6,7 @@ import { expandFileMentions } from "./file-mentions";
 import type { Session } from "./session";
 import { buildChatContext } from "./switch";
 import { buildExitMessage } from "./shutdown";
+import { shutdownTelemetry } from "./telemetry/otel";
 import type { Store } from "../store";
 import type { ChatHandle } from "../ui/chat";
 import { toolStepLabel } from "../ui/labels";
@@ -77,8 +78,9 @@ export async function runRepl({ chat, session, store, interactive }: ReplDeps): 
 
   sigint.signal.addEventListener("abort", () => {
     chat.unmount();
-    void buildExitMessage(store, session).then((message) => {
+    void buildExitMessage(store, session).then(async (message) => {
       writeSync(1, message);
+      await shutdownTelemetry();
       process.exit(0);
     });
   });

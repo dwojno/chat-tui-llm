@@ -18,6 +18,16 @@ import {
 } from "./tools/types";
 import { getFunctionCalls, hasFunctionCalls, toReplayInputItems } from "./conversation/items";
 import type { ToolRunContext, TurnContext, TurnProfile } from "./conversation/turn";
+import {
+  bindActive,
+  contextWithSpan,
+  endSpan,
+  isContentCaptureEnabled,
+  recordCompletionStart,
+  recordLlmSpan,
+  setSpanIO,
+  startSpan,
+} from "./telemetry";
 import { AgentConfig } from "./config/types";
 import type { z } from "zod";
 import { DEFAULT_CACHE_KEY, MAX_TOOL_STEPS, MODEL, TEMPERATURE } from "./config";
@@ -92,24 +102,54 @@ export class AgentService {
     context: TurnContext,
     profile: TurnProfile,
     forbidTools = false,
+    step = 0,
   ): AsyncGenerator<TurnEvent, ParsedResponse<unknown>> {
     const params = this.buildRequestParams(input, options, context, profile, forbidTools);
+    const span = startSpan(`gen_ai.chat ${params.model}`, {
+      attributes: { "gen_ai.step": step },
+    });
+    const startedAt = performance.now();
 
-    if (options.stream) {
-      const stream = this.openai.responses.stream(params);
-      for await (const event of stream) {
-        if (event.type === "response.output_text.delta") {
-          yield { type: "delta", text: event.delta };
+    try {
+      let response: ParsedResponse<unknown>;
+      if (options.stream) {
+        const stream = this.openai.responses.stream(params);
+        let firstToken = true;
+        for await (const event of stream) {
+          if (event.type === "response.output_text.delta") {
+            if (firstToken) {
+              recordCompletionStart(span, new Date());
+              firstToken = false;
+            }
+            yield { type: "delta", text: event.delta };
+          }
         }
+        response = await stream.finalResponse();
+      } else {
+        response = await this.openai.responses.parse(params);
       }
-      const final = await stream.finalResponse();
-      yield { type: "usage", kind: "response", usage: final.usage };
-      return final;
-    }
 
-    const response = await this.openai.responses.parse(params);
-    yield { type: "usage", kind: "response", usage: response.usage };
-    return response;
+      recordLlmSpan(span, {
+        model: params.model,
+        operation: "chat",
+        usage: response.usage,
+        temperature: params.temperature,
+        finishReasons: response.status ? [response.status] : undefined,
+        durationSeconds: (performance.now() - startedAt) / 1000,
+        input: isContentCaptureEnabled() ? JSON.stringify(params.input) : undefined,
+        // output_text is empty on tool-calling rounds — fall back to the raw
+        // output items so the tool calls the model made are still captured.
+        output: isContentCaptureEnabled()
+          ? response.output_text || JSON.stringify(response.output)
+          : undefined,
+      });
+      yield { type: "usage", kind: "response", usage: response.usage };
+      endSpan(span);
+      return response;
+    } catch (error) {
+      endSpan(span, error);
+      throw error;
+    }
   }
 
   private toolContext(
@@ -125,21 +165,33 @@ export class AgentService {
     };
   }
 
-  private async *executeCall(
+  private executeCall(
     call: { name: string; arguments: string },
     context: TurnContext,
     messages: readonly ResponseInputItem[],
   ): AsyncGenerator<TurnEvent, string> {
-    try {
-      return yield* executeToolCall(
-        this.registry,
-        call.name,
-        call.arguments,
-        this.toolContext(context, messages),
-      );
-    } catch (error) {
-      return `Error: ${error instanceof Error ? error.message : String(error)}`;
+    const span = startSpan(`execute_tool ${call.name}`, {
+      attributes: { "gen_ai.tool.name": call.name },
+    });
+    setSpanIO(span, { input: call.arguments });
+    const { registry } = this;
+    const toolContext = this.toolContext(context, messages);
+
+    async function* body(): AsyncGenerator<TurnEvent, string> {
+      try {
+        const result = yield* executeToolCall(registry, call.name, call.arguments, toolContext);
+        setSpanIO(span, { output: result });
+        endSpan(span);
+        return result;
+      } catch (error) {
+        endSpan(span, error);
+        return `Error: ${error instanceof Error ? error.message : String(error)}`;
+      }
     }
+
+    // Keep the tool span active for the whole tool body (survives it-merge's
+    // concurrent driving of parallel calls) so store-path spans nest under it.
+    return bindActive(contextWithSpan(span), body());
   }
 
   async *run(
@@ -200,6 +252,7 @@ export class AgentService {
         context,
         profile,
         steps >= MAX_TOOL_STEPS,
+        steps,
       );
     }
 

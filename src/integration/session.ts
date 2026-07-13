@@ -4,7 +4,16 @@ import type { AgentService, TurnContext } from "../agent";
 import type { TurnOptions } from "../agent/conversation";
 import { countUserTurns, splitAtLastTurns } from "../agent/conversation";
 import type { TurnEvent } from "../agent/events";
+import type { Span } from "@opentelemetry/api";
 import { summarize } from "../agent/tokens";
+import {
+  endSpan,
+  recordLlmSpan,
+  recordTurnTimeToFirstToken,
+  setSpanIO,
+  startSpan,
+  withSpan,
+} from "../agent/telemetry";
 import {
   type ConversationItemInsert,
   type IndexResult,
@@ -14,7 +23,7 @@ import {
   type TokenColumns,
   responseUsageToTokens,
 } from "../store";
-import { ORCHESTRATOR_MODEL } from "../agent/config";
+import { CHEAP_MODEL, ORCHESTRATOR_MODEL } from "../agent/config";
 import { formatReport, usageSnapshot, type UsageSnapshot } from "./usage";
 
 function itemKind(item: ResponseInputItem): ItemKind {
@@ -75,39 +84,27 @@ export class Session {
   }
 
   async memories(): Promise<string[]> {
-    const rows = await this.store.memory
-      .query()
-      .forProfile(this.store.profileId)
-      .execute();
+    const rows = await this.store.memory.query().forProfile(this.store.profileId).execute();
     return rows.map((row) => row.text);
   }
 
   async sources(): Promise<string[]> {
-    const rows = await this.store.sources
-      .query()
-      .forProfile(this.store.profileId)
-      .execute();
+    const rows = await this.store.sources.query().forProfile(this.store.profileId).execute();
     return rows.map((row) => row.path);
   }
 
   async getUsageTotals(): Promise<UsageSnapshot> {
-    const totals = await this.store.conversation.usageTotals(
-      this.store.conversationId,
-    );
+    const totals = await this.store.conversation.usageTotals(this.store.conversationId);
     return usageSnapshot(totals);
   }
 
   /** Full persisted transcript (all turns, not just the in-context window) for UI replay. */
   history(): Promise<ResponseInputItem[]> {
-    return this.store.conversation
-      .queryHistory(this.store.conversationId)
-      .execute();
+    return this.store.conversation.queryHistory(this.store.conversationId).execute();
   }
 
   async report(): Promise<string> {
-    return formatReport(
-      await this.store.conversation.usageTotals(this.store.conversationId),
-    );
+    return formatReport(await this.store.conversation.usageTotals(this.store.conversationId));
   }
 
   async addMemory(memory: string): Promise<void> {
@@ -124,15 +121,9 @@ export class Session {
     return this.store.sources.reindex(this.store.profileId);
   }
 
-  async *runTurn(
-    prompt: string,
-    options: TurnOptions,
-  ): AsyncGenerator<TurnEvent, void> {
+  async *runTurn(prompt: string, options: TurnOptions): AsyncGenerator<TurnEvent, void> {
     const { conversation, conversationId } = this.store;
-    const tail = await conversation
-      .queryHistory(conversationId)
-      .afterLastSummary()
-      .execute();
+    const tail = await conversation.queryHistory(conversationId).afterLastSummary().execute();
     this.currentTurnIndex = countUserTurns(tail);
 
     const userMessage = {
@@ -142,10 +133,7 @@ export class Session {
 
     let title: string | undefined;
     if (this.currentTurnIndex === 0) {
-      const row = await conversation
-        .query()
-        .byId(conversationId)
-        .executeAndTakeFirst();
+      const row = await conversation.query().byId(conversationId).executeAndTakeFirst();
       if (row?.title === "New chat") title = titleFromFirstPrompt(prompt);
     }
 
@@ -159,16 +147,40 @@ export class Session {
       title,
     );
 
-    const messages = await conversation
-      .queryHistory(conversationId)
-      .forModel()
-      .execute();
+    const messages = await conversation.queryHistory(conversationId).forModel().execute();
+    const turnSettings = await this.effectiveTurnSettings();
     const context: TurnContext = {
       memories: await this.memories(),
     };
-    const turnSettings = await this.effectiveTurnSettings();
     const turnOptions = { ...options, ...turnSettings };
 
+    yield* withSpan(
+      "chat.turn",
+      {
+        attributes: {
+          "conversation.id": conversationId,
+          "profile.id": this.store.profileId,
+          // Non-gen_ai key on purpose: a `model` attribute would make Langfuse
+          // classify this root span as a generation instead of the trace root.
+          "chat.model": turnSettings.model,
+          "chat.turn.index": this.currentTurnIndex,
+        },
+        input: prompt,
+      },
+      (turnSpan) => this.driveAgent(turnSpan, messages, turnOptions, context, turnSettings.model),
+    );
+  }
+
+  /** Drive the agent loop for one turn: persist items, feed usage, surface UI events. */
+  private async *driveAgent(
+    turnSpan: Span,
+    messages: readonly ResponseInputItem[],
+    turnOptions: TurnOptions,
+    context: TurnContext,
+    model: string,
+  ): AsyncGenerator<TurnEvent, void> {
+    const turnStart = performance.now();
+    let firstToken = true;
     for await (const event of this.agent.run(messages, turnOptions, context)) {
       switch (event.type) {
         case "message":
@@ -183,12 +195,19 @@ export class Session {
           }
           break;
         default:
+          // First text token reaching the user — the turn-level TTFT that spans
+          // any tool rounds before the answer streamed, unlike per-call TTFT.
+          if (event.type === "delta" && firstToken) {
+            recordTurnTimeToFirstToken(turnSpan, (performance.now() - turnStart) / 1000, model);
+            firstToken = false;
+          }
+          if (event.type === "answer") setSpanIO(turnSpan, { output: event.content });
           yield event;
       }
     }
 
     await this.flushPendingMessages();
-    await this.maintainWindow();
+    await this.maintainWindow(turnSpan);
   }
 
   private async flushPendingMessages(): Promise<void> {
@@ -205,31 +224,44 @@ export class Session {
       payload: item,
       tokens: index === messages.length - 1 ? (usage ?? undefined) : undefined,
     }));
-    await this.store.conversation.createItems(
-      this.store.conversationId,
-      inserts,
-    );
+    await this.store.conversation.createItems(this.store.conversationId, inserts);
   }
 
-  private async maintainWindow(): Promise<void> {
+  private async maintainWindow(parent?: Span): Promise<void> {
     const { conversation, conversationId } = this.store;
-    const tail = await conversation
-      .queryHistory(conversationId)
-      .afterLastSummary()
-      .execute();
+    const tail = await conversation.queryHistory(conversationId).afterLastSummary().execute();
     if (countUserTurns(tail) <= this.keepLastTurns) return;
 
     const { evicted } = splitAtLastTurns(tail, this.keepLastTurns);
     if (!evicted.length) return;
 
-    const priorSummary =
-      await conversation.readLatestSummaryText(conversationId);
-    const { text, usage } = await summarize(this.openai, priorSummary, evicted);
-    await conversation.createItems(conversationId, {
-      kind: "summary",
-      turnIndex: null,
-      payload: { content: text },
-      tokens: { summarizerTokens: usage?.total_tokens ?? 0 },
+    const priorSummary = await conversation.readLatestSummaryText(conversationId);
+    const span = startSpan("conversation.summarize", {
+      parent,
+      attributes: {
+        "conversation.id": conversationId,
+        "chat.evicted_turns": countUserTurns(evicted),
+      },
     });
+    try {
+      const { text, usage } = await summarize(this.openai, priorSummary, evicted);
+      recordLlmSpan(span, {
+        model: CHEAP_MODEL,
+        operation: "summarize",
+        usage,
+        input: JSON.stringify({ priorSummary, evicted }),
+        output: text,
+      });
+      await conversation.createItems(conversationId, {
+        kind: "summary",
+        turnIndex: null,
+        payload: { content: text },
+        tokens: { summarizerTokens: usage?.total_tokens ?? 0 },
+      });
+      endSpan(span);
+    } catch (error) {
+      endSpan(span, error);
+      throw error;
+    }
   }
 }

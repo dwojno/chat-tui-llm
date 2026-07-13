@@ -47,9 +47,7 @@ export interface ProbeSpec {
 function parseArgs(json: string): Record<string, unknown> {
   try {
     const value = JSON.parse(json);
-    return value && typeof value === "object"
-      ? (value as Record<string, unknown>)
-      : {};
+    return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   } catch {
     return {};
   }
@@ -84,13 +82,11 @@ export async function probePrompt(spec: ProbeSpec): Promise<ProbeResult> {
     tools: spec.tools ?? mainToolSchemas,
   });
 
-  const toolCalls: ProbeToolCall[] = getFunctionCalls(response.output).map(
-    (call) => ({
-      name: call.name,
-      arguments: call.arguments,
-      args: parseArgs(call.arguments),
-    }),
-  );
+  const toolCalls: ProbeToolCall[] = getFunctionCalls(response.output).map((call) => ({
+    name: call.name,
+    arguments: call.arguments,
+    args: parseArgs(call.arguments),
+  }));
 
   return {
     text: response.output_text.trim(),

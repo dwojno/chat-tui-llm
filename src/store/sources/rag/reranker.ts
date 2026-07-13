@@ -1,6 +1,7 @@
 import type { OpenAI } from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
+import { GEN_AI, setSpanIO, withLlmSpan } from "../../../agent/telemetry";
 
 /**
  * Relevance reranking over hybrid-retrieval candidates (internal to the
@@ -66,33 +67,54 @@ export class LlmReranker implements Reranker {
     // Nothing to prune — skip the round-trip and keep the fused order.
     if (candidates.length <= topK) return identity(candidates, topK);
 
-    try {
-      const list = candidates
-        .map((candidate) => `[${candidate.index}] ${candidate.text}`)
-        .join("\n\n");
-      const response = await this.openai.responses.parse({
+    return withLlmSpan(
+      `gen_ai.rerank ${this.model}`,
+      {
         model: this.model,
-        instructions: INSTRUCTIONS,
-        input: `Query: ${query}\n\nReturn at most ${topK} passages.\n\nCandidates:\n${list}`,
-        text: { format: zodTextFormat(RerankResult, "rerank") },
-        temperature: 0,
-        store: false,
-      });
-      const parsed = response.output_parsed;
-      if (!parsed) return identity(candidates, topK);
+        operation: "rerank",
+        attributes: { "rerank.candidates": candidates.length, "rerank.top_k": topK },
+      },
+      async (span) => {
+        try {
+          const list = candidates
+            .map((candidate) => `[${candidate.index}] ${candidate.text}`)
+            .join("\n\n");
+          setSpanIO(span, { input: `Query: ${query}\n\nCandidates:\n${list}` });
+          const response = await this.openai.responses.parse({
+            model: this.model,
+            instructions: INSTRUCTIONS,
+            input: `Query: ${query}\n\nReturn at most ${topK} passages.\n\nCandidates:\n${list}`,
+            text: { format: zodTextFormat(RerankResult, "rerank") },
+            temperature: 0,
+            store: false,
+          });
+          span.setAttribute(GEN_AI.inputTokens, response.usage?.input_tokens ?? 0);
+          span.setAttribute(GEN_AI.outputTokens, response.usage?.output_tokens ?? 0);
+          const parsed = response.output_parsed;
+          if (!parsed) {
+            span.addEvent("rerank.fallback", { reason: "no parsed output" });
+            return identity(candidates, topK);
+          }
 
-      const valid = new Set(candidates.map((candidate) => candidate.index));
-      const seen = new Set<number>();
-      const ranked = parsed.ranking
-        .filter((hit) => valid.has(hit.index) && !seen.has(hit.index) && seen.add(hit.index))
-        .slice(0, topK)
-        .map((hit) => ({ index: hit.index, relevance: clamp01(hit.relevance) }));
-      // A well-formed-but-empty ranking means the model judged nothing relevant;
-      // fall back to fused order rather than returning zero hits.
-      return ranked.length ? ranked : identity(candidates, topK);
-    } catch {
-      return identity(candidates, topK);
-    }
+          const valid = new Set(candidates.map((candidate) => candidate.index));
+          const seen = new Set<number>();
+          const ranked = parsed.ranking
+            .filter((hit) => valid.has(hit.index) && !seen.has(hit.index) && seen.add(hit.index))
+            .slice(0, topK)
+            .map((hit) => ({ index: hit.index, relevance: clamp01(hit.relevance) }));
+          // A well-formed-but-empty ranking means the model judged nothing relevant;
+          // fall back to fused order rather than returning zero hits.
+          span.setAttribute("rerank.kept", ranked.length);
+          setSpanIO(span, { output: JSON.stringify(ranked) });
+          return ranked.length ? ranked : identity(candidates, topK);
+        } catch (error) {
+          span.addEvent("rerank.fallback", {
+            reason: error instanceof Error ? error.message : String(error),
+          });
+          return identity(candidates, topK);
+        }
+      },
+    );
   }
 }
 

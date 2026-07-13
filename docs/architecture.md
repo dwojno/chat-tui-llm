@@ -35,6 +35,13 @@ agent (injected, never wrapped). There is deliberately no LLM/SDK abstraction
 layer. The only port introduced is for _storage_ (`Store`), which is
 not an SDK abstraction.
 
+The one sanctioned exception is `@opentelemetry/api`, imported by the core for
+observability. It is an inert API — every call is a no-op until the composition
+root registers an SDK — not an LLM/SDK wrapper, and it adds no I/O or state, so the
+stateless-core contract holds. See **[observability.md](./observability.md)** for
+the span tree, the GenAI semantic-convention attributes, and how spans nest via
+per-`.next()` context binding across the loop's async generators.
+
 ## The agent loop
 
 `AgentService.run(messages, options, context, profile)`
@@ -49,7 +56,7 @@ The full mechanics — the loop steps, the `TurnEvent` contract, tools-as-stream
 temperature), **memories in context**, and the **generalized sub-agent**
 (`delegate_task` / `delegate_tasks`, fork profiles, and the structured
 `ForkResult` handoff) — live in **[agent-loop.md](./agent-loop.md)**. The rest of
-this document covers everything the agent deliberately does *not* own: state,
+this document covers everything the agent deliberately does _not_ own: state,
 persistence, retrieval infrastructure, and the UI.
 
 ## The Session (integration owns state)

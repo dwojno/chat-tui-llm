@@ -1,4 +1,5 @@
 import type { OpenAI } from "openai";
+import { GEN_AI, setSpanIO, withLlmSpan } from "../../../agent/telemetry";
 
 /**
  * Embedding utilities (internal to the `sources` domain).
@@ -28,13 +29,31 @@ export class OpenAIDenseEmbedder implements DenseEmbedder {
 
   async embed(texts: string[]): Promise<number[][]> {
     if (!texts.length) return [];
-    const vectors: number[][] = [];
-    for (let i = 0; i < texts.length; i += EMBED_BATCH) {
-      const batch = texts.slice(i, i + EMBED_BATCH);
-      const response = await this.openai.embeddings.create({ model: this.model, input: batch });
-      for (const item of response.data) vectors.push(item.embedding);
-    }
-    return vectors;
+    return withLlmSpan(
+      `gen_ai.embeddings ${this.model}`,
+      {
+        model: this.model,
+        operation: "embeddings",
+        observationType: "embedding",
+        attributes: { "gen_ai.request.input_count": texts.length },
+      },
+      async (span) => {
+        const vectors: number[][] = [];
+        let inputTokens = 0;
+        for (let i = 0; i < texts.length; i += EMBED_BATCH) {
+          const batch = texts.slice(i, i + EMBED_BATCH);
+          const response = await this.openai.embeddings.create({ model: this.model, input: batch });
+          inputTokens += response.usage?.prompt_tokens ?? 0;
+          for (const item of response.data) vectors.push(item.embedding);
+        }
+        span.setAttribute(GEN_AI.inputTokens, inputTokens);
+        setSpanIO(span, {
+          input: JSON.stringify(texts),
+          output: `${vectors.length} vectors × ${vectors[0]?.length ?? 0} dims`,
+        });
+        return vectors;
+      },
+    );
   }
 }
 

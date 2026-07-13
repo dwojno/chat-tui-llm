@@ -35,13 +35,17 @@ describe("parseDelegateTaskArgs", () => {
 
   it("rejects a payload missing the title", () => {
     expect(() =>
-      parseDelegateTaskArgs(JSON.stringify({ task: "do it", relevantMemoryKeys: null, profile: null })),
+      parseDelegateTaskArgs(
+        JSON.stringify({ task: "do it", relevantMemoryKeys: null, profile: null }),
+      ),
     ).toThrow();
   });
 
   it("rejects an empty task", () => {
     expect(() =>
-      parseDelegateTaskArgs(JSON.stringify({ title: "T", task: "", relevantMemoryKeys: null, profile: null })),
+      parseDelegateTaskArgs(
+        JSON.stringify({ title: "T", task: "", relevantMemoryKeys: null, profile: null }),
+      ),
     ).toThrow();
   });
 

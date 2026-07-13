@@ -21,7 +21,13 @@ describe("LocalStore (sqlite)", () => {
       sqlite.close();
 
       expect(tables.map((table) => table.name)).toEqual(
-        expect.arrayContaining(["profile", "conversation", "memory", "source", "conversation_item"]),
+        expect.arrayContaining([
+          "profile",
+          "conversation",
+          "memory",
+          "source",
+          "conversation_item",
+        ]),
       );
     } finally {
       rmSync(dir, { recursive: true, force: true });

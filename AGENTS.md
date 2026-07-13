@@ -105,7 +105,7 @@ Layer responsibilities stay narrow — **domain rules live in `store/`, user int
 | ------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `store/<domain>/`         | Persistence + domain invariants                               | `ConversationFacade.pruneEmpty()` — a conversation with no assistant reply has no value and may be discarded |
 | `integration/commands/`   | Parse user input, call facades, update UI                     | `/conversation` switches context; it does **not** prune or title                                             |
-| `integration/session.ts`  | Turn orchestration (model input, windowing, profile settings) | `runTurn` resolves the orchestrator model once per turn                                                       |
+| `integration/session.ts`  | Turn orchestration (model input, windowing, profile settings) | `runTurn` resolves the orchestrator model once per turn                                                      |
 | `integration/shutdown.ts` | Exit housekeeping                                             | `buildExitMessage` prunes empty conversations, then prints report + resume hint                              |
 
 **One place per concern.** The orchestrator `model` resolves in `Session.runTurn`;
