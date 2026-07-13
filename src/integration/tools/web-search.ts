@@ -8,39 +8,76 @@ const parameters = z.object({
   query: z.string().min(1).describe("What to search for"),
 });
 
-const SEARCH_LIMIT = 5;
+const DEFAULT_MAX_RESULTS = 5;
 
-type WikipediaSearch = {
-  query?: { search?: { title: string; snippet: string }[] };
-};
+/** Result cap, from WEB_SEARCH_MAX_RESULTS, defaulting to 5. */
+function maxResults(env: Record<string, string | undefined> = process.env): number {
+  const raw = Number(env.WEB_SEARCH_MAX_RESULTS);
+  return Number.isInteger(raw) && raw > 0 ? raw : DEFAULT_MAX_RESULTS;
+}
 
-async function* execute({ query }: z.infer<typeof parameters>): AsyncGenerator<TurnEvent, string> {
-  const url = new URL("https://en.wikipedia.org/w/api.php");
-  url.searchParams.set("action", "query");
-  url.searchParams.set("list", "search");
-  url.searchParams.set("srsearch", query);
-  url.searchParams.set("srlimit", String(SEARCH_LIMIT));
-  url.searchParams.set("format", "json");
+type TavilyResult = { title?: string; url?: string; content?: string };
+type TavilyResponse = { answer?: string | null; results?: TavilyResult[] };
 
-  const response = await fetch(url, {
-    headers: { "User-Agent": "chat-cli/1.0 (frameworkless agent demo)" },
+const SNIPPET_MAX_CHARS = 600;
+
+// Tavily's `content` can carry page cruft — markdown links, citation-ref
+// arrows, image embeds, even URL-encoded SVG. Flatten to plain on-topic text
+// and cap length so the fork gets a compact passage, not the page's reference
+// list.
+function cleanSnippet(content: string): string {
+  return content
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ") // image embeds ![alt](url)
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // links [label](url) -> label
+    .replace(/\b[a-zA-Z-]+='[^']*'/g, " ") // stray SVG/HTML attributes (d='…', fill='…')
+    .replace(/%[0-9A-Fa-f]{2}/g, " ") // percent-encoded (data-URI / SVG) fragments
+    .replace(/[↑•#*]/g, " ") // citation arrows, bullets, markdown markers
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, SNIPPET_MAX_CHARS);
+}
+
+// HTTP/quota errors are returned as a string (the loop turns it into a
+// recoverable function_call_output) rather than thrown.
+async function tavilySearch(query: string, apiKey: string, limit: number): Promise<string> {
+  const response = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: apiKey,
+      query,
+      max_results: limit,
+      include_answer: true,
+    }),
   });
   if (!response.ok) {
-    throw new Error(`search failed: ${response.status} ${response.statusText}`);
+    return `web_search error: ${response.status} ${response.statusText}`;
   }
 
-  const data = (await response.json()) as WikipediaSearch;
-  const hits = data.query?.search ?? [];
-  if (hits.length === 0) {
+  const data = (await response.json()) as TavilyResponse;
+  const results = data.results ?? [];
+  const answer = data.answer?.trim();
+  if (results.length === 0 && !answer) {
     return `No results for "${query}".`;
   }
 
-  return hits
-    .map((hit, index) => {
-      const snippet = hit.snippet.replace(/<[^>]*>/g, "").trim();
-      return `${index + 1}. ${hit.title}: ${snippet}`;
-    })
-    .join("\n");
+  const lines: string[] = [];
+  if (answer) lines.push(`Answer: ${answer}`);
+  results.forEach((hit, index) => {
+    const title = hit.title?.trim() || "(untitled)";
+    const url = hit.url?.trim() || "";
+    const snippet = cleanSnippet(hit.content ?? "");
+    lines.push(`${index + 1}. ${title} — ${url}\n${snippet}`);
+  });
+  return lines.join("\n\n");
+}
+
+async function* execute({ query }: z.infer<typeof parameters>): AsyncGenerator<TurnEvent, string> {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) {
+    return "web_search error: TAVILY_API_KEY is not set; cannot search the web.";
+  }
+  return await tavilySearch(query, apiKey, maxResults());
 }
 
 export const webSearchTool: ToolDefinition<typeof parameters> = {

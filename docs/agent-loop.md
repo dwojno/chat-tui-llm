@@ -251,8 +251,11 @@ makes one `responses.parse` call (`CHEAP_MODEL`, `zodTextFormat(ForkResultSchema
 "fork_result")`) over the **full child transcript** — `function_call` and
 `function_call_output` items included — so exact numbers/paths/IDs pulled from
 tool outputs land verbatim in `findings` instead of being rounded into narrative.
-It falls back to a low-confidence result if parsing returns null. Only this digest
-(as JSON) re-enters the parent's context, never the full sub-transcript.
+The budget (`HANDOFF_MAX_OUTPUT_TOKENS`, 1500) is sized so a full result fits; a
+truncated (`status: "incomplete"`) or unparseable response falls back to a
+low-confidence result with a sanitized summary rather than a half-serialized JSON
+blob. Only this digest (as JSON) re-enters the parent's context, never the full
+sub-transcript.
 
 ## RAG touchpoint
 

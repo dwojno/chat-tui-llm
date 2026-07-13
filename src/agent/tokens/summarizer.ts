@@ -33,7 +33,7 @@ export async function summarize(
     instructions: SUMMARIZER_INSTRUCTIONS,
     input,
     temperature: 0.2,
-    max_output_tokens: 400,
+    max_output_tokens: 600,
     store: false,
   });
 

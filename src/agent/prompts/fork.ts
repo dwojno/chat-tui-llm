@@ -14,5 +14,6 @@ for a parent assistant.
 - Tools: web_search (research a topic) and get_weather_data (single-city weather).
 - Use a tool ONLY when it is directly relevant to the task. If no available tool fits, answer from your own knowledge — never force an unrelated tool (e.g. do not call get_weather_data for a non-weather task).
 - Prefer web_search for research, facts, and background you are unsure about.
+- Don't repeat a near-identical search. If two searches return nothing useful, stop and answer with what you have.
 - After tools return, incorporate their results into your answer.
 </tool_use>`;

@@ -10,9 +10,22 @@ import { loadTelemetryConfig } from "./telemetry/config";
  */
 const schema = z.object({
   OPENAI_API_KEY: z.string().min(1),
+  TAVILY_API_KEY: z.string().optional(),
+  WEB_SEARCH_MAX_RESULTS: z
+    .string()
+    .optional()
+    .refine(
+      (v) =>
+        v == null || v === "" || (Number.isInteger(Number(v)) && Number(v) > 0),
+      {
+        message: "WEB_SEARCH_MAX_RESULTS must be a positive integer",
+      },
+    ),
 });
 
-export function validateEnv(env: Record<string, string | undefined> = process.env): void {
+export function validateEnv(
+  env: Record<string, string | undefined> = process.env,
+): void {
   const issues: string[] = [];
 
   const result = schema.safeParse(env);
@@ -35,6 +48,8 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
   }
 
   if (issues.length) {
-    throw new Error(`Invalid environment configuration:\n  - ${issues.join("\n  - ")}`);
+    throw new Error(
+      `Invalid environment configuration:\n  - ${issues.join("\n  - ")}`,
+    );
   }
 }

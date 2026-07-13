@@ -17,6 +17,13 @@ const HANDOFF_INSTRUCTIONS =
   "'low'. `needsFollowup` names the single most important unresolved question, " +
   "or null. Omit tool names, retries, and boilerplate.";
 
+const HANDOFF_MAX_OUTPUT_TOKENS = 1500;
+const MAX_FALLBACK_SUMMARY_CHARS = 500;
+
+const TRUNCATED_SUMMARY =
+  "Sub-agent result could not be compressed cleanly; see child spans for the " +
+  "full transcript.";
+
 const fallbackResult = (summary: string): ForkResult => ({
   summary,
   findings: [],
@@ -24,6 +31,14 @@ const fallbackResult = (summary: string): ForkResult => ({
   confidence: "low",
   needsFollowup: null,
 });
+
+function sanitizeFallbackSummary(outputText: string): string {
+  const text = outputText.trim();
+  if (text === "" || text.startsWith("{") || text.startsWith("[")) {
+    return TRUNCATED_SUMMARY;
+  }
+  return text.slice(0, MAX_FALLBACK_SUMMARY_CHARS);
+}
 
 export interface HandoffResult {
   result: ForkResult;
@@ -49,11 +64,15 @@ export async function compressHandoff(
     input,
     text: { format: zodTextFormat(ForkResultSchema, "fork_result") },
     temperature: 0.2,
-    max_output_tokens: 400,
+    max_output_tokens: HANDOFF_MAX_OUTPUT_TOKENS,
     store: false,
   });
 
+  const truncated = response.status === "incomplete";
   const parsed = response.output_parsed as ForkResult | null;
-  const result = parsed ?? fallbackResult(response.output_text?.trim() ?? "");
+  const result =
+    parsed && !truncated
+      ? parsed
+      : fallbackResult(sanitizeFallbackSummary(response.output_text ?? ""));
   return { result, usage: response.usage };
 }
