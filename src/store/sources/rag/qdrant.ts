@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { QdrantClient } from "@qdrant/js-client-rest";
+import { createResiliencePolicy, type ResiliencePolicy } from "../../../utils/resilience";
 import { DENSE_VECTOR_SIZE, type RagConfig } from "./config";
 
 /**
@@ -58,10 +59,15 @@ export function pointId(seed: string): string {
 
 export class QdrantIndex implements VectorIndex {
   private readonly client: QdrantClient;
+  private readonly policy: ResiliencePolicy = createResiliencePolicy();
   private readonly ensured = new Set<string>();
 
   constructor(private readonly config: RagConfig) {
     this.client = new QdrantClient({ url: config.qdrantUrl });
+  }
+
+  private run<T>(fn: () => Promise<T>): Promise<T> {
+    return this.policy.execute(fn);
   }
 
   private collectionFor(profileId: string): string {
@@ -71,13 +77,17 @@ export class QdrantIndex implements VectorIndex {
   async ensureCollection(profileId: string): Promise<void> {
     const name = this.collectionFor(profileId);
     if (this.ensured.has(name)) return;
-    const { exists } = await this.client.collectionExists(name);
+    const { exists } = await this.run(() => this.client.collectionExists(name));
     if (!exists) {
-      await this.client.createCollection(name, {
-        vectors: { [DENSE]: { size: DENSE_VECTOR_SIZE, distance: "Cosine" } },
-        sparse_vectors: { [SPARSE]: { modifier: "idf" } },
-      });
-      await this.client.createPayloadIndex(name, { field_name: "path", field_schema: "keyword" });
+      await this.run(() =>
+        this.client.createCollection(name, {
+          vectors: { [DENSE]: { size: DENSE_VECTOR_SIZE, distance: "Cosine" } },
+          sparse_vectors: { [SPARSE]: { modifier: "idf" } },
+        }),
+      );
+      await this.run(() =>
+        this.client.createPayloadIndex(name, { field_name: "path", field_schema: "keyword" }),
+      );
     }
     this.ensured.add(name);
   }
@@ -85,18 +95,20 @@ export class QdrantIndex implements VectorIndex {
   async upsert(profileId: string, points: VectorPoint[]): Promise<void> {
     if (!points.length) return;
     const name = this.collectionFor(profileId);
-    await this.client.upsert(name, {
-      wait: true,
-      points: points.map((point) => ({
-        id: pointId(point.seed),
-        vector: {
-          [DENSE]: point.dense,
-          // Server-side inference: Qdrant embeds the document into a sparse vector.
-          [SPARSE]: { text: point.text, model: this.config.qdrantSparseModel },
-        },
-        payload: { ...point.payload },
-      })),
-    });
+    await this.run(() =>
+      this.client.upsert(name, {
+        wait: true,
+        points: points.map((point) => ({
+          id: pointId(point.seed),
+          vector: {
+            [DENSE]: point.dense,
+            // Server-side inference: Qdrant embeds the document into a sparse vector.
+            [SPARSE]: { text: point.text, model: this.config.qdrantSparseModel },
+          },
+          payload: { ...point.payload },
+        })),
+      }),
+    );
   }
 
   async search(
@@ -106,19 +118,21 @@ export class QdrantIndex implements VectorIndex {
     limit: number,
   ): Promise<SearchResult[]> {
     const name = this.collectionFor(profileId);
-    const response = await this.client.query(name, {
-      prefetch: [
-        { query: denseQuery, using: DENSE, limit: limit * 2 },
-        {
-          query: { text: queryText, model: this.config.qdrantSparseModel },
-          using: SPARSE,
-          limit: limit * 2,
-        },
-      ],
-      query: { fusion: "rrf" },
-      limit,
-      with_payload: true,
-    });
+    const response = await this.run(() =>
+      this.client.query(name, {
+        prefetch: [
+          { query: denseQuery, using: DENSE, limit: limit * 2 },
+          {
+            query: { text: queryText, model: this.config.qdrantSparseModel },
+            using: SPARSE,
+            limit: limit * 2,
+          },
+        ],
+        query: { fusion: "rrf" },
+        limit,
+        with_payload: true,
+      }),
+    );
     return response.points.map((point) => ({
       payload: point.payload as unknown as ChunkPayload,
       score: point.score,
@@ -127,17 +141,19 @@ export class QdrantIndex implements VectorIndex {
 
   async deleteByPath(profileId: string, path: string): Promise<void> {
     const name = this.collectionFor(profileId);
-    await this.client.delete(name, {
-      wait: true,
-      filter: { must: [{ key: "path", match: { value: path } }] },
-    });
+    await this.run(() =>
+      this.client.delete(name, {
+        wait: true,
+        filter: { must: [{ key: "path", match: { value: path } }] },
+      }),
+    );
   }
 
   async dropCollection(profileId: string): Promise<void> {
     const name = this.collectionFor(profileId);
     this.ensured.delete(name);
-    if ((await this.client.collectionExists(name)).exists) {
-      await this.client.deleteCollection(name);
+    if ((await this.run(() => this.client.collectionExists(name))).exists) {
+      await this.run(() => this.client.deleteCollection(name));
     }
   }
 }

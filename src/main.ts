@@ -3,7 +3,12 @@ import { parseCliArgs } from "./integration/args";
 import { runRepl } from "./integration/repl";
 import { buildChatContext } from "./integration/switch";
 import { approvalsEnabled } from "./integration/env";
-import { DB_PATH, KEEP_LAST_TURNS } from "./integration/config";
+import {
+  DB_PATH,
+  KEEP_LAST_TURNS,
+  OPENAI_MAX_RETRIES,
+  OPENAI_TIMEOUT_MS,
+} from "./integration/config";
 import { AgentService } from "./agent/agent";
 import { createAgentTools } from "./integration/tools";
 import { Session } from "./integration/session";
@@ -15,7 +20,7 @@ export async function run(): Promise<void> {
   const interactive = process.stdin.isTTY === true;
   const cli = parseCliArgs();
 
-  const openai = new OpenAI();
+  const openai = new OpenAI({ maxRetries: OPENAI_MAX_RETRIES, timeout: OPENAI_TIMEOUT_MS });
   const openOpts: OpenStoreOptions = {
     rag: createRagDeps(openai, loadRagConfig()),
   };

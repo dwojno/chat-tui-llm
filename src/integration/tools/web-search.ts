@@ -1,6 +1,8 @@
 import { z } from "zod";
+import { isBrokenCircuitError } from "cockatiel";
 import type { TurnEvent } from "../../agent/events/events";
 import type { ToolDefinition } from "../../agent/tools/types";
+import { createResiliencePolicy } from "../../utils/resilience";
 
 export const WEB_SEARCH_TOOL_NAME = "web_search" as const;
 
@@ -9,6 +11,18 @@ const parameters = z.object({
 });
 
 const DEFAULT_MAX_RESULTS = 5;
+const WEB_SEARCH_MAX_RETRIES = 3;
+
+const policy = createResiliencePolicy({ maxRetries: WEB_SEARCH_MAX_RETRIES });
+
+class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    readonly statusText: string,
+  ) {
+    super(`${status} ${statusText}`);
+  }
+}
 
 /** Result cap, from WEB_SEARCH_MAX_RESULTS, defaulting to 5. */
 function maxResults(env: Record<string, string | undefined> = process.env): number {
@@ -37,8 +51,8 @@ function cleanSnippet(content: string): string {
     .slice(0, SNIPPET_MAX_CHARS);
 }
 
-// HTTP/quota errors are returned as a string (the loop turns it into a
-// recoverable function_call_output) rather than thrown.
+// Throws on a non-ok response so the resilience policy can retry transient
+// failures (429/5xx); `execute` turns a final failure into a recoverable string.
 async function tavilySearch(query: string, apiKey: string, limit: number): Promise<string> {
   const response = await fetch("https://api.tavily.com/search", {
     method: "POST",
@@ -51,7 +65,7 @@ async function tavilySearch(query: string, apiKey: string, limit: number): Promi
     }),
   });
   if (!response.ok) {
-    return `web_search error: ${response.status} ${response.statusText}`;
+    throw new HttpError(response.status, response.statusText);
   }
 
   const data = (await response.json()) as TavilyResponse;
@@ -72,12 +86,25 @@ async function tavilySearch(query: string, apiKey: string, limit: number): Promi
   return lines.join("\n\n");
 }
 
+function webSearchError(error: unknown): string {
+  if (error instanceof HttpError) return `web_search error: ${error.status} ${error.statusText}`;
+  if (isBrokenCircuitError(error)) {
+    return "web_search error: service unavailable (circuit open); try again shortly.";
+  }
+  return `web_search error: ${error instanceof Error ? error.message : String(error)}`;
+}
+
 async function* execute({ query }: z.infer<typeof parameters>): AsyncGenerator<TurnEvent, string> {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) {
     return "web_search error: TAVILY_API_KEY is not set; cannot search the web.";
   }
-  return await tavilySearch(query, apiKey, maxResults());
+  const limit = maxResults();
+  try {
+    return await policy.execute(() => tavilySearch(query, apiKey, limit));
+  } catch (error) {
+    return webSearchError(error);
+  }
 }
 
 export const webSearchTool: ToolDefinition<typeof parameters> = {

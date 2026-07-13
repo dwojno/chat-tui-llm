@@ -1,6 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { webSearchTool } from "../../../src/integration/tools/web-search";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TurnEvent } from "../../../src/agent/events/events";
 import { drain } from "../../../src/utils/async-gen";
+
+type WebSearchTool = {
+  execute: (args: { query: string }) => AsyncGenerator<TurnEvent, string>;
+  summarize?: (args: { query: string }) => string;
+};
 
 function mockFetch(impl: () => unknown) {
   const fetchMock = vi.fn(async (_url: unknown, _init?: { body: string }) => impl());
@@ -8,9 +13,19 @@ function mockFetch(impl: () => unknown) {
   return fetchMock;
 }
 
+// Re-import per test so each gets a fresh resilience policy (fresh circuit breaker).
+let webSearchTool: WebSearchTool;
+beforeEach(async () => {
+  vi.resetModules();
+  ({ webSearchTool } = (await import("../../../src/integration/tools/web-search")) as {
+    webSearchTool: WebSearchTool;
+  });
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+  vi.useRealTimers();
 });
 
 describe("webSearchTool", () => {
@@ -91,12 +106,47 @@ describe("webSearchTool", () => {
     expect(await drain(webSearchTool.execute({ query: "zxqw" }))).toBe('No results for "zxqw".');
   });
 
-  it("returns a recoverable error string on a non-ok response", async () => {
+  it("does not retry a client error and returns a recoverable string", async () => {
     vi.stubEnv("TAVILY_API_KEY", "tvly-test");
-    mockFetch(() => ({ ok: false, status: 429, statusText: "Too Many Requests" }));
+    const fetchMock = mockFetch(() => ({ ok: false, status: 401, statusText: "Unauthorized" }));
     expect(await drain(webSearchTool.execute({ query: "x" }))).toBe(
-      "web_search error: 429 Too Many Requests",
+      "web_search error: 401 Unauthorized",
     );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a persistent 429 then returns a recoverable string", async () => {
+    vi.stubEnv("TAVILY_API_KEY", "tvly-test");
+    vi.useFakeTimers();
+    const fetchMock = mockFetch(() => ({
+      ok: false,
+      status: 429,
+      statusText: "Too Many Requests",
+    }));
+
+    const run = drain(webSearchTool.execute({ query: "x" }));
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(await run).toBe("web_search error: 429 Too Many Requests");
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("retries a transient 5xx then succeeds", async () => {
+    vi.stubEnv("TAVILY_API_KEY", "tvly-test");
+    vi.useFakeTimers();
+    let call = 0;
+    const fetchMock = mockFetch(() => {
+      call += 1;
+      return call === 1
+        ? { ok: false, status: 503, statusText: "Service Unavailable" }
+        : { ok: true, json: async () => ({ answer: "recovered", results: [] }) };
+    });
+
+    const run = drain(webSearchTool.execute({ query: "x" }));
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(await run).toContain("Answer: recovered");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("returns a recoverable error string when no API key is set", async () => {

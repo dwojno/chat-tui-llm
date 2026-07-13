@@ -11,6 +11,8 @@ import {
 } from "@aws-sdk/client-s3";
 import type { RagConfig } from "./config";
 
+const S3_MAX_ATTEMPTS = 4;
+
 /** Per-profile object storage contract (S3/MinIO in prod, fake in tests). */
 export interface ObjectStore {
   ensureBucket(profileId: string): Promise<void>;
@@ -35,6 +37,7 @@ export class BlobStore implements ObjectStore {
       endpoint: config.minioEndpoint,
       region: "us-east-1",
       forcePathStyle: true,
+      maxAttempts: S3_MAX_ATTEMPTS,
       credentials: {
         accessKeyId: config.minioAccessKey,
         secretAccessKey: config.minioSecretKey,
