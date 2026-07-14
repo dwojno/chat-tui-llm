@@ -79,16 +79,16 @@ describe("LocalStore (sqlite)", () => {
       const first = await LocalStore.open(dbPath);
       const { conversationId, profileId } = first;
       await first.conversation.createItems(conversationId, {
-        kind: "message",
+        kind: "user_message",
         turnIndex: 0,
-        payload: { role: "user", content: "restore me" },
+        payload: { type: "user_message", content: "restore me" },
       });
 
       const restored = await LocalStore.open(dbPath, { conversationId });
       expect(restored.conversationId).toBe(conversationId);
       expect(restored.profileId).toBe(profileId);
       expect(await restored.conversation.queryHistory(conversationId).execute()).toEqual([
-        { role: "user", content: "restore me" },
+        { type: "user_message", content: "restore me" },
       ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });

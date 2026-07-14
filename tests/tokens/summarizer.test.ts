@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { OpenAI } from "openai";
-import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { summarize } from "../../src/tokens/summarizer";
+import type { AgentEvent } from "../../src/runner/thread/events";
 import { usage } from "../helpers/mock-openai";
 
 function fakeOpenAI(outputText: string) {
@@ -12,9 +12,9 @@ function fakeOpenAI(outputText: string) {
   return { client: { responses: { create } } as unknown as OpenAI, create };
 }
 
-const evicted: ResponseInputItem[] = [
-  { role: "user", content: "what is SSR?" },
-  { role: "assistant", content: "server-side rendering" },
+const evicted: AgentEvent[] = [
+  { type: "user_message", content: "what is SSR?" },
+  { type: "assistant_answer", content: "server-side rendering" },
 ];
 
 describe("summarize", () => {
@@ -33,7 +33,7 @@ describe("summarize", () => {
     expect(params.temperature).toBe(0.2);
     expect(params.input).toContain("Prior summary:");
     expect(params.input).toContain("earlier summary");
-    expect(params.input).toContain("user: what is SSR?");
+    expect(params.input).toContain("what is SSR?");
   });
 
   it("omits the prior-summary section when there is none", async () => {

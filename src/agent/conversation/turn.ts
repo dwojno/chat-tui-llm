@@ -8,6 +8,7 @@ import type { TurnOptions } from "./options";
 
 export type TurnContext = {
   memories: readonly string[];
+  summary?: string;
   requestApproval?: ApprovalGate;
   requestClarification?: ClarificationGate;
 };
@@ -48,7 +49,6 @@ export type RunTurn = (args: RunTurnArgs) => Promise<TurnResult>;
 export interface ToolRunContext {
   openai: OpenAI;
   context: TurnContext;
-  messages: readonly ResponseInputItem[];
   runTurn: RunTurn;
   forkProfiles: ForkProfiles;
   bus: EventBus;

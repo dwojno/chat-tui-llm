@@ -13,16 +13,16 @@ pnpm eval:watch    # watch + UI at http://localhost:3006
 ```
 
 Requires a real `OPENAI_API_KEY` — loaded from `.env` via `setupFiles` in
-[evalite.config.ts](../../evalite.config.ts).
+[evalite.config.ts](../evalite.config.ts).
 
 ## What's covered
 
 The tests live in [`suites/`](../evals/suites/); the reusable machinery lives in
-[`harness/`](../evals/harness/); the runner config is [`evalite.config.ts`](../../evalite.config.ts)
+[`harness/`](../evals/harness/); the runner config is [`evalite.config.ts`](../evalite.config.ts)
 at the repo root.
 
 ```
-src/eval/
+evals/
   harness/        the machinery (imported via `../harness`)
     probe.ts      the task: one model turn → observable result
     scorers/      scorers that grade a result against `Expected`
@@ -36,7 +36,8 @@ src/eval/
 | `suites/delegation.eval.ts`         | `<delegation>` in `SYSTEM_INSTRUCTIONS` | multi-step work → `delegate_task` with a concise `title`; simple asks → direct                                |
 | `suites/fork-tools.eval.ts`         | `FORK_INSTRUCTIONS` + `forkTools`       | a sub-agent uses `web_search` for research, `get_weather_data` for weather, and forces neither when none fits |
 | `suites/weather-routing.eval.ts`    | `<tool_use>`                            | single-city asks call `get_weather_data` with the right city                                                  |
-| `suites/context-discretion.eval.ts` | `buildContextBlock` rules               | stored facts stay quiet unless the message calls for them                                                     |
+| `suites/ask-user-routing.eval.ts`   | clarification guidance in `SYSTEM_INSTRUCTIONS` | ambiguous asks seek the missing info (ask) instead of guessing                                        |
+| `suites/context-discretion.eval.ts` | memory discretion rules                 | stored facts stay quiet unless the message calls for them                                                     |
 | `suites/structured-output.eval.ts`  | `/structured` `ResponseSchema`          | output validates as `{ answer, sources[] }`                                                                   |
 | `suites/summarizer.eval.ts`         | `summarizer.ts`                         | rolling summary stays short and keeps the facts                                                               |
 
@@ -48,11 +49,11 @@ bucket (`kb_eval-rag`), ingests the corpus in
 [`rag-corpus/`](../evals/harness/rag-corpus/) through the app's production `store.sources`
 pipeline, then runs the **actual `runAgentLoop`** (with the real
 store-backed RAG tools) once per query. `retrievedContext` is captured from the
-agent's genuine `search_knowledge_base` / `read_file` / `grep_files` tool
+agent's genuine `search_knowledge_base` / `read_source` / `grep_files` tool
 outputs, so the RAGAS-style scorers (from
 [autoevals](https://github.com/braintrustdata/autoevals)) grade what the system
 actually retrieved and generated. The harness lives alongside the other eval
-machinery in [`harness/`](harness/) (`rag.ts`, `rag-scorers.ts`, `infra.ts`).
+machinery in [`harness/`](../evals/harness/) (`rag.ts`, `scorers/rag-scorers.ts`, `infra.ts`).
 
 ```bash
 cp .env.example .env      # set OPENAI_API_KEY (defaults point at localhost)
@@ -94,7 +95,7 @@ Evalite's model is `data → task → scorers`:
 
 - **`data`** — the rows. Each is `{ input, expected }`. `input` is a
   [`ProbeSpec`](../evals/harness/probe.ts) (prompt + optional context/schema); `expected`
-  is an [`Expected`](../evals/harness/scorers.ts) describing what a good answer does.
+  is an [`Expected`](../evals/harness/scorers/common.ts) describing what a good answer does.
 - **`task`** — [`probePrompt`](../evals/harness/probe.ts) runs _one_ model turn against
   the real system prompt + tools and returns the observable surface (`text`,
   `toolCalls`, `parsed`). It does **not** execute tools or run the loop, so it
@@ -126,7 +127,7 @@ Append a row to the relevant eval's `data`:
 }
 ```
 
-Add a whole new suite by creating `src/eval/suites/<name>.eval.ts` — evalite discovers
+Add a whole new suite by creating `evals/suites/<name>.eval.ts` — evalite discovers
 any `*.eval.ts` file automatically.
 
 ## A note on non-determinism

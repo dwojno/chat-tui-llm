@@ -1,7 +1,6 @@
 import type { Span } from "@opentelemetry/api";
 import type { OpenAI } from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
-import { toResponseInputItems } from "openai/lib/responses/ResponseInputItems.mjs";
 import type {
   ParsedResponse,
   ResponseFunctionToolCall,
@@ -21,7 +20,7 @@ import {
   type ForkProfiles,
   type ToolDefinition,
 } from "./tools/types";
-import { getFunctionCalls, toReplayInputItems } from "./conversation/items";
+import { getFunctionCalls } from "./conversation/items";
 import type { RunTurn, ToolRunContext, TurnContext, TurnProfile } from "./conversation/turn";
 import {
   endSpan,
@@ -61,13 +60,11 @@ export interface StepResult {
   outputText: string;
   outputParsed: unknown;
   toolCalls: ResponseFunctionToolCall[];
-  items: ResponseInputItem[];
   usage: ResponseUsage | undefined;
 }
 
 export interface ToolExecDeps {
   context: TurnContext;
-  messages: readonly ResponseInputItem[];
   runTurn: RunTurn;
   bus: EventBus;
   recordUsage: (usage: ResponseUsage | undefined) => void;
@@ -111,7 +108,6 @@ export class Agent {
       outputText: response.output_text,
       outputParsed: response.output_parsed,
       toolCalls,
-      items: toolCalls.length ? toReplayInputItems(output) : toResponseInputItems(output),
       usage: response.usage,
     };
   }
@@ -164,7 +160,6 @@ export class Agent {
       openai: this.openai,
       forkProfiles: this.forkProfiles,
       context: deps.context,
-      messages: deps.messages,
       runTurn: deps.runTurn,
       bus: deps.bus,
       recordUsage: deps.recordUsage,

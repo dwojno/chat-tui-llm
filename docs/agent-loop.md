@@ -1,289 +1,316 @@
 # Agent Loop
 
-Hand-built agentic loop on the raw OpenAI Responses API — no framework. This is
-the authoritative reference for how one turn runs, how the model is routed, how
-memories reach the model, and how the generalized sub-agent (delegation +
-structured handoff) works. For the surrounding layers see
-[architecture.md](./architecture.md).
+A hand-built agentic loop on the raw OpenAI Responses API — no framework. This is the
+authoritative reference for how one turn runs. The surrounding layers are in
+[architecture.md](./architecture.md); persistence in [database.md](./database.md).
+
+The whole design collapses to one idea:
+
+> **The agent is a pure reducer over an owned, serializable event log.**
+
+That single sentence buys full control of the context window, a stateless core,
+self-healing tool use, and clean pause/resume + trigger seams — see the
+[design principles](#design-principles) it rests on.
+
+## Mental model
+
+An LLM is a stateless function: `input → output`. So a turn is a fold — reduce the
+history you own into an input, ask for one decision, append the result, repeat:
+
+```
+        ┌───────────────────── the runner owns this ─────────────────────┐
+        │                                                                 │
+ events ┼──▶ reduce(events, summary, memories)  ──▶  Agent.step(input)  ──┼──▶ tool calls
+(state) │        └ fold → ONE                       └ pure: SDK in,       │      or text
+        │          custom-format <user> message       decision out        │        │
+        │                                                                 │        ▼
+        └────────────  append AgentEvent(s)  ◀── run tools / answer ◀─────┘   AgentEvent[]
+```
+
+Three parts, each with one job:
+
+| Part | Owns | Doesn't own |
+| --- | --- | --- |
+| **`AgentEvent[]`** (the log) | the entire turn state, serialized | — |
+| **reducer** (`runner/thread`) | `events → prompt`, error compaction, windowing | I/O, the model |
+| **`Agent`** (`agent/`) | one model call, one tool dispatch | the loop, the log, context, config |
+
+## The event log is the state
+
+Everything durable is an `AgentEvent` in one append-only log
+([runner/thread/events.ts](../src/runner/thread/events.ts)). The SDK's
+`ResponseInputItem` is no longer the domain type — it survives only at the model
+boundary.
+
+```ts
+type AgentEvent =
+  | { type: "user_message";         content: string }
+  | { type: "tool_call";            id; name; args }        // a native call the model made
+  | { type: "tool_result";          id; name; output }
+  | { type: "error";                id; name; message }     // a COMPACTED failure
+  | { type: "approval_request";     id; name; reason?; risk? }
+  | { type: "approval_response";    id; outcome }
+  | { type: "clarification_request";question; options? }
+  | { type: "human_response";       content }
+  | { type: "assistant_answer";     content; sources? };    // the terminal answer
+```
+
+Because the log **is** the state, there is no separate snapshot format: persist the
+events, and any future caller (a webhook, a cron, a Slack reply) can rehydrate and
+continue by appending the next event and re-running the reducer. Human-layer
+requests/responses are events too, so the transcript is complete and auditable.
+
+## Own your context window
+
+The reducer ([runner/thread/reducer.ts](../src/runner/thread/reducer.ts)) folds the
+log into **one packed `<user>` message** — a custom, token-efficient format, not a raw
+role array. Each event renders as an XML-tagged block; a tool call is `<{intent}>`, its
+result `<{intent}_result>`:
+
+```
+buildMessage({ events, summary, memories }) -> ResponseInputItem[]   // length-1: one user message
+
+  <conversation_summary> … </conversation_summary>   ← rolling summary, if any (stable prefix)
+  <events>
+    <user_message>weather in Paris and Tokyo?</user_message>
+
+    <get_weather_data>
+      intent: "get_weather_data"
+      city: "Paris"
+    </get_weather_data>
+
+    <get_weather_data_result>
+      The weather in Paris is sunny
+    </get_weather_data_result>
+  </events>
+  <context> …<user_known_memories> M1: … </user_known_memories>… </context>   ← appended LAST
+  <next_step>Choose the next step: call tools, ask, or answer.</next_step>
+```
+
+Data renders as YAML via a tiny dependency-free serializer
+([yaml.ts](../src/runner/thread/yaml.ts)), keeping the "frameworkless" claim intact.
+
+**Ordering is deliberate — it protects the prompt cache.** Summary first (only changes
+when the window is re-summarized), events append-only, memories **last** (so a
+`/remember` never invalidates the cached prefix above it), fixed framing suffix. The
+render is deterministic — no ids or timestamps leak into the text — so the leading
+token run is byte-stable step to step and `prompt_cache_key` keeps paying off.
+
+The agent's `step()` still **accepts a `ResponseInputItem[]`** and responds with native
+SDK output items; the array simply now holds that one reduced message.
 
 ## Primitives vs. the loop
 
-The `Agent` ([src/agent/agent.ts](../src/agent/agent.ts)) is **stateless** and owns
-**no loop**. It exposes two pure primitives; every collaborator and constant is
-injected via its constructor (`AgentDeps`: `openai`, `temperature`, `cacheKey`,
-`instructions`, `tools?`, `forkProfiles?`) — the agent imports no config or prompt
-globals.
+The `Agent` ([agent.ts](../src/agent/agent.ts)) is **stateless**, owns **no loop**, and
+imports no config, prompt, or event type — every collaborator is injected via
+`AgentDeps`. It knows nothing about `AgentEvent` or the reducer.
 
 ```ts
 // one model call — streams `delta` to the bus while the model streams
-step(args: StepArgs): Promise<StepResult>
-// StepArgs   = { messages, options, profile?, bus, forbidTools? }
-// StepResult = { outputText, outputParsed, toolCalls, items, usage }
-
-// dispatch one tool call against the injected registry
+step(args): Promise<{ outputText, outputParsed, toolCalls, usage }>
+// dispatch one tool against the injected registry; a throw is caught → "Error: …"
 executeTool(call, deps): Promise<string>
 ```
 
-The **loop** is caller-owned: `runAgentLoop`
-([src/runner/runner.ts](../src/runner/runner.ts)) is a plain `async` function that
-drives one turn and **returns** `{ answer, items, usage }`:
+The **loop** is a plain async function the caller owns
+([runner.ts](../src/runner/runner.ts)):
 
 ```ts
-runAgentLoop(args: RunAgentLoopArgs): Promise<TurnResult>
-// RunAgentLoopArgs = { agent, messages, options, context, bus, maxToolSteps, profile? }
+runAgentLoop({ agent, events, options, context, bus,
+               maxToolSteps, maxConsecutiveErrors, profile? })
+  : Promise<{ answer, events, usage }>       // events = only the NEW events this turn
 ```
 
 One iteration:
 
-1. **`agent.step(...)`** — the runner passes `[...input, ...contextBlock]` (see
-   [Memories](#memories-in-context)); text arrives as `delta` events on the bus, and
-   the returned `StepResult` carries `toolCalls`, the produced transcript `items`,
-   and `usage`.
-2. **No tool calls** → format the answer with `formatResponse(step, options)`
-   ([src/tools/format.ts](../src/tools/format.ts)) and return.
-3. **Announce each call** as a `tool` event (`name`, `label`, `detail`) via
-   `agent.toolMeta`.
-4. **Approval gate** — for each call whose `approvalPolicy` requires it, emit
-   `approval_request`, `await context.requestApproval(...)`, emit
-   `approval_resolved`; a rejection records `APPROVAL_DENIED_OUTPUT` as that call's
-   output. This is the tool-selection→invocation seam (12-factor Factor 08).
-5. **Execute all calls concurrently** with `Promise.all(step.toolCalls.map(executeTool))`
-   — results are collected in input order; each tool emits its own events to the bus
-   as it runs.
-6. **Append `function_call_output` items** and loop back to step 1.
+```
+input   = buildMessage(events, context.summary, context.memories)   // the reducer
+step    = agent.step(input, tools)                            // native tool-calling kept
+switch on step:
+  done_for_now  ─▶ append assistant_answer, RETURN            ┐ reserved control
+  request_more_information ─▶ ask human, append q+a, loop     ┘ intents (by name)
+  work tool calls ─▶ approval gate ─▶ Promise.all(executeTool)
+                    append tool_call + (tool_result | error), loop
+  plain text ─▶ append assistant_answer, RETURN               // streamed → fast TTFT
+repeat, bounded by maxToolSteps (final round forces tools:[] → a text answer)
+```
 
-`MAX_TOOL_STEPS` (injected as `maxToolSteps`) bounds the rounds: on the final allowed
-round the request is re-issued with `forbidTools = true`, forcing the model to answer
-with what it has. Requests use `store: false` and a stable `prompt_cache_key`; the
-full `input` array is rebuilt and resent each step — the agent never relies on
-server-side conversation state.
+`store: false` and full replay each step: the app owns the whole window and never leans
+on server-side conversation state.
 
-A tool that throws is caught by `executeTool` and its error returned as the
-`function_call_output` string, so a tool failure never aborts the turn (the API
-rejects a transcript with a dangling `function_call`; feeding the error back lets the
-model recover).
+## Hybrid: native tools + control intents
 
-## Events (UI-only) vs. the return value
+Owning the *input* and owning *how the model acts* are independent axes. We own the
+input (custom format) but keep **native tool-calling** for actions — so the model can
+fire several tools in one turn (executed in parallel via `Promise.all`), the final
+answer still streams token-by-token, and delegation/approval are untouched.
 
-Progress is observed through the **`EventBus`**
-([src/agent/events/bus.ts](../src/agent/events/bus.ts)) — a small typed emitter with
-one `subscribe(fn)` that receives every event, an `emit`, and `scoped(fork)`. It is
-**injected and never persisted**: it exists purely so a front-end can watch a turn
-unfold. The persisted message thread (Factor 05) stays the single source of truth,
-and everything durable — the answer, the transcript `items`, token `usage` — is the
-**return value** of `runAgentLoop`, not a bus event.
+"Intents" enter the loop as two **reserved control tools**
+([tools/control-intents.ts](../src/tools/control-intents.ts)) the runner *interprets*
+by name instead of dispatching:
+
+| Intent | Carries | Effect |
+| --- | --- | --- |
+| `done_for_now` | `answer`, `sources?` | terminate with a structured/sourced answer |
+| `request_more_information` | `question`, `options?` | run the clarification gate, then continue |
+
+A plain text reply (no tool call) is also a valid terminal — it streams, so it's the
+fast path; `done_for_now` is for answers that need explicit sources. Malformed/truncated
+intent arguments don't crash the turn: the runner records a compact `error` event and
+lets the model self-heal (below).
+
+## Compact errors → self-healing
+
+A tool that throws is caught by `executeTool` and returned as a compact `"Error: …"`
+string; the runner turns that into an `error` event (message only, no stack). The model
+reads the error on the next step and adjusts.
+
+State is **derived**, never mutated — `deriveControl(events)` folds the trailing run of
+`error` events into `consecutiveErrors`, which resets automatically on any success or
+human response:
+
+```ts
+deriveControl(events) -> { consecutiveErrors }   // trailing errors since the last
+                                                 // tool_result / user_message / human_response
+```
+
+- **Prune resolved errors** — the reducer drops an `error` from the prompt once the same
+  tool later succeeds (kept in the durable log for audit). The window stays dense.
+- **Escalate, don't spin** — at `maxConsecutiveErrors` (3), *if* a human is reachable,
+  the runner appends a `clarification_request` and asks how to proceed; unattended, it
+  simply runs to the `maxToolSteps` cap. Either way it can't loop forever.
+
+## Streaming vs. durable — the bus is UI-only
+
+Progress rides the injected **`EventBus`** ([events/bus.ts](../src/agent/events/bus.ts));
+durable data rides the **return value**. The bus is never persisted.
 
 ```ts
 type TurnEvent =
-  | { type: "delta"; text: string }
-  | { type: "tool"; name: string; label?: string; detail?: string; fork?: string }
-  | { type: "status"; text: string; fork?: string }
-  | { type: "approval_request"; toolName: string; label?; detail?; reason?; risk? }
-  | { type: "approval_resolved"; toolName: string; outcome: ApprovalOutcome };
+  | { type: "delta"; text }                       // streamed while the model streams
+  | { type: "tool"; name; label?; detail?; fork? }
+  | { type: "status"; text; fork? }
+  | { type: "approval_request" | "approval_resolved"; … };
 ```
 
-`step()` emits `delta` _while_ the model streams (before it resolves), so
-time-to-first-token is immediate. The Ink TUI subscribes to the bus and commits the
-answer that `Session.runTurn` returns; a web server could drive the same `Agent` and
-forward the bus over SSE.
-
-## Tools are promises
-
-The agent core ships **zero** tools. A tool is a `ToolDefinition`
-([tools/types.ts](../src/agent/tools/types.ts)) whose `execute` is a plain async
-function returning its result string. To report progress it emits on the injected UI
-bus via `ctx.bus.emit(...)` — optional; most tools just `return`.
-
-```ts
-interface ToolDefinition<TArgs extends z.ZodType> {
-  name: string;
-  label: string; // UI verb, e.g. "Searching knowledge base"
-  description: string; // sent to the model
-  parameters: TArgs; // zod → strict JSON Schema
-  execute: (args, ctx?) => Promise<string>;
-  summarize?: (args) => string; // short UI detail, e.g. the query text
-  requiresApproval?: boolean;
-  approvalPolicy?: (args) => boolean | ApprovalNeed;
-}
-```
-
-Implementations live in [src/tools/](../src/tools/); the host composes them in
-`createAgentTools(store)` ([src/tools/index.ts](../src/tools/index.ts)) and injects
-them via `AgentDeps`. Dispatch is a name lookup + zod-parse in
-[agent/tools/index.ts](../src/agent/tools/index.ts). A round of calls runs
-concurrently through `Promise.all`, which resolves the result strings in input order.
-There is no per-tool special case in the loop.
-
-Current tools: `get_weather_data`, `web_search`, `delegate_task`, `delegate_tasks`,
-the disk set (`read_file`, `write_file`, `edit_file`), the HITL tools
-(`ask_user`, `request_approval`), and the RAG set (`search_knowledge_base`,
-`list_files`, `grep_files`, `read_source`).
+The answer has two sinks from one model response: streamed `delta`s for the UI, and the
+`assistant_answer` event for the store. A plain-text answer streams token-by-token; a
+`done_for_now` answer arrives on commit (its args aren't text deltas). The Ink TUI
+subscribes to the bus; a web server could forward the same stream over SSE.
 
 ## Model routing
 
-Models are role-routed. The constants live in
-[config/index.ts](../src/agent/config/index.ts):
+Role-routed via constants ([config/index.ts](../src/agent/config/index.ts)):
 
-| Constant             | Value         | Used by                                    |
-| -------------------- | ------------- | ------------------------------------------ |
-| `ORCHESTRATOR_MODEL` | `gpt-4o`      | the top-level assistant turn               |
-| `FORK_MODEL`         | `gpt-4o-mini` | delegated sub-agents (forks)               |
-| `CHEAP_MODEL`        | `gpt-4o-mini` | handoff compression + rolling summarizer   |
-| `MODEL`              | `gpt-4o-mini` | base default when nothing else applies     |
-| `TEMPERATURE`        | `0.7`         | injected into the `Agent`, sent every turn |
+| Constant | Value | Used by |
+| --- | --- | --- |
+| `ORCHESTRATOR_MODEL` | `gpt-4o` | the top-level turn |
+| `FORK_MODEL` | `gpt-4o-mini` | delegated sub-agents |
+| `CHEAP_MODEL` | `gpt-4o-mini` | handoff compression + rolling summarizer |
+| `TEMPERATURE` | `0.7` | injected into the `Agent`, sent every turn |
+| `MAX_TOOL_STEPS` / `MAX_CONSECUTIVE_ERRORS` | `8` / `3` | loop bounds, injected into `runAgentLoop` |
 
-`buildRequestParams` resolves the request model by precedence
-**`turnProfile.model ?? options.model`**:
-
-- The **orchestrator** leaves `defaultProfile.model` unset, so `options.model` wins.
-  `Session.effectiveTurnSettings` sets `options.model` to the store user-profile's
-  `model`, defaulting to `ORCHESTRATOR_MODEL` — so the `/profile` model override
-  still works, defaulting to `gpt-4o`.
-- A **fork** sets `turnProfile.model = FORK_MODEL`, which wins via precedence.
-
-`reasoningEffort` is optional on `TurnProfile`; when set, the request includes
-`reasoning: { effort }` (a no-op on non-reasoning models like gpt-4o).
-
-**Temperature is code-defined only.** It is not on `TurnOptions` (args) or the store
-user-profile (setting) — it is injected into the `Agent` from the `TEMPERATURE`
-constant at the composition root and sent on every turn. The handoff compressor,
-summarizer, and reranker keep their own hardcoded temperatures.
+`buildRequestParams` resolves the model by `profile.model ?? options.model`: the
+orchestrator leaves `profile.model` unset so the `/profile` override (or
+`ORCHESTRATOR_MODEL`) wins; a fork sets `profile.model = FORK_MODEL`. **Temperature is
+code-defined only** — not on `TurnOptions` or the user profile.
 
 ## Memories in context
 
-Persistent, per-profile notes (`/remember`; the store `memory` domain) ride in
-`TurnContext.memories`. The **runner** — not the agent — renders them into a trailing
-`developer` message via `buildContextBlock`
-([context/context.ts](../src/context/context.ts)) and appends that block to the input
-of every `agent.step` call; the agent itself is context-free and just sends the input
-it is given. Memories are **numbered** `M1…Mn` via `keyMemories` inside a
-`<user_known_memories>` block, with discretion rules (never volunteer them on
-greetings/small talk; use only when directly relevant). The block is appended **last**
-so a new memory never invalidates the cached prompt prefix above it.
-
-The numbering exists so delegation can pass a **subset**: the orchestrator references
-`M2`, and `delegate_task`/`delegate_tasks` resolve `relevantMemoryKeys` back to those
-texts via `selectMemories` — a fork sees only the memories it needs. `Session`
-fetches memories fresh per turn, so the indices are stable within a turn.
+Per-profile notes (`/remember`) ride in `TurnContext.memories`; the **reducer** — not
+the agent — numbers them `M1…Mn` (`keyMemories`) inside `<user_known_memories>` with
+discretion rules (never volunteer on small talk). The numbering lets delegation pass a
+**subset**: `delegate_task` resolves `relevantMemoryKeys` → texts via `selectMemories`,
+so a fork sees only what it needs.
 
 ## Generalized sub-agent (delegation)
 
-There is no bespoke sub-agent class. Delegation is **just tools** that recursively
-call the same loop with a different `TurnProfile` — the same engine, swapped
-instructions/tools/model. `ToolRunContext`
-([conversation/turn.ts](../src/agent/conversation/turn.ts)) hands each tool the seam
-it needs to recurse:
+No bespoke sub-agent class — delegation is **just tools** that recursively call the same
+loop with a different `TurnProfile`. The recursion seam is `ToolRunContext.runTurn`
+([conversation/turn.ts](../src/agent/conversation/turn.ts)), which stays **SDK-typed**
+(`messages` in, `items` out) so `agent/` never imports the event type and there's no
+import cycle. The runner **bridges** at that boundary via
+[convert.ts](../src/runner/thread/convert.ts) — SDK items ⇄ events — while working in
+events internally.
 
-```ts
-interface ToolRunContext {
-  openai: OpenAI;
-  context: TurnContext;
-  messages: readonly ResponseInputItem[];
-  runTurn: RunTurn; // === runAgentLoop, bound (object arg → Promise<TurnResult>)
-  forkProfiles: ForkProfiles;
-  bus: EventBus; // UI-only; runFork derives a scoped child from it
-  recordUsage: (usage) => void; // reports nested LLM usage back to the turn total
-  requestApproval?: ApprovalGate;
-  requestClarification?: ClarificationGate;
-}
-```
+`runFork` ([delegate-task.ts](../src/tools/delegation/delegate-task.ts)):
 
-Both delegation tools live in [src/tools/delegation/](../src/tools/delegation/) and
-share one core: `runFork`
-([delegate-task.ts](../src/tools/delegation/delegate-task.ts)). `runFork`:
+1. builds a self-contained brief from the parent `ctx.context.summary` + selected
+   memories + the `task`;
+2. resolves the fork profile into a `TurnProfile` (instructions, tool schemas,
+   `FORK_MODEL`, fresh cache key);
+3. runs one child turn via `ctx.runTurn({ …, bus: ctx.bus.scoped(title) })` — the scoped
+   bus tags the child's events with `fork: title`; the child transcript never mixes into
+   the parent's persisted log;
+4. reports nested `usage`, compresses the child into a structured `ForkResult`, returns.
 
-1. builds a self-contained brief from the parent conversation summary + the selected
-   memories (`relevantMemoryKeys`) + the `task`;
-2. resolves the fork profile (`ctx.forkProfiles[profile ?? "general"]`) into a
-   `TurnProfile` — its instructions, `tools.map(toOpenAITool)` schemas, and
-   `FORK_MODEL` — with a fresh per-fork cache key;
-3. runs one child turn via `ctx.runTurn({ …, bus: ctx.bus.scoped(title) })` — the
-   scoped bus tags the child's `tool`/`status` events with `fork: title` so the UI
-   can nest them, and the child turn's transcript comes back as the returned `items`
-   (never mixed into the parent's persisted transcript);
-4. reports the child + handoff `usage` via `ctx.recordUsage`, compresses the child
-   transcript into a structured `ForkResult` (below), and returns it.
-
-- **`delegate_task`** runs one `runFork` and returns `JSON.stringify(forkResult)`.
-  Params: `title`, `task`, `relevantMemoryKeys`, `profile`.
-- **`delegate_tasks`** ([delegate-tasks.ts](../src/tools/delegation/delegate-tasks.ts))
-  fans out `1..MAX_PARALLEL_TASKS` (6) independent tasks via
-  `Promise.all(tasks.map(runFork))`, and returns a JSON **array** of `ForkResult` in
-  task order. The hard cap is insurance against a single call spawning 15–20
-  concurrent forks (each is an OpenAI request + a RAG-store load). The implicit path
-  — the model emitting several single `delegate_task` calls in one round — stays
-  unbounded and also runs in parallel (step 5 of the loop).
-
-Neither delegation tool is available **to** forks, so forks can't fork.
+- **`delegate_task`** → one fork.
+- **`delegate_tasks`** → `1..MAX_PARALLEL_TASKS` (6) forks via `Promise.all`, returning a
+  `ForkResult[]`. Forks get neither delegation tool — they can't fork.
 
 ### Fork profiles
 
-A fork runs under a named profile. The name set is a single source of truth —
-the tuple `FORK_PROFILE_NAMES` ([tools/types.ts](../src/agent/tools/types.ts)) —
-from which the `ForkProfileName` type, the `ForkProfiles` map type, and the
-`delegate_task` `profile` enum (`z.enum(FORK_PROFILE_NAMES)`) all derive:
+A fork runs under a named profile; `FORK_PROFILE_NAMES`
+([tools/types.ts](../src/agent/tools/types.ts)) is the single source of truth from which
+the type, the map, and the `delegate_task` `profile` enum all derive.
 
-```ts
-export const FORK_PROFILE_NAMES = ["general", "rag_research"] as const;
-export interface ForkProfile {
-  instructions: string;
-  tools: ToolDefinition<z.ZodType>[];
-  model: string;
-}
-export type ForkProfiles = Record<ForkProfileName, ForkProfile>;
-```
-
-The concrete profiles are built in `createAgentTools` (it needs the `store` for the
-RAG tools); their instruction prompts live in
-[src/tools/prompts/](../src/tools/prompts/):
-
-| Profile        | Instructions            | Tools                                                              |
-| -------------- | ----------------------- | ------------------------------------------------------------------ |
-| `general`      | `FORK_INSTRUCTIONS`     | `web_search`, `get_weather_data`                                   |
+| Profile | Instructions | Tools |
+| --- | --- | --- |
+| `general` | `FORK_INSTRUCTIONS` | `web_search`, `get_weather_data` |
 | `rag_research` | `RAG_FORK_INSTRUCTIONS` | `search_knowledge_base`, `list_files`, `grep_files`, `read_source` |
 
-`rag_research` is for **multi-hop** retrieval — chained searches where one passage
-guides the next; one-shot lookups stay as direct `search_knowledge_base` /
-`read_source` calls from a `general` fork. `forkProfiles` is threaded
-`AgentDeps → Agent → ToolRunContext`. `Agent` **flattens every profile's tools into
-its dispatch registry** (`dedupe([...tools, ...Object.values(forkProfiles).flatMap(p => p.tools)])`)
-so it can execute any call a fork makes — miss this and a fork's tool call dispatches
-to a missing tool.
-
-**Adding a profile** is two compiler-enforced edits: add the name to
-`FORK_PROFILE_NAMES`, then add its entry to the `createAgentTools` map (TypeScript
-errors on the map until you do, because `ForkProfiles` requires every key). The
-type, enum, and empty default all update themselves.
+`Agent` flattens every profile's tools into its dispatch registry, so it can execute any
+call a fork makes. Adding a profile is two compiler-enforced edits (name + map entry).
 
 ### Structured handoff (`ForkResult`)
 
 A fork's whole transcript is compressed into a strict schema
-([delegation/fork-result.ts](../src/tools/delegation/fork-result.ts)) rather than
-prose, so exact values survive:
+([fork-result.ts](../src/tools/delegation/fork-result.ts)) rather than prose, so exact
+values survive:
 
 ```ts
-const ForkResultSchema = z.object({
-  summary: z.string(), // ≤80-word digest
-  findings: z.array(z.object({ key: z.string(), value: z.string() })),
+ForkResultSchema = z.object({
+  summary: z.string(),                                    // ≤80-word digest
+  findings: z.array(z.object({ key, value })),            // exact numbers/paths/IDs verbatim
   sources: z.array(z.string()).nullable(),
   confidence: z.enum(["high", "low"]),
   needsFollowup: z.string().nullable(),
 });
 ```
 
-`compressHandoff` ([delegation/handoff.ts](../src/tools/delegation/handoff.ts)) makes
-one `responses.parse` call (`CHEAP_MODEL`, `zodTextFormat(ForkResultSchema,
-"fork_result")`) over the **full child transcript** — `function_call` and
-`function_call_output` items included — so exact numbers/paths/IDs pulled from tool
-outputs land verbatim in `findings` instead of being rounded into narrative. A
-truncated (`status: "incomplete"`) or unparseable response falls back to a
-low-confidence result with a sanitized summary. Only this digest (as JSON) re-enters
-the parent's context, never the full sub-transcript.
+`compressHandoff` makes one `responses.parse` call (`CHEAP_MODEL`) over the full child
+transcript; a truncated/unparseable response falls back to a low-confidence result. Only
+this digest re-enters the parent's context.
+
+## Pause / resume / trigger seams
+
+Not implemented — but the design makes them a small, localized addition, and that's the
+point of putting all state in the log:
+
+- `runAgentLoop({ events }) → { events }`: the full resumable state is the event list. A
+  future pause returns early with a pending `*_request` event already appended; resume
+  re-runs over the persisted log plus the `*_response` event. No new state format.
+- `Session.runTurn(prompt)` is already "load the log → append a `user_message` → reduce →
+  persist". A future Slack/cron/webhook adapter calls the same path with a different
+  triggering event.
+- The pause point is the tool-selection→execution seam (the approval gate) — the exact
+  seam most orchestrators *can't* pause at, and which this frameworkless loop owns.
 
 ## RAG touchpoint
 
-RAG never touches the loop. It is exposed purely as store-backed tools
-([src/tools/rag.ts](../src/tools/rag.ts)); the model decides when to call them, and a
-multi-hop chain can be delegated to the `rag_research` fork. The retrieval pipeline
-itself (ingest → hybrid fetch → rerank → filter) lives in the `sources` store domain
-— see **[rag.md](./rag.md)** for the full reference.
+RAG never touches the loop — it's exposed purely as store-backed tools; the model
+decides when to call them, and multi-hop chains delegate to the `rag_research` fork. See
+**[rag.md](./rag.md)**.
+
+## Design principles
+
+The whole loop falls out of a handful of decisions I committed to up front:
+
+| Principle | Where it lives |
+| --- | --- |
+| **Own the context window** — no default role array | the reducer folds the log into one custom-format message |
+| **One log is the whole state** — no split execution/business state | the append-only `AgentEvent` log |
+| **Own the control flow** — no framework driving the loop | `runAgentLoop` is a plain caller-owned function |
+| **Compact errors into context** — failures teach the model | `error` events + derived counter + prune-resolved + escalate |
+| **The core is a stateless reducer** — `reduce → decide → append` | the `Agent` retains nothing between turns |
+| **Resumable by construction** — the log *is* the snapshot | pause/resume + trigger-anywhere as clean seams |

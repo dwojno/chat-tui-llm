@@ -1,4 +1,4 @@
-import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
+import type { AgentEvent } from "../../src/runner/thread/events";
 import { context, type Span, trace } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
@@ -44,7 +44,7 @@ const weatherTool: ToolDefinition<typeof weatherParams> = {
   summarize: ({ city }) => city,
 };
 
-const user = (content: string): ResponseInputItem => ({ role: "user", content });
+const user = (content: string): AgentEvent => ({ type: "user_message", content });
 
 const parentId = (span: unknown): string | undefined => {
   const s = span as { parentSpanContext?: { spanId: string }; parentSpanId?: string };
@@ -57,11 +57,12 @@ function drive(turns: MockTurn[], parent?: Span) {
   const run = () =>
     runAgentLoop({
       agent,
-      messages: [user("weather in paris?")],
+      events: [user("weather in paris?")],
       options: DEFAULT_TURN_OPTIONS,
       context: { memories: [] },
       bus: new EventBus(),
       maxToolSteps: 8,
+      maxConsecutiveErrors: 3,
     });
   return parent ? context.with(contextWithSpan(parent), run) : run();
 }

@@ -1,5 +1,4 @@
 export { ConversationFacade, HistoryQuery, SqliteConversationFacade } from "./conversation.facade";
-export type { ForModelOptions } from "./conversation.facade";
 export type {
   Conversation,
   ConversationItemInsert,
@@ -10,4 +9,4 @@ export type {
   TokenColumns,
 } from "./conversation.repository";
 export { ZERO_TOKENS } from "./conversation.repository";
-export { responseUsageToTokens, summaryDeveloperMessage } from "./helpers";
+export { responseUsageToTokens } from "./helpers";

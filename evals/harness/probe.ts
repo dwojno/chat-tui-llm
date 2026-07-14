@@ -1,10 +1,9 @@
 import { zodTextFormat } from "openai/helpers/zod";
-import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
+import type { ResponseInputItem, ResponseUsage } from "openai/resources/responses/responses.mjs";
 import type { ZodType } from "zod";
 import { MODEL } from "../../src/agent/config";
 import { SYSTEM_INSTRUCTIONS } from "../../src/agent/prompts";
 import { buildContextBlock } from "../../src/context/context";
-import { summaryDeveloperMessage } from "../../src/store";
 import { getFunctionCalls } from "../../src/agent/conversation/items";
 import type { OpenAITool } from "../../src/agent/conversation/turn";
 import { mainToolSchemas } from "../../src/tools";
@@ -62,7 +61,14 @@ function parseArgs(json: string): Record<string, unknown> {
  */
 export async function probePrompt(spec: ProbeSpec): Promise<ProbeResult> {
   const summary = spec.context?.summary ?? "";
-  const prefix = summary ? [summaryDeveloperMessage(summary)] : [];
+  const prefix: ResponseInputItem[] = summary
+    ? [
+        {
+          role: "developer",
+          content: `<conversation_summary>\n${summary}\n</conversation_summary>`,
+        },
+      ]
+    : [];
   const contextItems = buildContextBlock({
     memories: spec.context?.memories ?? [],
   });

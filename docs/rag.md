@@ -4,7 +4,7 @@ The knowledge base is a hand-built RAG pipeline — ingest, hybrid retrieval,
 rerank, and citable slicing — that lives **entirely inside the `sources` store
 domain** ([src/store/sources/](../src/store/sources/)). The agent core never
 learns it exists: RAG reaches the model only as four store-backed tools, exactly
-like any other tool (see [agent-loop.md](./agent-loop.md#tools-are-streams)). This
+like any other tool (see [agent-loop.md](./agent-loop.md#rag-touchpoint)). This
 is the authoritative reference for how documents are indexed, how a query is
 answered, and how the infrastructure is laid out. For the loop and delegation see
 [agent-loop.md](./agent-loop.md); for the layering see
@@ -22,8 +22,9 @@ src/store/sources/
     chunking.ts       heading-aware, line-tracked chunker
     embeddings.ts     OpenAI dense embedder (+ a BM25-lite fallback for tests)
     qdrant.ts         per-profile vector index (dense + sparse, RRF fusion)
-    blob.ts           per-profile object storage (MinIO/S3)
+    blob-store.ts     per-profile object-storage interface (s3-blob-store.ts / disk-blob-store.ts)
     reranker.ts       LLM relevance reranker (swappable)
+    paths.ts          per-profile bucket/collection/key derivation
     config.ts         env-driven knobs
     deps.ts           assembles the engine from an OpenAI client + config
 ```
@@ -34,14 +35,15 @@ retrieval work to the `RagEngine`, which is **stateless w.r.t. that table** — 
 touches only the object store and the vector index. `createRagDeps(openai,
 config)` ([deps.ts](../src/store/sources/rag/deps.ts)) wires the concrete infra
 clients (embedder, blob, index, reranker) into the engine, so the facade never
-holds an S3 or Qdrant client directly. When the infra env vars are unset the
-facade is constructed without `deps` and every RAG call throws a friendly
-"Knowledge base is not configured" message.
+holds a blob or Qdrant client directly. The CLI always wires these `deps`; a store
+built without them (e.g. tests, or an embedding with RAG disabled) throws a friendly
+"Knowledge base is not configured" message on any RAG call.
 
-**Everything is per-profile.** Each profile gets its own MinIO bucket
-(`${prefix}${profileId}`) and its own Qdrant collection (`kb_${profileId}`), so
-one profile's sources never leak into another's retrieval. Switching profiles
-switches knowledge bases.
+**Everything is per-profile.** Each profile gets its own blob namespace (a directory
+under `RAG_BLOB_DIR` by default, or a MinIO bucket `${prefix}${profileId}` when
+`RAG_BLOB_BACKEND=s3`) and its own Qdrant collection (`kb_${profileId}`), so one
+profile's sources never leak into another's retrieval. Switching profiles switches
+knowledge bases.
 
 ## Ingest (`/learn @file`)
 
@@ -57,16 +59,16 @@ the mention, then streams `session.indexSource(path)` →
    `## sheet` heading per worksheet); any other UTF-8 text or source file is
    fenced with a language hint (`.ts` → ` ```typescript `). A file that
    looks binary (a NUL byte in the first 8 KB) throws rather than indexing garbage.
-2. **Upload** the Markdown to the profile's object-storage bucket under a
-   sanitized key (`s3KeyFor(path)` → `<path>.md`). The raw text is kept so
-   `grep_files` and `read_file` can stream/slice it later without re-fetching the
+2. **Upload** the Markdown to the profile's blob store (a file on disk, or a bucket
+   on MinIO/S3) under a sanitized key (`s3KeyFor(path)` → `<path>.md`). The raw text is kept so
+   `grep_files` and `read_source` can stream/slice it later without re-fetching the
    original.
 3. **Chunk** (`chunkMarkdown`, [chunking.ts](../src/store/sources/rag/chunking.ts)).
    Split on Markdown headings, then pack each section's lines into ~`chunkTokens`
    (512) windows with ~`chunkOverlap` (64) token overlap. Every chunk carries its
    **heading breadcrumb** (`Guide > Setup > Auth`) and its **1-based line range**
    in the converted Markdown. That line range is what lets a hit cite
-   `path:startLine-endLine` and lets `read_file` slice the exact region. The
+   `path:startLine-endLine` and lets `read_source` slice the exact region. The
    chunker is deterministic and unit-tested.
 4. **Embed.** The chunk's embedding input is `headingPath + "\n\n" + content`
    (`embedText`) — the breadcrumb gives an otherwise-context-free chunk its place
@@ -145,11 +147,11 @@ the agent; each closes over the live `Store` and calls `store.sources.*` for the
 | `search_knowledge_base` | Hybrid + reranked semantic search. Returns `path:startLine-endLine (score)` + snippet per hit. `limit` defaults to 8; the model is told to raise it only when top results miss.           |
 | `list_files`            | The indexed files in the current profile.                                                                                                                                                 |
 | `grep_files`            | Regex over the raw Markdown (streamed line-by-line from object storage), returning `path:line: text`. For exact strings/identifiers/errors. Streams `status` events as matches are found. |
-| `read_file`             | Read a line range (or byte range) of an indexed file — used to expand a truncated hit into its full context.                                                                              |
+| `read_source`           | Read a line range (or byte range) of an indexed file — used to expand a truncated hit into its full context.                                                                              |
 
 The tool descriptions steer usage: focused queries over broad ones,
 `search_knowledge_base` for concepts vs `grep_files` for exact strings, and
-`read_file` to expand a promising-but-cut-off hit rather than searching again.
+`read_source` to expand a promising-but-cut-off hit rather than searching again.
 
 ## Multi-hop retrieval
 
@@ -157,7 +159,7 @@ One-shot lookups call these tools directly from the main orchestrator turn.
 **Multi-hop** retrieval — chained searches where a fact from one passage guides
 the next lookup — is delegated to the **`rag_research` fork profile**, which
 carries exactly this tool set and the `RAG_FORK_INSTRUCTIONS` prompt
-([prompts/rag-fork.ts](../src/agent/prompts/rag-fork.ts)). The fork works
+([prompts/rag-fork.ts](../src/tools/prompts/rag-fork.ts)). The fork works
 iteratively (refine query → grep → read slice → repeat), then its transcript is
 compressed into a structured `ForkResult` so exact values (numbers, paths, ids)
 survive the handoff verbatim. See
@@ -172,8 +174,10 @@ from `process.env` so tests pass an explicit env map.
 | Env var                                          | Default                         | Meaning                                             |
 | ------------------------------------------------ | ------------------------------- | --------------------------------------------------- |
 | `OPENAI_EMBEDDING_MODEL`                         | `text-embedding-3-small`        | Dense embedding model (1536-dim).                   |
-| `MINIO_ENDPOINT` / `_ACCESS_KEY` / `_SECRET_KEY` | `localhost:9000` / `minioadmin` | Object storage connection.                          |
-| `MINIO_BUCKET_PREFIX`                            | `chat-cli-`                     | Per-profile bucket = `${prefix}${profileId}`.       |
+| `RAG_BLOB_BACKEND`                               | `disk`                          | Blob store: `disk` (local FS) or `s3` (MinIO/S3).   |
+| `RAG_BLOB_DIR`                                   | `.chat-state/sources`           | Blob directory when `RAG_BLOB_BACKEND=disk`.        |
+| `MINIO_ENDPOINT` / `_ACCESS_KEY` / `_SECRET_KEY` | `localhost:9000` / `minioadmin` | Object storage connection (only when backend=`s3`). |
+| `MINIO_BUCKET_PREFIX`                            | `chat-cli-`                     | Per-profile bucket = `${prefix}${profileId}` (s3).  |
 | `QDRANT_URL`                                     | `localhost:6333`                | Vector DB connection.                               |
 | `QDRANT_SPARSE_MODEL`                            | `Qdrant/bm25`                   | Server-side sparse-vector inference model.          |
 | `RAG_CHUNK_TOKENS`                               | `512`                           | Target chunk size.                                  |
@@ -187,18 +191,21 @@ from `process.env` so tests pass an explicit env map.
 
 ## Running it
 
-The infra is two containers ([docker-compose.yml](../docker-compose.yml)):
+RAG needs only Qdrant; blobs default to local disk. `pnpm infra:start`
+([docker-compose.yml](../docker-compose.yml)) brings up Qdrant (`:6333`) alongside
+the Langfuse observability stack:
 
 ```bash
-docker compose up -d          # MinIO (:9000/:9001) + Qdrant (:6333)
+pnpm infra:start              # Qdrant (:6333) + Langfuse stack (:3000)
 # in the CLI:
 /learn @docs/architecture.md  # convert → chunk → embed → index
 /sources                      # list indexed files
 /reindex                      # re-index everything for this profile
 ```
 
-With the containers down or the env vars unset, RAG calls fail gracefully with
-the "not configured" message; the rest of the agent is unaffected.
+Set `RAG_BLOB_BACKEND=s3` to store blobs in MinIO/S3 instead of disk. With Qdrant
+unreachable the search tools error and the agent continues; a store built without RAG
+deps reports the "Knowledge base is not configured" message.
 
 ## Evals
 

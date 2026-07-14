@@ -3,7 +3,7 @@ import type { ResponseInputItem } from "openai/resources/responses/responses.mjs
 import { z } from "zod";
 import { CHEAP_MODEL } from "../../agent/config";
 import { endSpan, recordLlmSpan, setSpanIO, startSpan, withSpan } from "../../telemetry";
-import { extractConversationSummary, keyMemories } from "../../context/context";
+import { keyMemories } from "../../context/context";
 import { compressHandoff } from "./handoff";
 import type { ForkResult } from "./fork-result";
 import { DEFAULT_TURN_OPTIONS } from "../../agent/conversation/options";
@@ -79,7 +79,7 @@ export async function runFork(
   ctx: ToolRunContext,
   { title, task, relevantMemoryKeys, profile }: RunForkArgs,
 ): Promise<ForkResult> {
-  const summary = extractConversationSummary(ctx.messages);
+  const summary = ctx.context.summary ?? "";
   const memories = selectMemories(ctx.context.memories, relevantMemoryKeys);
   const brief = buildForkBrief(summary, memories, task);
   const userMessage = {

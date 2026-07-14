@@ -14,7 +14,7 @@ and its namespaces, never on SQLite directly:
 
 ```ts
 const store = await LocalStore.open(DB_PATH);
-const session = await Session.create(agent, openai, store, KEEP_LAST_TURNS);
+const session = await Session.create(agent, openai, store, KEEP_LAST_TURNS, bus);
 
 await store.conversation.createItems(store.conversationId, items);
 await store.memory.create(store.profileId, "likes tea");
@@ -83,7 +83,7 @@ when those features land.
 | Stored (source of truth)                | Derived (SQL / pure fn at read time)            |
 | --------------------------------------- | ----------------------------------------------- |
 | Per-item token columns on anchor rows   | `SUM(input_tokens)`, `SUM(output_tokens)`, etc. |
-| `kind = 'message'` + `role = user` rows | turn count                                      |
+| `kind = 'user_message'` rows            | turn count                                      |
 | All item payloads                       | naive baseline estimate                         |
 
 ## On-disk layout
@@ -92,6 +92,7 @@ when those features land.
 | ------------------------- | ------------------------------------------------------------- |
 | `.chat-state/chat.db`     | SQLite database (WAL mode) — all persisted state              |
 | `.chat-state/active.json` | JSON pointer to the active profile (`{ "profileId": "..." }`) |
+| `.chat-state/sources/`    | Converted-Markdown RAG blobs (when `RAG_BLOB_BACKEND=disk`, the default) |
 
 The whole `.chat-state/` directory is gitignored.
 
@@ -101,13 +102,15 @@ The whole `.chat-state/` directory is gitignored.
 | ---------------- | --------------------------------------------- | ------------------------ |
 | **Transcript**   | `queryHistory()`                              | UI replay + model window |
 | **Usage totals** | `SUM(...)` over token columns                 | status bar, `/report`    |
-| **Memories**     | `memory` table, profile-scoped, `ORDER BY id` | `buildContextBlock()`    |
+| **Memories**     | `memory` table, profile-scoped, `ORDER BY id` | the reducer's `buildMessage()` |
 
-`queryHistory()` is the fluent transcript read API. Summary rows are never
-returned as UI history items; `forModel()` reads the latest summary text from the
-store and injects it once as a prepended `developer` message, replacing evicted
-turns excluded by `afterLastSummary()`. Window size is enforced by summarization
-(`maintainWindow`), not by capping the read.
+`queryHistory()` is the fluent transcript read API, returning `AgentEvent[]`. Summary
+rows are never returned; `forModel()` just excludes evicted rows via
+`afterLastSummary()`. The rolling summary text is read separately
+(`readLatestSummaryText()`) and rides in `TurnContext.summary` — the reducer folds it
+into the packed prompt, so the store no longer injects a synthetic `developer`
+message. Window size is enforced by summarization (`maintainWindow`), not by capping
+the read.
 
 ```mermaid
 flowchart LR
@@ -250,21 +253,24 @@ Renamed from `fact` in migration `0003_rename_fact_to_memory`.
 | `id`                  | `INTEGER PK AUTOINCREMENT`           | Order by `id ASC`                                             |
 | `conversation_id`     | `TEXT NOT NULL FK → conversation.id` |                                                               |
 | `turn_index`          | `INTEGER`                            | `NULL` for `kind = 'summary'`                                 |
-| `kind`                | `TEXT NOT NULL`                      | `message \| function_call \| function_call_output \| summary` |
-| `payload`             | `TEXT NOT NULL`                      | JSON — shape depends on `kind`                                |
+| `kind`                | `TEXT NOT NULL`                      | an `AgentEvent` type, or `summary` (free text — no migration to add a kind) |
+| `payload`             | `TEXT NOT NULL`                      | JSON — the `AgentEvent` (or `{ content }` for a summary)      |
 | `input_tokens`        | `INTEGER NOT NULL DEFAULT 0`         |                                                               |
 | `cached_input_tokens` | `INTEGER NOT NULL DEFAULT 0`         |                                                               |
 | `output_tokens`       | `INTEGER NOT NULL DEFAULT 0`         |                                                               |
 | `summarizer_tokens`   | `INTEGER NOT NULL DEFAULT 0`         | Non-zero on `kind = 'summary'` rows                           |
 | `created_at`          | `INTEGER NOT NULL`                   |                                                               |
 
-Payload shapes per `kind`:
+Payload shapes per `kind` — the `kind` column is the `AgentEvent`'s `type`, and the
+payload is the event verbatim (see [agent-loop.md](./agent-loop.md)):
 
 | `kind`                 | `payload`                                                |
 | ---------------------- | -------------------------------------------------------- |
-| `message`              | `{ role, content }` — an OpenAI `ResponseInputItem`      |
-| `function_call`        | `{ type, call_id, name, arguments }`                     |
-| `function_call_output` | `{ type, call_id, output }`                              |
+| `user_message` / `human_response` / `assistant_answer` | `{ type, content, sources? }` |
+| `tool_call`            | `{ type, id, name, args }`                               |
+| `tool_result`          | `{ type, id, name, output }`                             |
+| `error`                | `{ type, id, name, message }` — a compacted failure      |
+| `approval_request` / `approval_response` | `{ type, id, … }`                      |
 | `summary`              | `{ content: string }` — rolling digest at time of insert |
 
 Indexes:
@@ -313,19 +319,19 @@ FROM conversation_item WHERE conversation_id = ?;
 ## Runtime assembly
 
 ```ts
-const messages = await store.conversation.queryHistory(store.conversationId).forModel().execute();
+const events = await store.conversation.queryHistory(store.conversationId).forModel().execute();
+const summary = await store.conversation.readLatestSummaryText(store.conversationId);
 const memories = (await store.memory.query().forProfile(store.profileId).execute()).map(
   (row) => row.text,
 );
 
-const apiInput = [
-  ...messages, // full unsummarized tail; summary prepended once when present
-  ...buildContextBlock({ memories }), // memories-only tail for prompt cache
-];
+// The runner's reducer folds all three into ONE packed <user> message.
+const apiInput = buildMessage({ events, summary, memories });
 ```
 
-`forModel()` excludes evicted transcript rows (`afterLastSummary`) and injects
-the latest summary row's text once — it is not duplicated in `buildContextBlock`.
+`forModel()` returns the `AgentEvent[]` after the last summary boundary
+(`afterLastSummary`); the summary text is read separately and folded in by the
+reducer, ordered summary → events → memories so the cached prefix stays stable.
 
 ## Migrations
 

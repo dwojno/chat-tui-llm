@@ -4,6 +4,7 @@ import type { OpenAITool } from "../agent/conversation/turn";
 import { FORK_MODEL } from "../agent/config";
 import type { Store } from "../store";
 import { askUserTool } from "./ask-user";
+import { controlIntentTools } from "./control-intents";
 import { delegateTaskTool } from "./delegation/delegate-task";
 import { delegateTasksTool } from "./delegation/delegate-tasks";
 import { FORK_INSTRUCTIONS } from "./prompts/fork";
@@ -25,6 +26,15 @@ export { askUserTool } from "./ask-user";
 export { readFileTool } from "./read-file";
 export { writeFileTool } from "./write-file";
 export { editFileTool } from "./edit-file";
+export {
+  controlIntentTools,
+  doneForNowTool,
+  requestMoreInformationTool,
+  CONTROL_INTENT_NAMES,
+  isControlIntent,
+  DONE_FOR_NOW_NAME,
+  REQUEST_MORE_INFORMATION_NAME,
+} from "./control-intents";
 
 export interface AgentTools {
   tools: ToolDefinition<z.ZodType>[];
@@ -43,6 +53,7 @@ const mainTools: ToolDefinition<z.ZodType>[] = [
   readFileTool,
   writeFileTool,
   editFileTool,
+  ...controlIntentTools,
 ];
 
 export function createAgentTools(store: Store): AgentTools {

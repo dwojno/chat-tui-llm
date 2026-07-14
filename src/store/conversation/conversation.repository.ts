@@ -1,20 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, exists, gt, inArray, ne, not, sql, type SQL } from "drizzle-orm";
-import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
+import type { AgentEvent, AgentEventType } from "../../runner/thread/events";
 import type { SqliteDb } from "../../db/db";
 import { conversation, conversationItem } from "../../db/schema";
 import {
   conversationLastActivity,
   conversationShape,
   rowToStored,
-  summaryDeveloperMessage,
   transcriptItems,
   usageFromItems,
-  windowFromTranscript,
 } from "./helpers";
 import { asArray, type OneOrMany } from "../helpers";
 
-export type ItemKind = "message" | "function_call" | "function_call_output" | "summary";
+export type ItemKind = AgentEventType | "summary";
 
 export type TokenColumns = {
   inputTokens: number;
@@ -33,7 +31,7 @@ export const ZERO_TOKENS: TokenColumns = {
 export type ConversationItemInsert = {
   kind: ItemKind;
   turnIndex: number | null;
-  payload: ResponseInputItem | { content: string };
+  payload: AgentEvent | { content: string };
   tokens?: Partial<TokenColumns> | undefined;
 };
 
@@ -120,8 +118,7 @@ export class ConversationQuery {
         .where(
           and(
             eq(conversationItem.conversationId, conversation.id),
-            eq(conversationItem.kind, "message"),
-            sql`json_extract(${conversationItem.payload}, '$.role') = 'assistant'`,
+            eq(conversationItem.kind, "assistant_answer"),
           ),
         ),
     );
@@ -184,8 +181,6 @@ export class ConversationItemQuery {
 export type HistoryQueryConfig = {
   conversationId?: string;
   afterLastSummary: boolean;
-  lastTurns?: number;
-  forModel: boolean;
 };
 
 export class ConversationRepository {
@@ -271,11 +266,7 @@ export class ConversationRepository {
     return this.items()
       .forConversation(conversationId)
       .execute()
-      .then((rows) => {
-        const stored = rows.map((row) => rowToStored(row));
-        const history = transcriptItems(stored.filter((row) => row.kind !== "summary"));
-        return usageFromItems(stored, history);
-      });
+      .then((rows) => usageFromItems(rows.map((row) => rowToStored(row))));
   }
 
   async readLatestSummaryText(conversationId: string): Promise<string> {
@@ -289,38 +280,14 @@ export class ConversationRepository {
     return payload.content ?? "";
   }
 
-  async runHistoryQuery(
-    conversationId: string,
-    config: HistoryQueryConfig,
-  ): Promise<ResponseInputItem[]> {
+  async runHistoryQuery(conversationId: string, config: HistoryQueryConfig): Promise<AgentEvent[]> {
     const targetId = config.conversationId ?? conversationId;
     const boundary = config.afterLastSummary ? await this.summaryBoundaryId(targetId) : null;
 
-    let query = this.items().forConversation(targetId);
-    if (config.afterLastSummary) query = query.withoutSummaries();
+    let query = this.items().forConversation(targetId).withoutSummaries();
     if (boundary != null) query = query.afterItemId(boundary);
 
     const rows = await query.execute();
-    const stored = rows.map((row) => rowToStored(row));
-    const tailItems = transcriptItems(stored);
-    const windowed =
-      config.lastTurns === undefined
-        ? tailItems
-        : windowFromTranscript(tailItems, config.lastTurns);
-
-    if (!config.forModel) return windowed;
-
-    const summaryRow = await this.items()
-      .forConversation(targetId)
-      .ofKind("summary")
-      .orderByIdDesc()
-      .executeAndTakeFirst();
-    if (!summaryRow) return windowed;
-
-    const payload = JSON.parse(summaryRow.payload) as { content: string };
-    const summaryText = payload.content ?? "";
-    if (!summaryText) return windowed;
-
-    return [summaryDeveloperMessage(summaryText), ...windowed];
+    return transcriptItems(rows.map((row) => rowToStored(row)));
   }
 }

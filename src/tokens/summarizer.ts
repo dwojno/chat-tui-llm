@@ -1,7 +1,8 @@
 import type { OpenAI } from "openai";
-import type { ResponseInputItem, ResponseUsage } from "openai/resources/responses/responses.mjs";
+import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
 import { CHEAP_MODEL } from "../agent/config";
-import { renderItemsText } from "../agent/conversation/items";
+import type { AgentEvent } from "../runner/thread/events";
+import { threadToPrompt } from "../runner/thread/reducer";
 
 const SUMMARIZER_INSTRUCTIONS =
   "You compress conversation history for another assistant. Merge the prior " +
@@ -18,9 +19,9 @@ export interface SummaryResult {
 export async function summarize(
   openai: OpenAI,
   priorSummary: string,
-  evicted: ResponseInputItem[],
+  evicted: readonly AgentEvent[],
 ): Promise<SummaryResult> {
-  const transcript = renderItemsText(evicted);
+  const transcript = threadToPrompt(evicted);
   const input = [
     priorSummary ? `Prior summary:\n${priorSummary}` : "",
     `New turns to fold in:\n${transcript}`,

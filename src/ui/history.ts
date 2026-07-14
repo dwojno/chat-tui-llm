@@ -1,47 +1,42 @@
-import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
+import type { AgentEvent } from "../runner/thread/events";
 import { toolStepLabel } from "./labels";
 import type { Message, Step } from "./types";
-
-function textOf(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((part) =>
-      typeof part === "string"
-        ? part
-        : part && typeof part === "object" && "text" in part
-          ? String((part as { text: unknown }).text)
-          : "",
-    )
-    .join("");
-}
 
 /**
  * Replay a persisted transcript as chat bubbles. Mirrors the live REPL: one
  * bubble per user/assistant message, with a turn's tool calls folded into the
  * steps of the assistant message that follows them.
  */
-export function messagesFromTranscript(items: readonly ResponseInputItem[]): Message[] {
+export function messagesFromTranscript(events: readonly AgentEvent[]): Message[] {
   const messages: Message[] = [];
   let pendingSteps: Step[] = [];
 
-  for (const item of items) {
-    if ("role" in item) {
-      if (item.role === "user") {
-        messages.push({ role: "user", content: textOf(item.content) });
-      } else if (item.role === "assistant") {
-        messages.push({
-          role: "assistant",
-          content: textOf(item.content),
-          steps: pendingSteps.length ? pendingSteps : undefined,
-        });
-        pendingSteps = [];
-      }
-      continue;
-    }
+  const flushAssistant = (content: string): void => {
+    messages.push({
+      role: "assistant",
+      content,
+      ...(pendingSteps.length ? { steps: pendingSteps } : {}),
+    });
+    pendingSteps = [];
+  };
 
-    if (item.type === "function_call") {
-      pendingSteps.push({ label: toolStepLabel(item.name) });
+  for (const event of events) {
+    switch (event.type) {
+      case "user_message":
+      case "human_response":
+        messages.push({ role: "user", content: event.content });
+        break;
+      case "assistant_answer":
+        flushAssistant(event.content);
+        break;
+      case "clarification_request":
+        flushAssistant(event.question);
+        break;
+      case "tool_call":
+        pendingSteps.push({ label: toolStepLabel(event.name) });
+        break;
+      default:
+        break;
     }
   }
 

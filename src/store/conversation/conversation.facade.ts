@@ -1,4 +1,4 @@
-import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
+import type { AgentEvent } from "../../runner/thread/events";
 import type { UsageTotals } from "../../integration/usage";
 import type { StoreContext } from "../context";
 import { asArray, type OneOrMany } from "../helpers";
@@ -10,12 +10,9 @@ import {
   type HistoryQueryConfig,
 } from "./conversation.repository";
 
-export type ForModelOptions = { lastTurns?: number };
-
 export class HistoryQuery {
   private readonly config: HistoryQueryConfig = {
     afterLastSummary: false,
-    forModel: false,
   };
 
   constructor(
@@ -37,21 +34,13 @@ export class HistoryQuery {
     return this;
   }
 
-  lastTurns(n: number): this {
-    this.config.lastTurns = n;
-    return this;
-  }
-
-  forModel(options?: ForModelOptions): this {
-    this.config.forModel = true;
+  /** Events since the last summary boundary — what the reducer renders for the model. */
+  forModel(): this {
     this.config.afterLastSummary = true;
-    if (options?.lastTurns !== undefined) {
-      this.config.lastTurns = options.lastTurns;
-    }
     return this;
   }
 
-  execute(): Promise<ResponseInputItem[]> {
+  execute(): Promise<AgentEvent[]> {
     return this.repo.runHistoryQuery(this.conversationId, this.config);
   }
 }

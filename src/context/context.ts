@@ -4,23 +4,6 @@ export interface ContextInput {
   memories: readonly string[];
 }
 
-const SUMMARY_OPEN = "<conversation_summary>";
-const SUMMARY_CLOSE = "</conversation_summary>";
-
-export function extractConversationSummary(messages: readonly ResponseInputItem[]): string {
-  for (const item of messages) {
-    if (!("role" in item) || item.role !== "developer") continue;
-    const content = "content" in item ? item.content : undefined;
-    if (typeof content !== "string") continue;
-    const open = content.indexOf(SUMMARY_OPEN);
-    if (open === -1) continue;
-    const close = content.indexOf(SUMMARY_CLOSE, open);
-    if (close === -1) continue;
-    return content.slice(open + SUMMARY_OPEN.length, close).trim();
-  }
-  return "";
-}
-
 export function keyMemories(memories: readonly string[]): { key: string; text: string }[] {
   return memories.map((text, index) => ({ key: `M${index + 1}`, text }));
 }

@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest";
 import assert from "node:assert";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
-import {
-  countUserTurns,
-  getFunctionCalls,
-  hasFunctionCalls,
-  renderItemsText,
-  splitAtLastTurns,
-  toReplayInputItems,
-} from "../../src/agent/conversation/items";
+import { getFunctionCalls, renderItemsText } from "../../src/agent/conversation/items";
 import { assistantMessage, functionCall } from "../helpers/mock-openai";
 
 const user = (content: string): ResponseInputItem => ({
@@ -21,14 +14,13 @@ const toolOutput = (output: string): ResponseInputItem => ({
   output,
 });
 
-describe("function-call helpers", () => {
-  it("detects and extracts function calls in output", () => {
+describe("getFunctionCalls", () => {
+  it("extracts function calls from output", () => {
     const output = [
       functionCall("get_weather_data", { city: "Paris" }),
       assistantMessage("hi"),
     ] as never;
 
-    expect(hasFunctionCalls(output)).toBe(true);
     const calls = getFunctionCalls(output);
     expect(calls).toHaveLength(1);
     const call = calls[0];
@@ -36,56 +28,8 @@ describe("function-call helpers", () => {
     expect(call.name).toBe("get_weather_data");
   });
 
-  it("reports no function calls for a plain message", () => {
-    expect(hasFunctionCalls([assistantMessage("hi")] as never)).toBe(false);
+  it("returns nothing for a plain message", () => {
     expect(getFunctionCalls([assistantMessage("hi")] as never)).toEqual([]);
-  });
-});
-
-describe("toReplayInputItems", () => {
-  it("rebuilds a function_call as a clean replayable item (drops parsed_arguments)", () => {
-    const call = {
-      ...functionCall("get_weather_data", { city: "Paris" }, "call_9"),
-      parsed_arguments: { city: "Paris" },
-    };
-    const [item] = toReplayInputItems([call] as never);
-    expect(item).toEqual({
-      type: "function_call",
-      call_id: "call_9",
-      name: "get_weather_data",
-      arguments: JSON.stringify({ city: "Paris" }),
-    });
-    expect(item).not.toHaveProperty("parsed_arguments");
-  });
-});
-
-describe("countUserTurns", () => {
-  it("counts only user messages", () => {
-    const items = [
-      user("a"),
-      toolOutput("r"),
-      user("b"),
-      { role: "assistant", content: "x" } as ResponseInputItem,
-    ];
-    expect(countUserTurns(items)).toBe(2);
-  });
-});
-
-describe("splitAtLastTurns", () => {
-  it("keeps everything when there are not more than keepTurns user turns", () => {
-    const items = [user("a"), user("b")];
-    expect(splitAtLastTurns(items, 4)).toEqual({ evicted: [], kept: items });
-  });
-
-  it("cuts at a user boundary, keeping the last N turns", () => {
-    const a = user("a");
-    const aOut = toolOutput("a-result");
-    const b = user("b");
-    const c = user("c");
-    const { evicted, kept } = splitAtLastTurns([a, aOut, b, c], 2);
-    // Keep last 2 user turns (b, c); evict the first turn (a + its tool output).
-    expect(evicted).toEqual([a, aOut]);
-    expect(kept).toEqual([b, c]);
   });
 });
 

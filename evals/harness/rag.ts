@@ -7,9 +7,10 @@ import { EVAL_MAX_RETRIES } from "./client";
 import { Agent } from "../../src/agent/agent";
 import { EventBus } from "../../src/agent/events/bus";
 import { SYSTEM_INSTRUCTIONS } from "../../src/agent/prompts";
-import { MODEL, MAX_TOOL_STEPS } from "../../src/agent/config";
+import { MODEL, MAX_TOOL_STEPS, MAX_CONSECUTIVE_ERRORS } from "../../src/agent/config";
 import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "../../src/agent/conversation/options";
 import { runAgentLoop } from "../../src/runner/runner";
+import { eventsToInputItems } from "../../src/runner/thread/convert";
 import { createAgentTools } from "../../src/tools";
 import { createRagTools } from "../../src/tools/rag";
 import {
@@ -211,15 +212,17 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
     const toolCalls: { name: string; arguments: string }[] = [];
     let hitCount = 0;
 
-    const { answer, items } = await runAgentLoop({
+    const { answer, events } = await runAgentLoop({
       agent,
-      messages: [{ role: "user", content: query }],
+      events: [{ type: "user_message", content: query }],
       options,
       context: { memories: [] },
       bus: new EventBus(),
       maxToolSteps: MAX_TOOL_STEPS,
+      maxConsecutiveErrors: MAX_CONSECUTIVE_ERRORS,
     });
 
+    const items = eventsToInputItems(events);
     for (const item of items) {
       if (item.type === "function_call") {
         callNames.set(item.call_id, item.name);

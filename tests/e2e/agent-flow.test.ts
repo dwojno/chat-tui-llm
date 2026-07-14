@@ -72,11 +72,11 @@ async function setup(client: OpenAI): Promise<Harness> {
     ctx,
     run: (line) => processLine(line, ctx, chat, session, bus),
     lastAssistant: () => [...chat.messages].toReversed().find((m) => m.role === "assistant"),
-    // The transcript's function_call_output entries carry tool results/errors.
+    // tool_result / error events carry the tool outputs and (compacted) failures.
     toolOutputs: async () =>
-      ((await session.history()) as unknown as Array<{ type: string; output: string }>)
-        .filter((i) => i.type === "function_call_output")
-        .map((i) => i.output),
+      (await session.history()).flatMap((e) =>
+        e.type === "tool_result" ? [e.output] : e.type === "error" ? [`Error: ${e.message}`] : [],
+      ),
   };
 }
 
@@ -147,7 +147,7 @@ describe("E2E: happy paths", () => {
     const transcript = await h.session.history();
     // The @ref is resolved to a real path (no @, no inlined body, no instruction).
     expect(transcript[0]).toMatchObject({
-      role: "user",
+      type: "user_message",
       content: expect.stringContaining(fixture),
     });
     expect(transcript[0]).not.toMatchObject({

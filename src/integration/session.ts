@@ -1,5 +1,5 @@
 import type { OpenAI } from "openai";
-import type { ResponseInputItem, ResponseUsage } from "openai/resources/responses/responses.mjs";
+import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
 import type { Agent, TurnContext } from "../agent";
 import type { EventBus } from "../agent/events/bus";
 import type { ApprovalDecision, ApprovalGate, ApprovalRequest } from "../agent/humanLayer/approval";
@@ -9,7 +9,8 @@ import type {
   ClarificationResponse,
 } from "../agent/humanLayer/clarification";
 import type { TurnOptions } from "../agent/conversation";
-import { countUserTurns, splitAtLastTurns } from "../agent/conversation";
+import type { AgentEvent } from "../runner/thread/events";
+import { countUserTurns, splitAtLastTurns } from "../runner/thread/window";
 import type { Span } from "@opentelemetry/api";
 import { summarize } from "../tokens";
 import {
@@ -28,15 +29,18 @@ import {
   type Store,
   responseUsageToTokens,
 } from "../store";
-import { CHEAP_MODEL, MAX_TOOL_STEPS, ORCHESTRATOR_MODEL } from "../agent/config";
+import {
+  CHEAP_MODEL,
+  MAX_CONSECUTIVE_ERRORS,
+  MAX_TOOL_STEPS,
+  ORCHESTRATOR_MODEL,
+} from "../agent/config";
 import { createSerialQueue } from "../utils/serial-queue";
 import { runAgentLoop } from "../runner/runner";
 import { formatReport, usageSnapshot, type UsageSnapshot } from "./usage";
 
-function itemKind(item: ResponseInputItem): ItemKind {
-  if ("role" in item) return "message";
-  if (item.type === "function_call") return "function_call";
-  return "function_call_output";
+function eventKind(event: AgentEvent): ItemKind {
+  return event.type;
 }
 
 function titleFromFirstPrompt(prompt: string): string {
@@ -148,7 +152,7 @@ export class Session {
   }
 
   /** Full persisted transcript (all turns, not just the in-context window) for UI replay. */
-  history(): Promise<ResponseInputItem[]> {
+  history(): Promise<AgentEvent[]> {
     return this.store.conversation.queryHistory(this.store.conversationId).execute();
   }
 
@@ -175,10 +179,7 @@ export class Session {
     const tail = await conversation.queryHistory(conversationId).afterLastSummary().execute();
     this.currentTurnIndex = countUserTurns(tail);
 
-    const userMessage = {
-      role: "user",
-      content: prompt,
-    } satisfies ResponseInputItem;
+    const userMessage: AgentEvent = { type: "user_message", content: prompt };
 
     let title: string | undefined;
     if (this.currentTurnIndex === 0) {
@@ -189,17 +190,19 @@ export class Session {
     await conversation.appendUserMessage(
       conversationId,
       {
-        kind: "message",
+        kind: "user_message",
         turnIndex: this.currentTurnIndex,
         payload: userMessage,
       },
       title,
     );
 
-    const messages = await conversation.queryHistory(conversationId).forModel().execute();
+    const events = await conversation.queryHistory(conversationId).forModel().execute();
+    const summary = await conversation.readLatestSummaryText(conversationId);
     const turnSettings = await this.effectiveTurnSettings();
     const context: TurnContext = {
       memories: await this.memories(),
+      ...(summary ? { summary } : {}),
       ...(this.handler ? { requestApproval: this.approvalGate } : {}),
       ...(this.clarificationHandler ? { requestClarification: this.clarificationGate } : {}),
     };
@@ -218,14 +221,14 @@ export class Session {
         },
         input: prompt,
       },
-      (turnSpan) => this.driveTurn(turnSpan, messages, turnOptions, context, turnSettings.model),
+      (turnSpan) => this.driveTurn(turnSpan, events, turnOptions, context, turnSettings.model),
     );
   }
 
   /** Run one turn through the loop, persist the produced transcript, and return the answer. */
   private async driveTurn(
     turnSpan: Span,
-    messages: readonly ResponseInputItem[],
+    events: readonly AgentEvent[],
     turnOptions: TurnOptions,
     context: TurnContext,
     model: string,
@@ -240,15 +243,20 @@ export class Session {
     });
 
     try {
-      const { answer, items, usage } = await runAgentLoop({
+      const {
+        answer,
+        events: produced,
+        usage,
+      } = await runAgentLoop({
         agent: this.agent,
-        messages,
+        events,
         options: turnOptions,
         context,
         bus: this.bus,
         maxToolSteps: MAX_TOOL_STEPS,
+        maxConsecutiveErrors: MAX_CONSECUTIVE_ERRORS,
       });
-      await this.persistTurn(items, usage);
+      await this.persistTurn(produced, usage);
       setSpanIO(turnSpan, { output: answer });
       await this.maintainWindow(turnSpan);
       return answer;
@@ -257,17 +265,14 @@ export class Session {
     }
   }
 
-  private async persistTurn(
-    items: ResponseInputItem[],
-    usage: ResponseUsage | undefined,
-  ): Promise<void> {
-    if (!items.length) return;
+  private async persistTurn(events: AgentEvent[], usage: ResponseUsage | undefined): Promise<void> {
+    if (!events.length) return;
     const tokens = responseUsageToTokens(usage ?? {});
-    const inserts: ConversationItemInsert[] = items.map((item, index) => ({
-      kind: itemKind(item),
+    const inserts: ConversationItemInsert[] = events.map((event, index) => ({
+      kind: eventKind(event),
       turnIndex: this.currentTurnIndex,
-      payload: item,
-      tokens: index === items.length - 1 ? tokens : undefined,
+      payload: event,
+      tokens: index === events.length - 1 ? tokens : undefined,
     }));
     await this.store.conversation.createItems(this.store.conversationId, inserts);
   }

@@ -5,14 +5,13 @@ export type {
   Conversation,
   ConversationFacade,
   ConversationItemInsert,
-  ForModelOptions,
   HistoryQuery,
   HistoryQueryConfig,
   ItemKind,
   StoredItemRow,
   TokenColumns,
 } from "./conversation";
-export { ZERO_TOKENS, responseUsageToTokens, summaryDeveloperMessage } from "./conversation";
+export { ZERO_TOKENS, responseUsageToTokens } from "./conversation";
 export type { Memory, MemoryFacade } from "./memory";
 export type {
   GrepMatch,

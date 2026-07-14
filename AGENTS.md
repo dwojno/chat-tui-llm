@@ -32,7 +32,7 @@ pnpm db:studio      # open drizzle-kit studio against the SQLite db
 ```
 
 ```bash
-pnpm test tests/agent/service.test.ts   # a single file
+pnpm test tests/runner/runner.test.ts   # a single file
 pnpm test -t "delegation"               # filter by test-name pattern
 pnpm test:watch                         # watch mode
 ```
@@ -52,9 +52,9 @@ src/
     conversation/  # TurnOptions, TurnContext/TurnProfile/ToolRunContext, item helpers
     tools/         # tool CONTRACT only: ToolDefinition + registry helpers (impls in src/tools/)
     prompts/       # orchestrator system prompt (fork prompts live in src/tools/prompts/)
-    config/        # model / temperature / cache-key / MAX_TOOL_STEPS constants
-  runner/        # runAgentLoop — the caller-owned model→tool→result loop (Factor 08)
-  tools/         # tool IMPLEMENTATIONS: weather, web-search, disk, rag, ask-user,
+    config/        # model / temperature / cache-key / MAX_TOOL_STEPS / MAX_CONSECUTIVE_ERRORS
+  runner/        # runAgentLoop (runner.ts) + thread/ — reducer, AgentEvent log, windowing, SDK⇄event convert
+  tools/         # tool IMPLEMENTATIONS: weather, web-search, disk, rag, ask-user, control-intents,
                  #   delegation/ (delegate_task[s] + handoff + fork-result), prompts/, format.ts
   commands/      # user-intent handlers (/learn, /conversation, /structured, …)
   telemetry/     # OTel spans + pricing + OTLP setup (leaf infra; used by agent, integration, store)
@@ -65,7 +65,7 @@ src/
   ui/            # Ink TUI — driven by an EventBus subscription
   store/         # Store facade → domain facades (profile/conversation/memory/sources)
   db/            # SQLite connection, schema, migrations
-docs/            # architecture.md, database.md — the "why"
+docs/            # architecture, agent-loop, database, rag, evals, observability — the "why"
 tests/           # mirrors src/; e2e/ drives the real REPL. Model mocked (offline)
 evals/           # behavioural prompt tests against the live model (evalite)
 ```
@@ -73,20 +73,26 @@ evals/           # behavioural prompt tests against the live model (evalite)
 **Data flow:** input → `processLine` ([input/repl.ts](src/input/repl.ts), which
 subscribes to the injected `EventBus`) → `Session.runTurn`
 ([integration/session.ts](src/integration/session.ts)) → `runAgentLoop`
-([runner/runner.ts](src/runner/runner.ts)). The runner owns the loop: it calls the
-pure primitives `Agent.step()` (one model call) and `Agent.executeTool()` (dispatch
-one tool, fanned out with `Promise.all`), runs the approval gate at the
-tool-selection→invocation seam, caps at `MAX_TOOL_STEPS` (8), and **returns**
-`{ answer, items, usage }`. The **`EventBus` is UI-only and never persisted** — it
-carries `delta`/`tool`/`status`/`approval_*` for observability; anything durable
-(transcript `items`, token `usage`) rides in the return value. `step()` streams
+([runner/runner.ts](src/runner/runner.ts)). The runner owns the loop: it folds the
+owned `AgentEvent[]` log into one packed `<user>` message via the reducer
+([runner/thread/](src/runner/thread/)), calls the pure primitives `Agent.step()`
+(one model call) and `Agent.executeTool()` (dispatch one tool, fanned out with
+`Promise.all`) — interpreting the reserved control intents `done_for_now` /
+`request_more_information` by name — runs the approval gate at the
+tool-selection→invocation seam, caps at `MAX_TOOL_STEPS` (8) and
+`MAX_CONSECUTIVE_ERRORS` (3), and **returns** `{ answer, events, usage }`. The
+**`EventBus` is UI-only and never persisted** — it carries
+`delta`/`tool`/`status`/`approval_*` for observability; anything durable (the
+transcript event log, token `usage`) rides in the return value. `step()` streams
 `delta` to the bus _while_ the model streams, so time-to-first-token is immediate.
-`Session` owns all state, persists the returned items/usage via the `Store`, and the
+`Session` owns all state, persists the returned events/usage via the `Store`, and the
 agent **retains nothing**. Last `KEEP_LAST_TURNS` (4) turns stay verbatim; older ones
-fold into a summary appended LAST to preserve the cached prompt prefix. The agent is
-context-free: the runner assembles the `<user_known_memories>` block
-([context/context.ts](src/context/context.ts)) and appends it to each request's input
-— `step()` just takes the input.
+fold into a rolling summary — the reducer orders the packed prompt summary → events →
+memories, so a `/remember` changes only the tail and never invalidates the cached
+prefix above it. The agent is context-free: the reducer folds the event log, summary,
+and the `<user_known_memories>` block (numbered via `keyMemories`,
+[context/context.ts](src/context/context.ts)) into that one message — `step()` just
+takes the input.
 
 **Models are role-routed** (config constants): the orchestrator turn runs
 `ORCHESTRATOR_MODEL` (`gpt-4o`, overridable per user-profile via the `model`
@@ -228,7 +234,7 @@ with descriptive names**, guard clauses over nested branches. Prefer
 `map`/`filter`/`flatMap` over manual index loops and mutation. Keep stateful
 adapters in classes with dependencies injected as `private readonly` constructor
 params, and keep the logic they call in pure, exported functions
-([src/store/conversation/internal/derive.ts](src/store/conversation/internal/derive.ts) is the model).
+([src/store/conversation/helpers.ts](src/store/conversation/helpers.ts) is the model).
 
 **Naming carries the meaning, not comments.** Name variables, function arguments,
 and helpers so the code reads without annotation. Needing a comment is a signal the

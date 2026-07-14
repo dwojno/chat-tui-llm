@@ -1,6 +1,6 @@
 import { evalite } from "evalite";
-import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { summarize } from "../../src/tokens/summarizer";
+import type { AgentEvent } from "../../src/runner/thread/events";
 import {
   judged,
   mentionsRequired,
@@ -10,17 +10,11 @@ import {
   type ProbeResult,
 } from "../harness";
 
-const user = (content: string): ResponseInputItem => ({
-  role: "user",
-  content,
-});
-const assistant = (content: string): ResponseInputItem => ({
-  role: "assistant",
-  content,
-});
+const user = (content: string): AgentEvent => ({ type: "user_message", content });
+const assistant = (content: string): AgentEvent => ({ type: "assistant_answer", content });
 
 /** A synthetic evicted window carrying concrete facts a summary must preserve. */
-const TRIP: ResponseInputItem[] = [
+const TRIP: AgentEvent[] = [
   user("I am planning a trip to Japan in October. Budget is $3000."),
   assistant(
     "October is a great time — mild weather and autumn leaves. With $3000 you " +
@@ -35,7 +29,7 @@ const TRIP: ResponseInputItem[] = [
 ];
 
 /** The user changes their mind mid-thread: the summary must keep the LATEST. */
-const REVISED: ResponseInputItem[] = [
+const REVISED: AgentEvent[] = [
   ...TRIP,
   user("Actually, bump the budget to $5000 — and skip Osaka, add Nara instead."),
   assistant("Updated: $5000 budget, and Nara replaces Osaka."),
@@ -43,7 +37,7 @@ const REVISED: ResponseInputItem[] = [
 ];
 
 interface SummarizeInput {
-  evicted: ResponseInputItem[];
+  evicted: AgentEvent[];
   /** A prior rolling summary to fold the new turns into. */
   prior?: string;
 }

@@ -1,6 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
-import { countUserTurns, renderItemsText, splitAtLastTurns } from "../../agent/conversation";
+import type { AgentEvent } from "../../runner/thread/events";
 import { SYSTEM_INSTRUCTIONS } from "../../agent/prompts";
 import { estimateTokens } from "../../tokens";
 import { conversation, conversationItem } from "../../db/schema";
@@ -9,7 +8,7 @@ import { type UsageTotals } from "../../integration/usage";
 interface StoredItem {
   kind: string;
   turnIndex: number | null;
-  payload: ResponseInputItem | { content: string };
+  payload: AgentEvent | { content: string };
   tokens: {
     inputTokens: number;
     cachedInputTokens: number;
@@ -46,7 +45,7 @@ export function rowToStored(row: {
   return {
     kind: row.kind,
     turnIndex: row.turnIndex,
-    payload: JSON.parse(row.payload) as ResponseInputItem | { content: string },
+    payload: JSON.parse(row.payload) as AgentEvent | { content: string },
     tokens: {
       inputTokens: row.inputTokens,
       cachedInputTokens: row.cachedInputTokens,
@@ -56,21 +55,11 @@ export function rowToStored(row: {
   };
 }
 
-export function transcriptItems(items: StoredItem[]): ResponseInputItem[] {
-  return items.flatMap((row) => {
-    if (row.kind === "summary") return [];
-    return [row.payload as ResponseInputItem];
-  });
+export function transcriptItems(items: StoredItem[]): AgentEvent[] {
+  return items.flatMap((row) => (row.kind === "summary" ? [] : [row.payload as AgentEvent]));
 }
 
-export function windowFromTranscript(
-  items: ResponseInputItem[],
-  keepLastTurns: number,
-): ResponseInputItem[] {
-  return splitAtLastTurns(items, keepLastTurns).kept;
-}
-
-export function usageFromItems(items: StoredItem[], history: ResponseInputItem[]): UsageTotals {
+export function usageFromItems(items: StoredItem[]): UsageTotals {
   const totals: UsageTotals = {
     actualInput: 0,
     cachedInput: 0,
@@ -85,14 +74,14 @@ export function usageFromItems(items: StoredItem[], history: ResponseInputItem[]
     totals.cachedInput += row.tokens.cachedInputTokens;
     totals.output += row.tokens.outputTokens;
     totals.summarizer += row.tokens.summarizerTokens;
+    if (row.kind === "user_message") totals.turns += 1;
   }
 
-  totals.turns = countUserTurns(history);
-
   let turnText = "";
-  for (const item of history) {
-    turnText += renderItemsText([item]);
-    if ("role" in item && item.role === "user") {
+  for (const row of items) {
+    if (row.kind === "summary") continue;
+    turnText += JSON.stringify(row.payload);
+    if (row.kind === "user_message") {
       totals.baselineInput += estimateTokens(turnText) + estimateTokens(SYSTEM_INSTRUCTIONS);
       turnText = "";
     }
@@ -116,11 +105,4 @@ export function responseUsageToTokens(usage: {
     outputTokens: usage.output_tokens ?? 0,
     summarizerTokens: 0,
   };
-}
-
-export function summaryDeveloperMessage(summary: string): ResponseInputItem {
-  return {
-    role: "developer",
-    content: `<conversation_summary>\n${summary}\n</conversation_summary>`,
-  } satisfies ResponseInputItem;
 }

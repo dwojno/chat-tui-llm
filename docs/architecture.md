@@ -53,28 +53,37 @@ ambient OTel context that `AsyncLocalStorage` propagates across `await`s.
 
 ## The agent primitives and the loop
 
+The core idea: **the agent is a pure reducer over an owned, serializable event
+log**. A turn is a fold — `reduce(events) → prompt`, ask the model for one decision,
+append the result event, repeat.
+
 The `Agent` ([src/agent/agent.ts](../src/agent/agent.ts)) exposes two **stateless,
-pure** primitives — it owns no loop: `step()` makes one model call (streaming `delta`
+pure** primitives and owns no loop: `step()` makes one model call (streaming `delta`
 to the injected `EventBus`) and returns `{ outputText, outputParsed, toolCalls,
-items, usage }`; `executeTool()` dispatches one tool call. Every collaborator and
-constant is injected via its constructor — the agent imports no config or prompt
-globals. The agent never touches the `Store`.
+usage }`; `executeTool()` dispatches one tool call. Every collaborator and constant is
+injected — the agent imports no config, prompt, or event type, and never touches the
+`Store`.
 
 The **loop** lives in the caller: `runAgentLoop`
-([src/runner/runner.ts](../src/runner/runner.ts)) copies the input, then repeats
-`step` → approval gate → `Promise.all(executeTool)` → feed outputs back until the
-model stops requesting tools, and **returns** `{ answer, items, usage }`. Progress
-is observed via the `EventBus` (UI-only, never persisted); durable data is the
-return value. This is 12-factor-agents Factor 08 (own your control flow) and Factor
-05 (the persisted message thread is the single source of truth).
+([src/runner/runner.ts](../src/runner/runner.ts)) folds an owned `AgentEvent[]` log
+into one custom-format prompt (the **reducer**, [src/runner/thread/](../src/runner/thread/)),
+calls `step`, runs the approval gate, executes tools with `Promise.all`, appends the
+resulting events, and **returns** `{ answer, events, usage }`. The **`EventBus` is
+UI-only and never persisted**; the durable state is the event log. A few design
+principles fall out of this shape: the reducer **owns the context window** (a
+custom-format prompt, not a default role array), one event log is the **entire turn
+state**, the runner **owns the control flow** (a plain function, not a framework),
+tool failures are **compacted into context** so the model self-heals, and the core is
+a **stateless reducer** that retains nothing — which makes pause/resume and
+trigger-from-anywhere clean seams, because the log *is* the resumable state.
 
-The full mechanics — the loop steps, the `TurnEvent` contract, tools-as-promises,
-**model routing** (orchestrator vs fork vs cheap models, the code-defined
-temperature), **memories in context** (assembled by the runner, not the agent), and
-the **generalized sub-agent** (`delegate_task` / `delegate_tasks`, fork profiles, and
-the structured `ForkResult` handoff) — live in **[agent-loop.md](./agent-loop.md)**.
-The rest of this document covers everything the agent deliberately does _not_ own:
-state, persistence, retrieval infrastructure, and the UI.
+The full mechanics — the reducer + custom context format, the hybrid loop (native
+tool-calling + reserved control intents), compact-error self-healing, the `TurnEvent`
+contract, **model routing**, **memories in context**, and the **generalized sub-agent**
+(`delegate_task` / `delegate_tasks`, fork profiles, the structured `ForkResult`
+handoff) — live in **[agent-loop.md](./agent-loop.md)**. The rest of this document
+covers everything the agent deliberately does _not_ own: state, persistence,
+retrieval infrastructure, and the UI.
 
 ## The Session (integration owns state)
 
@@ -83,15 +92,15 @@ everything the agent does not: pinned memories, indexed sources, token
 accounting, the context window, and persistence. It reads all transcript state
 from the `Store` on each turn — no in-memory `log`. `runTurn`:
 
-1. appends the user message to the store;
-2. loads model input via `queryHistory(conversationId).forModel()` — the full
-   unsummarized tail after the latest summary row, with evicted turns replaced by
-   the summary text prepended once;
+1. appends the user message to the store as a `user_message` event;
+2. loads the event log via `queryHistory(conversationId).forModel()` (the
+   `AgentEvent[]` after the latest summary row) and reads the rolling summary text
+   separately — the summary rides in `TurnContext.summary`, not inline in the log;
 3. resolves the orchestrator `model` from the active profile
    (`userProfile?.model ?? ORCHESTRATOR_MODEL`) into `options` — temperature is a
    code constant, not resolved here (see [agent-loop.md](./agent-loop.md#model-routing));
-4. calls `runAgentLoop({ agent, messages, options, context: { memories }, bus, … })`,
-   then persists the returned `items` + `usage` in one transaction and returns the
+4. calls `runAgentLoop({ agent, events, options, context: { memories, summary }, bus, … })`,
+   then persists the returned `events` + `usage` in one transaction and returns the
    `answer` (the UI observes `delta`/`tool`/`status` live via the injected bus);
 5. compacts the window when the unsummarized tail overflows.
 
@@ -133,12 +142,13 @@ reads. Windowing lives in the Session, not the agent.
 
 ### Prompt caching
 
-Pinned memories are appended **last** in the request input via `buildContextBlock`
-([src/context/context.ts](../src/context/context.ts)),
-after the conversation prefix. The rolling summary is part of that prefix —
-assembled by `forModel()` as a prepended `developer` message replacing evicted
-turns, not duplicated in the memories block. A `/remember` changes only the tail
-and never invalidates the cached prefix above it. The discretion rules in that
+The reducer ([src/runner/thread/reducer.ts](../src/runner/thread/reducer.ts)) packs
+one `user` message ordered **summary → events → memories → next-step framing**. The
+rolling summary leads (it changes only on re-summarization), events are append-only,
+and pinned memories go **last** so a `/remember` changes only the tail and never
+invalidates the cached prefix above it. Rendering is deterministic (no ids/timestamps
+in the text), so the leading token run is byte-stable step to step and
+`prompt_cache_key` keeps paying off. The discretion rules in that
 block (telling the model not to volunteer stored memories) are a single source of
 truth that the prompt evals exercise directly. Memories are numbered `M1…Mn` so a
 delegation can pass a subset — see [agent-loop.md](./agent-loop.md#memories-in-context).
@@ -156,13 +166,14 @@ the summarizer overhead against the strategy.
 The RAG pipeline lives entirely in the `sources` store domain
 ([src/store/sources/](../src/store/sources/)) behind its facade; the agent core
 never learns it exists — it reaches the model only as four store-backed tools.
-`/learn @file` runs **ingest** (convert to Markdown → per-profile MinIO bucket →
-heading-aware chunking → OpenAI embeddings → per-profile Qdrant collection), and
+`/learn @file` runs **ingest** (convert to Markdown → per-profile blob store (local
+disk by default, MinIO/S3 optional) → heading-aware chunking → OpenAI embeddings →
+per-profile Qdrant collection), and
 `search()` runs a four-stage **retrieval** pipeline (hybrid dense+sparse RRF fetch
 → LLM rerank → relative-cutoff filter → return whole chunks) that turns "top-N
 regardless of relevance" into "only what's actually relevant". Each chunk carries
 its heading breadcrumb and line range, so hits cite `path:startLine-endLine` and
-`read_file` slices the exact region.
+`read_source` slices the exact region.
 
 The full reference — ingest, the retrieval stages and their rationale, the
 per-profile infra layout, the four tools, every config knob, and the RAG evals —

@@ -11,6 +11,7 @@ import {
 } from "../../../src/tools/delegation/delegate-tasks";
 import type { ForkResult } from "../../../src/tools/delegation/fork-result";
 import { runAgentLoop } from "../../../src/runner/runner";
+import { eventsToInputItems, inputItemsToEvents } from "../../../src/runner/thread/convert";
 import { createMockOpenAI, type MockHandoff, type MockTurn } from "../../helpers/mock-openai";
 import { testAgent } from "../../helpers/agent";
 
@@ -25,8 +26,17 @@ function makeCtx(turns: MockTurn[], handoffs: MockHandoff[]) {
   const ctx: ToolRunContext = {
     openai: mock.client,
     context: { memories: [] },
-    messages: [],
-    runTurn: (args) => runAgentLoop({ agent, maxToolSteps: 8, ...args }),
+    runTurn: (args) =>
+      runAgentLoop({
+        agent,
+        maxToolSteps: 8,
+        maxConsecutiveErrors: 3,
+        events: inputItemsToEvents(args.messages),
+        options: args.options,
+        context: args.context,
+        bus: args.bus,
+        ...(args.profile ? { profile: args.profile } : {}),
+      }).then((r) => ({ answer: r.answer, items: eventsToInputItems(r.events), usage: r.usage })),
     forkProfiles,
     bus: new EventBus(),
     recordUsage: () => {},

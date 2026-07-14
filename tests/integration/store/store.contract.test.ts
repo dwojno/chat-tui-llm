@@ -2,8 +2,19 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { LocalStore, type ConversationMeta, type Store } from "../../../src/store";
+
+const userMsg = (content: string, turn = 0) => ({
+  kind: "user_message" as const,
+  turnIndex: turn,
+  payload: { type: "user_message" as const, content },
+});
+
+const assistantMsg = (content: string, turn = 0) => ({
+  kind: "assistant_answer" as const,
+  turnIndex: turn,
+  payload: { type: "assistant_answer" as const, content },
+});
 
 async function addSources(
   store: Store,
@@ -30,28 +41,17 @@ export function storeContract(name: string, createStore: () => Promise<Store>): 
       expect(await store.memory.query().forProfile(store.profileId).execute()).toEqual([]);
       expect(await store.sources.query().forProfile(store.profileId).execute()).toEqual([]);
       expect(await store.conversation.queryHistory(store.conversationId).execute()).toEqual([]);
-      expect(
-        await store.conversation.queryHistory(store.conversationId).lastTurns(4).execute(),
-      ).toEqual([]);
     });
 
-    it("appends transcript items and returns them in history", async () => {
+    it("appends transcript events and returns them in history", async () => {
       const store = await createStore();
       const { conversationId } = store;
-      await store.conversation.createItems(conversationId, {
-        kind: "message",
-        turnIndex: 0,
-        payload: { role: "user", content: "hello" },
-      });
-      await store.conversation.createItems(conversationId, {
-        kind: "message",
-        turnIndex: 0,
-        payload: { role: "assistant", content: "hi there" },
-      });
+      await store.conversation.createItems(conversationId, userMsg("hello"));
+      await store.conversation.createItems(conversationId, assistantMsg("hi there"));
 
       expect(await store.conversation.queryHistory(conversationId).execute()).toEqual([
-        { role: "user", content: "hello" },
-        { role: "assistant", content: "hi there" },
+        { type: "user_message", content: "hello" },
+        { type: "assistant_answer", content: "hi there" },
       ]);
     });
 
@@ -59,49 +59,20 @@ export function storeContract(name: string, createStore: () => Promise<Store>): 
       const store = await createStore();
       const { conversationId } = store;
       await store.conversation.createItems(conversationId, [
-        { kind: "message", turnIndex: 0, payload: { role: "user", content: "batch q" } },
-        { kind: "message", turnIndex: 0, payload: { role: "assistant", content: "batch a" } },
+        userMsg("batch q"),
+        assistantMsg("batch a"),
       ]);
 
       expect(await store.conversation.queryHistory(conversationId).execute()).toEqual([
-        { role: "user", content: "batch q" },
-        { role: "assistant", content: "batch a" },
+        { type: "user_message", content: "batch q" },
+        { type: "assistant_answer", content: "batch a" },
       ]);
-    });
-
-    it("caps to the last N user turns with lastTurns", async () => {
-      const store = await createStore();
-      const { conversationId } = store;
-      for (let turn = 0; turn < 5; turn++) {
-        await store.conversation.createItems(conversationId, {
-          kind: "message",
-          turnIndex: turn,
-          payload: { role: "user", content: `q${turn}` },
-        });
-        await store.conversation.createItems(conversationId, {
-          kind: "message",
-          turnIndex: turn,
-          payload: { role: "assistant", content: `a${turn}` },
-        });
-      }
-
-      const window = await store.conversation.queryHistory(conversationId).lastTurns(2).execute();
-      const userMessages = window.filter(
-        (item: ResponseInputItem) => "role" in item && item.role === "user",
-      );
-      expect(userMessages).toHaveLength(2);
-      expect(userMessages[0]).toMatchObject({ content: "q3" });
-      expect(userMessages[1]).toMatchObject({ content: "q4" });
     });
 
     it("never returns summary items in UI history", async () => {
       const store = await createStore();
       const { conversationId } = store;
-      await store.conversation.createItems(conversationId, {
-        kind: "message",
-        turnIndex: 0,
-        payload: { role: "user", content: "hi" },
-      });
+      await store.conversation.createItems(conversationId, userMsg("hi"));
       await store.conversation.createItems(conversationId, {
         kind: "summary",
         turnIndex: null,
@@ -110,54 +81,42 @@ export function storeContract(name: string, createStore: () => Promise<Store>): 
       });
 
       expect(await store.conversation.queryHistory(conversationId).execute()).toEqual([
-        { role: "user", content: "hi" },
+        { type: "user_message", content: "hi" },
       ]);
     });
 
     it("drops already-summarized items with afterLastSummary", async () => {
       const store = await createStore();
       const { conversationId } = store;
-      await store.conversation.createItems(conversationId, {
-        kind: "message",
-        turnIndex: 0,
-        payload: { role: "user", content: "old" },
-      });
+      await store.conversation.createItems(conversationId, userMsg("old"));
       await store.conversation.createItems(conversationId, {
         kind: "summary",
         turnIndex: null,
         payload: { content: "rolled up" },
         tokens: { summarizerTokens: 5 },
       });
-      await store.conversation.createItems(conversationId, {
-        kind: "message",
-        turnIndex: 1,
-        payload: { role: "user", content: "new" },
-      });
+      await store.conversation.createItems(conversationId, userMsg("new", 1));
 
       expect(await store.conversation.queryHistory(conversationId).execute()).toEqual([
-        { role: "user", content: "old" },
-        { role: "user", content: "new" },
+        { type: "user_message", content: "old" },
+        { type: "user_message", content: "new" },
       ]);
       expect(
         await store.conversation.queryHistory(conversationId).afterLastSummary().execute(),
-      ).toEqual([{ role: "user", content: "new" }]);
+      ).toEqual([{ type: "user_message", content: "new" }]);
     });
 
     it("scopes history by conversation id", async () => {
       const store = await createStore();
       const { conversationId } = store;
-      await store.conversation.createItems(conversationId, {
-        kind: "message",
-        turnIndex: 0,
-        payload: { role: "user", content: "hi" },
-      });
+      await store.conversation.createItems(conversationId, userMsg("hi"));
 
       expect(
         await store.conversation
           .queryHistory(conversationId)
           .forConversation(conversationId)
           .execute(),
-      ).toEqual([{ role: "user", content: "hi" }]);
+      ).toEqual([{ type: "user_message", content: "hi" }]);
       expect(
         await store.conversation
           .queryHistory(conversationId)
@@ -166,54 +125,32 @@ export function storeContract(name: string, createStore: () => Promise<Store>): 
       ).toEqual([]);
     });
 
-    it("forModel prepends the latest summary once and excludes evicted items", async () => {
+    it("forModel excludes items evicted behind the latest summary", async () => {
       const store = await createStore();
       const { conversationId } = store;
-      await store.conversation.createItems(conversationId, {
-        kind: "message",
-        turnIndex: 0,
-        payload: { role: "user", content: "old" },
-      });
+      await store.conversation.createItems(conversationId, userMsg("old"));
       await store.conversation.createItems(conversationId, {
         kind: "summary",
         turnIndex: null,
         payload: { content: "rolled up" },
         tokens: { summarizerTokens: 5 },
       });
-      await store.conversation.createItems(conversationId, {
-        kind: "message",
-        turnIndex: 1,
-        payload: { role: "user", content: "new" },
-      });
+      await store.conversation.createItems(conversationId, userMsg("new", 1));
 
-      const modelInput = await store.conversation
-        .queryHistory(conversationId)
-        .forModel({ lastTurns: 4 })
-        .execute();
+      const modelInput = await store.conversation.queryHistory(conversationId).forModel().execute();
 
-      expect(modelInput).toHaveLength(2);
-      expect(modelInput[0]).toMatchObject({
-        role: "developer",
-        content: expect.stringContaining("rolled up"),
-      });
-      expect(modelInput[1]).toMatchObject({ role: "user", content: "new" });
-      expect(
-        modelInput.some((item) => "role" in item && item.role === "user" && item.content === "old"),
-      ).toBe(false);
+      // The summary rides in TurnContext (via readLatestSummaryText), not the event list.
+      expect(modelInput).toEqual([{ type: "user_message", content: "new" }]);
     });
 
-    it("forModel returns tail only when there is no summary row", async () => {
+    it("forModel returns the tail when there is no summary row", async () => {
       const store = await createStore();
       const { conversationId } = store;
-      await store.conversation.createItems(conversationId, {
-        kind: "message",
-        turnIndex: 0,
-        payload: { role: "user", content: "hi" },
-      });
+      await store.conversation.createItems(conversationId, userMsg("hi"));
 
-      expect(
-        await store.conversation.queryHistory(conversationId).forModel({ lastTurns: 4 }).execute(),
-      ).toEqual([{ role: "user", content: "hi" }]);
+      expect(await store.conversation.queryHistory(conversationId).forModel().execute()).toEqual([
+        { type: "user_message", content: "hi" },
+      ]);
     });
 
     it("readLatestSummaryText returns the latest summary", async () => {
@@ -236,15 +173,9 @@ export function storeContract(name: string, createStore: () => Promise<Store>): 
     it("accumulates token usage via anchor rows", async () => {
       const store = await createStore();
       const { conversationId } = store;
+      await store.conversation.createItems(conversationId, userMsg("hi"));
       await store.conversation.createItems(conversationId, {
-        kind: "message",
-        turnIndex: 0,
-        payload: { role: "user", content: "hi" },
-      });
-      await store.conversation.createItems(conversationId, {
-        kind: "message",
-        turnIndex: 0,
-        payload: { role: "assistant", content: "hello" },
+        ...assistantMsg("hello"),
         tokens: { inputTokens: 100, cachedInputTokens: 10, outputTokens: 50 },
       });
 

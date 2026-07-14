@@ -183,8 +183,8 @@ describe("E2E: conversations", () => {
 
     const restored = await LocalStore.open(tempDbPath(dir), { conversationId });
     const history = await restored.conversation.queryHistory(conversationId).execute();
-    expect(history[0]).toMatchObject({ role: "user", content: "save this" });
-    expect(history[1]).toMatchObject({ role: "assistant" });
+    expect(history[0]).toMatchObject({ type: "user_message", content: "save this" });
+    expect(history[1]).toMatchObject({ type: "assistant_answer" });
   });
 
   it("reopen without a conversation id starts a fresh conversation, keeping the profile", async () => {

@@ -9,9 +9,9 @@ describe("buildExitMessage", () => {
     const emptyId = store.conversationId;
     const kept = await store.conversation.create(store.profileId, "Kept");
     await store.conversation.createItems(kept.id, {
-      kind: "message",
+      kind: "assistant_answer",
       turnIndex: 0,
-      payload: { role: "assistant", content: "hello" },
+      payload: { type: "assistant_answer", content: "hello" },
     });
     await store.conversation.switchTo(kept.id);
 

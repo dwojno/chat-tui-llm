@@ -48,9 +48,9 @@ describe("Conversation domain", () => {
     const store = await openMemoryStore();
     const chat = await store.conversation.create(store.profileId, "Active");
     await store.conversation.createItems(chat.id, {
-      kind: "message",
+      kind: "user_message",
       turnIndex: 0,
-      payload: { role: "user", content: "ping" },
+      payload: { type: "user_message", content: "ping" },
     });
 
     const ordered = await store.conversation
@@ -69,14 +69,14 @@ describe("Conversation domain", () => {
     const second = await store.conversation.create(store.profileId, "Second");
 
     await store.conversation.createItems(first.id, {
-      kind: "message",
+      kind: "user_message",
       turnIndex: 0,
-      payload: { role: "user", content: "first" },
+      payload: { type: "user_message", content: "first" },
     });
     await store.conversation.createItems(second.id, {
-      kind: "message",
+      kind: "user_message",
       turnIndex: 0,
-      payload: { role: "user", content: "second" },
+      payload: { type: "user_message", content: "second" },
     });
 
     const rows = await store.conversation.query().items().forConversation(first.id).execute();
@@ -95,9 +95,9 @@ describe("Conversation domain", () => {
       payload: { content: "first summary" },
     });
     await store.conversation.createItems(chat.id, {
-      kind: "message",
+      kind: "user_message",
       turnIndex: 0,
-      payload: { role: "user", content: "hi" },
+      payload: { type: "user_message", content: "hi" },
     });
     await store.conversation.createItems(chat.id, {
       kind: "summary",
@@ -121,9 +121,9 @@ describe("Conversation domain", () => {
     const chat = await store.conversation.create(store.profileId, "Boundary");
 
     await store.conversation.createItems(chat.id, {
-      kind: "message",
+      kind: "user_message",
       turnIndex: 0,
-      payload: { role: "user", content: "old" },
+      payload: { type: "user_message", content: "old" },
     });
     await store.conversation.createItems(chat.id, {
       kind: "summary",
@@ -131,9 +131,9 @@ describe("Conversation domain", () => {
       payload: { content: "rolled up" },
     });
     await store.conversation.createItems(chat.id, {
-      kind: "message",
+      kind: "user_message",
       turnIndex: 1,
-      payload: { role: "user", content: "new" },
+      payload: { type: "user_message", content: "new" },
     });
 
     const boundary = await store.conversation
@@ -166,9 +166,9 @@ describe("Conversation domain", () => {
     });
 
     await store.conversation.createItems(chat.id, {
-      kind: "message",
+      kind: "user_message",
       turnIndex: 0,
-      payload: { role: "user", content: "hi" },
+      payload: { type: "user_message", content: "hi" },
     });
     await store.conversation.delete(chat.id);
     expect(await store.conversation.query().byId(chat.id).executeAndTakeFirst()).toBeNull();
@@ -182,14 +182,14 @@ describe("Conversation domain", () => {
     const replied = await store.conversation.create(store.profileId, "Replied");
 
     await store.conversation.createItems(userOnly.id, {
-      kind: "message",
+      kind: "user_message",
       turnIndex: 0,
-      payload: { role: "user", content: "hi" },
+      payload: { type: "user_message", content: "hi" },
     });
     await store.conversation.createItems(replied.id, {
-      kind: "message",
+      kind: "assistant_answer",
       turnIndex: 0,
-      payload: { role: "assistant", content: "hello" },
+      payload: { type: "assistant_answer", content: "hello" },
     });
 
     expect(await store.conversation.query().byId(empty.id).withAssistantReply().execute()).toEqual(
@@ -221,14 +221,14 @@ describe("Conversation domain", () => {
     const kept = await store.conversation.create(store.profileId, "Kept");
 
     await store.conversation.createItems(userOnly.id, {
-      kind: "message",
+      kind: "user_message",
       turnIndex: 0,
-      payload: { role: "user", content: "hi" },
+      payload: { type: "user_message", content: "hi" },
     });
     await store.conversation.createItems(kept.id, {
-      kind: "message",
+      kind: "assistant_answer",
       turnIndex: 0,
-      payload: { role: "assistant", content: "hello" },
+      payload: { type: "assistant_answer", content: "hello" },
     });
 
     await store.conversation.pruneEmpty();
@@ -305,13 +305,13 @@ describe("Conversation domain", () => {
     const chat = await store.conversation.create(store.profileId, "Tail");
 
     await store.conversation.createItems(chat.id, {
-      kind: "message",
+      kind: "user_message",
       turnIndex: 0,
-      payload: { role: "user", content: "only message" },
+      payload: { type: "user_message", content: "only message" },
     });
 
     expect(await store.conversation.queryHistory(chat.id).afterLastSummary().execute()).toEqual([
-      { role: "user", content: "only message" },
+      { type: "user_message", content: "only message" },
     ]);
   });
 

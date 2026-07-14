@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { Agent } from "../../src/agent/agent";
 import { EventBus } from "../../src/agent/events/bus";
 import { APPROVAL_DENIED_OUTPUT } from "../../src/agent/humanLayer/approval";
@@ -10,16 +9,13 @@ import type { TurnContext } from "../../src/agent/conversation/turn";
 import type { TurnEvent } from "../../src/agent/events/events";
 import { DEFAULT_TURN_OPTIONS } from "../../src/agent/conversation/options";
 import { runAgentLoop } from "../../src/runner/runner";
+import type { AgentEvent } from "../../src/runner/thread/events";
 import { createMockOpenAI, type MockTurn } from "../helpers/mock-openai";
 
-const userMessage = (content: string): ResponseInputItem => ({ role: "user", content });
+const userMessage = (content: string): AgentEvent => ({ type: "user_message", content });
 
-type Item = Record<string, unknown>;
-
-const toolOutputs = (items: ResponseInputItem[]): string[] =>
-  (items as unknown as Item[]).flatMap((i) =>
-    i.type === "function_call_output" ? [i.output as string] : [],
-  );
+const toolOutputs = (events: AgentEvent[]): string[] =>
+  events.flatMap((e) => (e.type === "tool_result" ? [e.output] : []));
 
 function gatedTool(onRun: () => void): ToolDefinition<z.ZodType> {
   const parameters = z.object({ target: z.string() });
@@ -65,17 +61,18 @@ function makeAgent(turns: MockTurn[], tools: ToolDefinition<z.ZodType>[]) {
   return { agent, mock };
 }
 
-async function run(agent: Agent, messages: ResponseInputItem[], context: TurnContext) {
+async function run(agent: Agent, seed: AgentEvent[], context: TurnContext) {
   const events: TurnEvent[] = [];
   const bus = new EventBus();
   bus.subscribe((e) => events.push(e));
   const result = await runAgentLoop({
     agent,
-    messages,
+    events: seed,
     options: DEFAULT_TURN_OPTIONS,
     context,
     bus,
     maxToolSteps: 8,
+    maxConsecutiveErrors: 3,
   });
   return { events, result };
 }
@@ -107,7 +104,7 @@ describe("runAgentLoop HITL gate", () => {
       true,
     );
     expect(onRun).toHaveBeenCalledTimes(1);
-    expect(toolOutputs(result.items)).toEqual(["DID_DELETE"]);
+    expect(toolOutputs(result.events)).toEqual(["DID_DELETE"]);
     expect(result.answer).toBe("done");
   });
 
@@ -120,7 +117,7 @@ describe("runAgentLoop HITL gate", () => {
 
     expect(events.some((e) => e.type === "approval_resolved" && e.outcome === "reject")).toBe(true);
     expect(onRun).not.toHaveBeenCalled();
-    expect(toolOutputs(result.items)).toEqual([APPROVAL_DENIED_OUTPUT]);
+    expect(toolOutputs(result.events)).toEqual([APPROVAL_DENIED_OUTPUT]);
     expect(result.answer).toBe("done");
   });
 
@@ -132,7 +129,7 @@ describe("runAgentLoop HITL gate", () => {
 
     expect(events.some((e) => e.type === "approval_request")).toBe(false);
     expect(onRun).toHaveBeenCalledTimes(1);
-    expect(toolOutputs(result.items)).toEqual(["DID_DELETE"]);
+    expect(toolOutputs(result.events)).toEqual(["DID_DELETE"]);
   });
 
   it("gates only flagged calls, leaving unflagged ones to run in order", async () => {
@@ -158,6 +155,6 @@ describe("runAgentLoop HITL gate", () => {
     expect(seen.map((r) => r.toolName)).toEqual(["delete_thing"]);
     expect(gatedRun).not.toHaveBeenCalled();
     expect(safeRun).toHaveBeenCalledTimes(1);
-    expect(toolOutputs(result.items)).toEqual([APPROVAL_DENIED_OUTPUT, "SAFE_OK"]);
+    expect(toolOutputs(result.events)).toEqual([APPROVAL_DENIED_OUTPUT, "SAFE_OK"]);
   });
 });
