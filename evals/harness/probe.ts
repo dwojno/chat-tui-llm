@@ -3,11 +3,11 @@ import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
 import type { ZodType } from "zod";
 import { MODEL } from "../../src/agent/config";
 import { SYSTEM_INSTRUCTIONS } from "../../src/agent/prompts";
-import { buildContextBlock } from "../../src/agent/dynamicContext/context";
+import { buildContextBlock } from "../../src/context/context";
 import { summaryDeveloperMessage } from "../../src/store";
 import { getFunctionCalls } from "../../src/agent/conversation/items";
 import type { OpenAITool } from "../../src/agent/conversation/turn";
-import { mainToolSchemas } from "../../src/integration/tools";
+import { mainToolSchemas } from "../../src/tools";
 import { openai } from "./client";
 
 /** A tool call the model emitted, with arguments parsed for convenience. */
@@ -55,7 +55,7 @@ function parseArgs(json: string): Record<string, unknown> {
 
 /**
  * Run exactly ONE model turn against the given prompt/tools and return its
- * observable surface. Unlike the AgentService, this does NOT execute
+ * observable surface. Unlike the Agent, this does NOT execute
  * tools or run the loop — it captures the model's *first* decision (which tool
  * it chose, what it said), which is exactly what a routing eval grades. Tools
  * are still passed so the model has the real menu of choices.

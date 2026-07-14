@@ -3,12 +3,15 @@ import { readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { OpenAI } from "openai";
 import { ensureInfra } from "./infra";
-import { AgentService } from "../../src/agent/agent";
+import { EVAL_MAX_RETRIES } from "./client";
+import { Agent } from "../../src/agent/agent";
+import { EventBus } from "../../src/agent/events/bus";
 import { SYSTEM_INSTRUCTIONS } from "../../src/agent/prompts";
-import { MODEL } from "../../src/agent/config";
+import { MODEL, MAX_TOOL_STEPS } from "../../src/agent/config";
 import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "../../src/agent/conversation/options";
-import { createAgentTools } from "../../src/integration/tools";
-import { createRagTools } from "../../src/integration/tools/rag";
+import { runAgentLoop } from "../../src/runner/runner";
+import { createAgentTools } from "../../src/tools";
+import { createRagTools } from "../../src/tools/rag";
 import {
   createRagDeps,
   loadRagConfig,
@@ -19,7 +22,7 @@ import {
 
 /**
  * A real, non-mocked RAG pipeline wired for evaluation as a true end-to-end
- * test: it runs the app's actual `AgentService` loop (from `src/agent/agent.ts`)
+ * test: it runs the app's actual `Agent` loop (from `src/agent/agent.ts`)
  * with the real store-backed RAG tools injected exactly as `main.ts` composes
  * them. The agent itself decides to call `search_knowledge_base` (hybrid
  * dense+sparse Qdrant search, RRF-fused) over the real index, reads back real
@@ -40,7 +43,7 @@ const KB_TOOLS = new Set(["search_knowledge_base", "read_source", "grep_files"])
 
 /**
  * Grounding directive appended to the real system prompt *for the eval only*
- * (the harness builds its own AgentService, so production behaviour is
+ * (the harness builds its own Agent, so production behaviour is
  * untouched). It forces the agent to answer strictly from the knowledge base
  * and to end every reply with a machine-parseable citation line, so we can
  * score both what it retrieved and what it claims it used.
@@ -124,12 +127,12 @@ const CHAT_MODEL = process.env.RAG_CHAT_MODEL ?? MODEL;
 
 interface Wired {
   store: Store;
-  agent: AgentService;
+  agent: Agent;
   profileId: string;
 }
 
 export function createRagHarness(opts: RagHarnessOptions): RagHarness {
-  const openai = opts.openai ?? new OpenAI();
+  const openai = opts.openai ?? new OpenAI({ maxRetries: EVAL_MAX_RETRIES });
   let wiredPromise: Promise<Wired> | undefined;
 
   const wire = (): Promise<Wired> =>
@@ -145,14 +148,18 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
       // `store.profileId`) hit a dedicated collection + bucket.
       const profile = await store.profile.create(`eval-${opts.suiteId}`);
       await store.profile.switchTo(profile.id);
-      const { tools, forkProfiles } = createAgentTools(store);
-      // In production the knowledge base is reached only via the rag_research
-      // fork (whose tool calls don't surface as top-level message events). This
-      // eval scores retrieval directly, so it gives its own agent the KB tools at
-      // the top level — the harness captures search/read_source/grep calls from
-      // the run stream to measure what was actually retrieved.
-      const agent = new AgentService(openai, {
-        tools: [...tools, ...createRagTools(store)],
+      const { forkProfiles } = createAgentTools(store);
+      // This eval scores retrieval from the TOP-LEVEL tool calls, so the agent is
+      // given the KB tools directly and, deliberately, NO delegation tools. With
+      // delegate_task available the agent hands KB work to the rag_research fork,
+      // whose search/read_source calls are compressed into a ForkResult and never
+      // surface at the top level — making retrieval look empty (0 hits) even though
+      // the fork retrieved fine. Excluding delegation forces direct, measurable
+      // retrieval; production (where KB is fork-only) is unaffected.
+      const agent = new Agent({
+        openai,
+        temperature: 0.7,
+        tools: createRagTools(store),
         forkProfiles,
         cacheKey: `eval-${opts.suiteId}`,
         instructions: `${SYSTEM_INSTRUCTIONS}\n${CITATION_DIRECTIVE}`,
@@ -203,31 +210,34 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
     const sources = new Set<string>();
     const toolCalls: { name: string; arguments: string }[] = [];
     let hitCount = 0;
-    let answer = "";
 
-    for await (const event of agent.run([{ role: "user", content: query }], options)) {
-      if (event.type === "answer") {
-        answer = event.content;
-      } else if (event.type === "message") {
-        const item = event.item;
-        if (item.type === "function_call") {
-          callNames.set(item.call_id, item.name);
-          toolCalls.push({ name: item.name, arguments: item.arguments });
-          // read_source / grep_files name their target(s) in the call arguments.
-          if (KB_TOOLS.has(item.name)) {
-            for (const path of pathsFromArgs(item.arguments)) sources.add(basename(path));
-          }
-        } else if (item.type === "function_call_output") {
-          const name = callNames.get(item.call_id);
-          if (name && KB_TOOLS.has(name)) {
-            const output =
-              typeof item.output === "string" ? item.output : JSON.stringify(item.output);
-            retrievedContext.push(output);
-            // search / grep prefix each result line with its `path:line…`.
-            const paths = pathsFromOutput(output);
-            hitCount += paths.length;
-            for (const path of paths) sources.add(basename(path));
-          }
+    const { answer, items } = await runAgentLoop({
+      agent,
+      messages: [{ role: "user", content: query }],
+      options,
+      context: { memories: [] },
+      bus: new EventBus(),
+      maxToolSteps: MAX_TOOL_STEPS,
+    });
+
+    for (const item of items) {
+      if (item.type === "function_call") {
+        callNames.set(item.call_id, item.name);
+        toolCalls.push({ name: item.name, arguments: item.arguments });
+        // read_source / grep_files name their target(s) in the call arguments.
+        if (KB_TOOLS.has(item.name)) {
+          for (const path of pathsFromArgs(item.arguments)) sources.add(basename(path));
+        }
+      } else if (item.type === "function_call_output") {
+        const name = callNames.get(item.call_id);
+        if (name && KB_TOOLS.has(name)) {
+          const output =
+            typeof item.output === "string" ? item.output : JSON.stringify(item.output);
+          retrievedContext.push(output);
+          // search / grep prefix each result line with its `path:line…`.
+          const paths = pathsFromOutput(output);
+          hitCount += paths.length;
+          for (const path of paths) sources.add(basename(path));
         }
       }
     }

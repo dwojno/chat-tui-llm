@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ParsedResponse } from "openai/resources/responses/responses.mjs";
-import { formatAssistantContent, formatResponse } from "../../src/agent/conversation/format";
-import { ResponseSchema } from "../../src/agent/tools/utils/schemas";
+import { formatAssistantContent, formatResponse } from "../../src/tools/format";
+import { ResponseSchema } from "../../src/tools/schemas";
 
 describe("formatAssistantContent", () => {
   it("returns the bare answer when there are no sources", () => {
@@ -20,28 +19,23 @@ describe("formatAssistantContent", () => {
 
 describe("formatResponse", () => {
   it("returns output_text for a plain turn", () => {
-    const response = {
-      output_text: "plain answer",
-      output_parsed: null,
-    } as ParsedResponse<unknown>;
     expect(
-      formatResponse(response, {
-        structured_output: undefined,
-        json_mode: false,
-      }),
+      formatResponse(
+        { outputText: "plain answer", outputParsed: null },
+        { structured_output: undefined, json_mode: false },
+      ),
     ).toBe("plain answer");
   });
 
   it("formats structured output as answer + sources", () => {
-    const response = {
-      output_text: '{"answer":"hi","sources":["s1"]}',
-      output_parsed: { answer: "hi", sources: ["s1"] },
-    } as ParsedResponse<unknown>;
     expect(
-      formatResponse(response, {
-        structured_output: ResponseSchema,
-        json_mode: false,
-      }),
+      formatResponse(
+        {
+          outputText: '{"answer":"hi","sources":["s1"]}',
+          outputParsed: { answer: "hi", sources: ["s1"] },
+        },
+        { structured_output: ResponseSchema, json_mode: false },
+      ),
     ).toBe("hi\n\nSources: s1");
   });
 });

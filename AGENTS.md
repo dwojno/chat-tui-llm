@@ -39,19 +39,30 @@ pnpm test:watch                         # watch mode
 
 ## Architecture
 
-Three independent layers plus a thin composition root ([src/main.ts](src/main.ts));
-dependencies point **one way**: `ui`/`integration` → `agent`, never back.
+Focused layers plus a thin composition root ([src/main.ts](src/main.ts));
+dependencies point **one way** — everything depends inward on `agent/` (and on the
+leaf infra `telemetry/`/`tokens/`), never the reverse.
 
 ```
 src/
-  agent/         # pure core — no fs, no Ink, no persistence. Reusable (e.g. web/SSE)
-    agent.ts       # AgentService.run() — the stateless model→tool→result loop
-    events/        # TurnEvent stream + merge.ts (fan-in of concurrent generators)
-    tools/         # Zod-typed tools; delegate_task is just a registry tool
-    tokens/        # summarizer.ts — rolling-summary context management
-    prompts/       # system + fork instructions (tested by evals/)
-  ui/            # Ink TUI — a thin for-await…switch adapter over the event stream
-  integration/   # wiring: repl.ts, session.ts, OpenAI client, commands/, file-mentions
+  agent/         # pure core — no loop, no fs, no Ink, no persistence. All deps injected.
+    agent.ts       # Agent: step() (ONE model call, streams delta to the bus) + executeTool()
+    events/        # TurnEvent (UI-only union) + bus.ts (EventBus: subscribe/emit/scoped)
+    humanLayer/    # approval + clarification gate CONTRACT types (policy lives in runner/)
+    conversation/  # TurnOptions, TurnContext/TurnProfile/ToolRunContext, item helpers
+    tools/         # tool CONTRACT only: ToolDefinition + registry helpers (impls in src/tools/)
+    prompts/       # orchestrator system prompt (fork prompts live in src/tools/prompts/)
+    config/        # model / temperature / cache-key / MAX_TOOL_STEPS constants
+  runner/        # runAgentLoop — the caller-owned model→tool→result loop (Factor 08)
+  tools/         # tool IMPLEMENTATIONS: weather, web-search, disk, rag, ask-user,
+                 #   delegation/ (delegate_task[s] + handoff + fork-result), prompts/, format.ts
+  commands/      # user-intent handlers (/learn, /conversation, /structured, …)
+  telemetry/     # OTel spans + pricing + OTLP setup (leaf infra; used by agent, integration, store)
+  tokens/        # rolling-summary summarizer + token estimation (leaf infra)
+  input/         # repl.ts (REPL input loop, subscribes to the bus) + file-mentions.ts
+  cli/           # args, config, env, shutdown (CLI boot/teardown)
+  integration/   # thin wiring: session.ts (state + persistence), switch.ts, usage.ts
+  ui/            # Ink TUI — driven by an EventBus subscription
   store/         # Store facade → domain facades (profile/conversation/memory/sources)
   db/            # SQLite connection, schema, migrations
 docs/            # architecture.md, database.md — the "why"
@@ -59,14 +70,23 @@ tests/           # mirrors src/; e2e/ drives the real REPL. Model mocked (offlin
 evals/           # behavioural prompt tests against the live model (evalite)
 ```
 
-**Data flow:** input → `processLine` ([repl.ts](src/integration/repl.ts)) →
-`Session.runTurn` ([session.ts](src/integration/session.ts)) → `AgentService.run`
-yields `TurnEvent`s → repl `for await…switch` → Ink chat. The Session owns all
-state (transcript, rolling summary, pinned memories, usage) and persists via the
-`Store`; the agent **retains nothing** after a turn. Last `KEEP_LAST_TURNS` (4)
-turns stay verbatim, older ones fold into a summary appended LAST to preserve the
-cached prompt prefix. The model→tool loop is capped at `MAX_TOOL_STEPS` (8);
-config in [src/agent/config/index.ts](src/agent/config/index.ts).
+**Data flow:** input → `processLine` ([input/repl.ts](src/input/repl.ts), which
+subscribes to the injected `EventBus`) → `Session.runTurn`
+([integration/session.ts](src/integration/session.ts)) → `runAgentLoop`
+([runner/runner.ts](src/runner/runner.ts)). The runner owns the loop: it calls the
+pure primitives `Agent.step()` (one model call) and `Agent.executeTool()` (dispatch
+one tool, fanned out with `Promise.all`), runs the approval gate at the
+tool-selection→invocation seam, caps at `MAX_TOOL_STEPS` (8), and **returns**
+`{ answer, items, usage }`. The **`EventBus` is UI-only and never persisted** — it
+carries `delta`/`tool`/`status`/`approval_*` for observability; anything durable
+(transcript `items`, token `usage`) rides in the return value. `step()` streams
+`delta` to the bus _while_ the model streams, so time-to-first-token is immediate.
+`Session` owns all state, persists the returned items/usage via the `Store`, and the
+agent **retains nothing**. Last `KEEP_LAST_TURNS` (4) turns stay verbatim; older ones
+fold into a summary appended LAST to preserve the cached prompt prefix. The agent is
+context-free: the runner assembles the `<user_known_memories>` block
+([context/context.ts](src/context/context.ts)) and appends it to each request's input
+— `step()` just takes the input.
 
 **Models are role-routed** (config constants): the orchestrator turn runs
 `ORCHESTRATOR_MODEL` (`gpt-4o`, overridable per user-profile via the `model`
@@ -84,29 +104,32 @@ models.
 `/remember` pins them. When delegating, the orchestrator passes only the
 `relevantMemoryKeys` a sub-task needs — the fork sees that subset, not the whole set.
 
-**Delegation** is one generic mechanism (`delegate_task` for a single sub-task,
-`delegate_tasks` for up to `MAX_PARALLEL_TASKS` (6) independent forks fanned out via
-`mergeGenerators`). Both share `runFork`. A fork runs under a named **fork profile**
-(`forkProfiles` in `createAgentTools`, threaded through `AgentConfig` →
-`AgentService` → `ToolRunContext`), selected by the `profile` arg: `general`
-(web_search + weather) or `rag_research` (knowledge-base tools, for multi-hop
-retrieval). Each profile carries executable `ToolDefinition`s; `AgentService`
-flattens them all into its dispatch registry and derives per-fork schemas. A fork's
-transcript is compressed by `compressHandoff` into a structured `ForkResult`
-(`responses.parse`) — exact values (numbers/paths/IDs) go verbatim into `findings`,
-not prose — and returned to the parent as JSON, so only a digest re-enters context.
+**Delegation** ([src/tools/delegation/](src/tools/delegation/)) is one generic
+mechanism (`delegate_task` for a single sub-task, `delegate_tasks` for up to
+`MAX_PARALLEL_TASKS` (6) independent forks fanned out via `Promise.all`). Both share
+`runFork`, which calls `ctx.runTurn` (the runner's `runAgentLoop`) for a fresh
+sub-turn under a `bus.scoped(title)` — so the fork's `tool`/`status` events surface
+tagged, and its transcript comes back as the returned `items`. A fork runs under a
+named **fork profile** (`forkProfiles` in `createAgentTools`, threaded through
+`AgentDeps` → `Agent` → `ToolRunContext`), selected by the `profile` arg: `general`
+(web_search + weather) or `rag_research` (knowledge-base tools). Each profile carries
+executable `ToolDefinition`s; `Agent` flattens them into its dispatch registry and
+derives per-fork schemas. A fork's transcript is compressed by `compressHandoff` into
+a structured `ForkResult` (`responses.parse`) — exact values (numbers/paths/IDs) go
+verbatim into `findings`, not prose — and returned to the parent as JSON, so only a
+digest re-enters context.
 
 ## Design: SRP and domain boundaries
 
 Layer responsibilities stay narrow — **domain rules live in `store/`, user intent in
 `commands/`, lifecycle in `integration/`**:
 
-| Layer                     | Owns                                                          | Example                                                                                                      |
-| ------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `store/<domain>/`         | Persistence + domain invariants                               | `ConversationFacade.pruneEmpty()` — a conversation with no assistant reply has no value and may be discarded |
-| `integration/commands/`   | Parse user input, call facades, update UI                     | `/conversation` switches context; it does **not** prune or title                                             |
-| `integration/session.ts`  | Turn orchestration (model input, windowing, profile settings) | `runTurn` resolves the orchestrator model once per turn                                                      |
-| `integration/shutdown.ts` | Exit housekeeping                                             | `buildExitMessage` prunes empty conversations, then prints report + resume hint                              |
+| Layer                    | Owns                                                          | Example                                                                                                      |
+| ------------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `store/<domain>/`        | Persistence + domain invariants                               | `ConversationFacade.pruneEmpty()` — a conversation with no assistant reply has no value and may be discarded |
+| `commands/`              | Parse user input, call facades, update UI                     | `/conversation` switches context; it does **not** prune or title                                             |
+| `integration/session.ts` | Turn orchestration (model input, windowing, profile settings) | `runTurn` resolves the orchestrator model once per turn                                                      |
+| `cli/shutdown.ts`        | Exit housekeeping                                             | `buildExitMessage` prunes empty conversations, then prints report + resume hint                              |
 
 **One place per concern.** The orchestrator `model` resolves in `Session.runTurn`;
 empty-conversation cleanup runs in `buildExitMessage` on exit — never in command
@@ -195,6 +218,11 @@ real REPL flow) and `helpers/` + `fixtures/`. Conventions:
 
 ## Code style
 
+**The overriding test: would a senior engineer say this is overcomplicated?** Before
+adding an abstraction, layer, parameter, or indirection, ask whether it earns its
+keep — if a seasoned reader would raise an eyebrow, cut it. Prefer the boring, direct
+solution; add structure only when a concrete need forces it, never speculatively.
+
 Optimise for a reader who has never seen the file. Favour **small pure functions
 with descriptive names**, guard clauses over nested branches. Prefer
 `map`/`filter`/`flatMap` over manual index loops and mutation. Keep stateful
@@ -255,15 +283,35 @@ yield { type: "tool", name, ...(detail !== undefined ? { detail } : {}) };
 yield { type: "tool", name, detail };  // detail: string | undefined
 ```
 
-**Tools are async generators** that `yield` `TurnEvent`s and `return` the output
-string; args are typed from the Zod schema via `z.infer`.
+**Tools are plain async functions** returning the output string; args are typed from
+the Zod schema via `z.infer`. To report progress, emit a `TurnEvent` on the injected
+UI bus via `ctx.bus.emit(...)` (optional — most tools just `return`).
 
 ```ts
-async function* execute({ city }: z.infer<typeof parameters>): AsyncGenerator<TurnEvent, string> {
-  yield { type: "status", text: `Looking up ${city}` };
+async function execute(
+  { city }: z.infer<typeof parameters>,
+  ctx?: ToolRunContext,
+): Promise<string> {
+  ctx?.bus.emit({ type: "status", text: `Looking up ${city}` });
   return `The weather in ${city} is sunny`;
 }
 ```
+
+**A function with more than two arguments takes a single named-arguments object**
+(destructured at the signature), never a positional list — e.g. `Agent.step`,
+`runAgentLoop`, `RunTurn`. Two args or fewer may stay positional.
+
+```ts
+// ✅
+async step(args: StepArgs): Promise<StepResult> { … }
+// ❌ 5 positional params
+async step(messages, options, profile, bus, forbidTools) { … }
+```
+
+**The agent is a pure function of injected deps.** `Agent`'s constructor takes every
+collaborator and constant it needs (`openai`, `model`/`temperature`/`cacheKey`,
+`instructions`, `tools`, `forkProfiles`) — never import config/prompt constants
+inside `src/agent/`. `MAX_TOOL_STEPS` is a loop concern injected into `runAgentLoop`.
 
 **Never import outward from `agent/`.**
 
@@ -278,16 +326,20 @@ import { renderChat } from "../ui/chat";
 
 ## Boundaries
 
-**Always OK** — add a tool under [src/agent/tools/](src/agent/tools/) (register it in
-`createAgentTools`'s `tools` or a `forkProfiles` entry); edit prompts in
-[src/agent/prompts/](src/agent/prompts/) alongside an eval; add/extend tests; run
+**Always OK** — add a tool implementation under [src/tools/](src/tools/) (register it
+in `createAgentTools`'s `tools` or a `forkProfiles` entry); edit the system prompt in
+[src/agent/prompts/](src/agent/prompts/) or fork prompts in
+[src/tools/prompts/](src/tools/prompts/) alongside an eval; add/extend tests; run
 `typecheck`/`lint`/`format`/`test` freely.
 
 **Ask first** — adding any npm dependency (especially an LLM/agent library — it
 threatens the frameworkless claim); changing the model, `KEEP_LAST_TURNS`, or
 `MAX_TOOL_STEPS`; editing [src/db/schema.ts](src/db/schema.ts) or the
-`Store` interface (then run `db:generate`); reshaping the `TurnEvent` contract.
+`Store` interface (then run `db:generate`); reshaping the `TurnEvent` contract or the
+`Agent` step/executeTool signatures.
 
-**Never** — import `ui/` or `integration/` from `agent/`; introduce an agent
-framework or SDK abstraction over `openai`; give `delegate_task`/`delegate_tasks` to
-forks (infinite recursion); re-introduce heavy inline rationale comments.
+**Never** — import `ui/`, `integration/`, `runner/`, `commands/`, or `tools/` from
+`agent/` (the core imports nothing outward); route storable data through the
+`EventBus` (it is UI-only, never persisted); introduce an agent framework or SDK
+abstraction over `openai`; give `delegate_task`/`delegate_tasks` to forks (infinite
+recursion); re-introduce heavy inline rationale comments.

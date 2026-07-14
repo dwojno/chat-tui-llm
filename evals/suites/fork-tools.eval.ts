@@ -1,8 +1,8 @@
 import { evalite } from "evalite";
-import { FORK_INSTRUCTIONS } from "../../src/agent/prompts";
-import { forkToolSchemas } from "../../src/integration/tools";
-import { WEATHER_TOOL_NAME } from "../../src/integration/tools/weather";
-import { WEB_SEARCH_TOOL_NAME } from "../../src/integration/tools/web-search";
+import { FORK_INSTRUCTIONS } from "../../src/tools/prompts/fork";
+import { forkToolSchemas } from "../../src/tools";
+import { WEATHER_TOOL_NAME } from "../../src/tools/weather";
+import { WEB_SEARCH_TOOL_NAME } from "../../src/tools/web-search";
 import {
   avoidsTools,
   probePrompt,

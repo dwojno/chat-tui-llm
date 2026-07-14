@@ -1,5 +1,4 @@
 import type { z } from "zod";
-import type { TurnEvent } from "../events/events";
 import type { ToolRunContext } from "../conversation/turn";
 import type { ToolDefinition } from "./types";
 
@@ -13,7 +12,7 @@ export {
   type ApprovalOutcome,
   type ApprovalRequest,
   type ApprovalRisk,
-} from "./approval";
+} from "../humanLayer/approval";
 
 /**
  * Tool-registry helpers. The agent core ships with no tools of its own — the
@@ -39,7 +38,7 @@ export function executeToolCall(
   name: string,
   argsJson: string,
   ctx?: ToolRunContext,
-): AsyncGenerator<TurnEvent, string> {
+): Promise<string> {
   const tool = tools.find((t) => t.name === name);
   if (!tool) {
     throw new Error(`Unknown tool: ${name}`);

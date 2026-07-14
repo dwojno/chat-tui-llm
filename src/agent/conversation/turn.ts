@@ -1,9 +1,9 @@
 import type { OpenAI } from "openai";
-import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
-import type { TurnEvent } from "../events/events";
+import type { ResponseInputItem, ResponseUsage } from "openai/resources/responses/responses.mjs";
+import type { EventBus } from "../events/bus";
 import type { ForkProfiles } from "../tools/types";
-import type { ApprovalGate } from "../tools/approval";
-import type { ClarificationGate } from "../tools/clarification";
+import type { ApprovalGate } from "../humanLayer/approval";
+import type { ClarificationGate } from "../humanLayer/clarification";
 import type { TurnOptions } from "./options";
 
 export type TurnContext = {
@@ -29,12 +29,21 @@ export type TurnProfile = {
   reasoningEffort?: "low" | "medium" | "high";
 };
 
-export type RunTurn = (
-  messages: readonly ResponseInputItem[],
-  options: TurnOptions,
-  context: TurnContext,
-  profile: TurnProfile,
-) => AsyncGenerator<TurnEvent, void>;
+export type TurnResult = {
+  answer: string;
+  items: ResponseInputItem[];
+  usage: ResponseUsage | undefined;
+};
+
+export type RunTurnArgs = {
+  messages: readonly ResponseInputItem[];
+  options: TurnOptions;
+  context: TurnContext;
+  profile: TurnProfile;
+  bus: EventBus;
+};
+
+export type RunTurn = (args: RunTurnArgs) => Promise<TurnResult>;
 
 export interface ToolRunContext {
   openai: OpenAI;
@@ -42,6 +51,8 @@ export interface ToolRunContext {
   messages: readonly ResponseInputItem[];
   runTurn: RunTurn;
   forkProfiles: ForkProfiles;
+  bus: EventBus;
+  recordUsage: (usage: ResponseUsage | undefined) => void;
   requestApproval?: ApprovalGate;
   requestClarification?: ClarificationGate;
 }

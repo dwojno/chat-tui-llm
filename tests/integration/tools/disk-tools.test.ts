@@ -2,11 +2,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { editFileTool } from "../../../src/integration/tools/edit-file";
-import { readFileTool } from "../../../src/integration/tools/read-file";
-import { writeFileTool } from "../../../src/integration/tools/write-file";
-import { resolveWithinCwd } from "../../../src/integration/tools/utils/workspace";
-import { drain } from "../../../src/utils/async-gen";
+import { editFileTool } from "../../../src/tools/edit-file";
+import { readFileTool } from "../../../src/tools/read-file";
+import { writeFileTool } from "../../../src/tools/write-file";
+import { resolveWithinCwd } from "../../../src/tools/utils/workspace";
 
 let dir: string;
 let cwd: string;
@@ -39,24 +38,20 @@ describe("resolveWithinCwd", () => {
 describe("read_file", () => {
   it("reads a file and an optional line range", async () => {
     writeFileSync("note.txt", "one\ntwo\nthree");
-    expect(
-      await drain(readFileTool.execute({ path: "note.txt", startLine: null, endLine: null })),
-    ).toBe("one\ntwo\nthree");
-    expect(await drain(readFileTool.execute({ path: "note.txt", startLine: 2, endLine: 2 }))).toBe(
-      "two",
+    expect(await readFileTool.execute({ path: "note.txt", startLine: null, endLine: null })).toBe(
+      "one\ntwo\nthree",
     );
+    expect(await readFileTool.execute({ path: "note.txt", startLine: 2, endLine: 2 })).toBe("two");
   });
 
   it("returns a friendly message for a missing file", async () => {
-    const out = await drain(
-      readFileTool.execute({ path: "missing.txt", startLine: null, endLine: null }),
-    );
+    const out = await readFileTool.execute({ path: "missing.txt", startLine: null, endLine: null });
     expect(out).toMatch(/Could not read missing.txt/);
   });
 
   it("blocks reads outside the working directory", async () => {
     await expect(
-      drain(readFileTool.execute({ path: "../outside.txt", startLine: null, endLine: null })),
+      readFileTool.execute({ path: "../outside.txt", startLine: null, endLine: null }),
     ).rejects.toThrow(/escapes the working directory/);
   });
 });
@@ -69,7 +64,7 @@ describe("write_file", () => {
   });
 
   it("creates the file and parent directories", async () => {
-    const out = await drain(writeFileTool.execute({ path: "nested/x.txt", content: "hello" }));
+    const out = await writeFileTool.execute({ path: "nested/x.txt", content: "hello" });
     expect(out).toMatch(/Wrote/);
     expect(readFileSync(join(dir, "nested/x.txt"), "utf8")).toBe("hello");
   });
@@ -84,22 +79,18 @@ describe("edit_file", () => {
 
   it("replaces a unique snippet", async () => {
     writeFileSync("code.ts", "const a = 1;\nconst b = 2;");
-    const out = await drain(
-      editFileTool.execute({
-        path: "code.ts",
-        oldString: "const b = 2;",
-        newString: "const b = 3;",
-      }),
-    );
+    const out = await editFileTool.execute({
+      path: "code.ts",
+      oldString: "const b = 2;",
+      newString: "const b = 3;",
+    });
     expect(out).toMatch(/Edited/);
     expect(readFileSync(join(dir, "code.ts"), "utf8")).toBe("const a = 1;\nconst b = 3;");
   });
 
   it("refuses when the snippet is not unique", async () => {
     writeFileSync("code.ts", "x\nx");
-    const out = await drain(
-      editFileTool.execute({ path: "code.ts", oldString: "x", newString: "y" }),
-    );
+    const out = await editFileTool.execute({ path: "code.ts", oldString: "x", newString: "y" });
     expect(out).toMatch(/not unique/);
     // File is untouched.
     expect(readFileSync(join(dir, "code.ts"), "utf8")).toBe("x\nx");
@@ -107,9 +98,7 @@ describe("edit_file", () => {
 
   it("reports when the snippet is absent", async () => {
     writeFileSync("code.ts", "abc");
-    const out = await drain(
-      editFileTool.execute({ path: "code.ts", oldString: "zzz", newString: "y" }),
-    );
+    const out = await editFileTool.execute({ path: "code.ts", oldString: "zzz", newString: "y" });
     expect(out).toMatch(/not found/);
   });
 });

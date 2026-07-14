@@ -1,16 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import type { z } from "zod";
-import { AgentService } from "../../src/agent/agent";
 import type {
   ClarificationRequest,
   ClarificationResponse,
-} from "../../src/agent/tools/clarification";
+} from "../../src/agent/humanLayer/clarification";
 import type { ToolDefinition } from "../../src/agent/tools/types";
-import { askUserTool } from "../../src/integration/tools/ask-user";
+import { askUserTool } from "../../src/tools/ask-user";
 import { DEFAULT_TURN_OPTIONS } from "../../src/agent/conversation/options";
-import { Session } from "../../src/integration/session";
 import { createMemoryStore, createMockOpenAI } from "../helpers/mock-openai";
-import { collect } from "../../src/utils/async-gen";
+import { testSession } from "../helpers/agent";
 
 const askUser = askUserTool as ToolDefinition<z.ZodType>;
 
@@ -32,8 +30,7 @@ describe("Session HITL clarifications", () => {
       },
       { text: "Deploying to prod." },
     ]);
-    const agent = new AgentService(mock.client, { tools: [askUser] });
-    const session = await Session.create(agent, mock.client, store, 4);
+    const { session } = await testSession(mock.client, store, { tools: [askUser] });
 
     const answer = vi.fn(
       async (_request: ClarificationRequest): Promise<ClarificationResponse> => ({
@@ -42,7 +39,7 @@ describe("Session HITL clarifications", () => {
     );
     session.setClarificationHandler(answer);
 
-    await collect(session.runTurn("deploy the app", { ...DEFAULT_TURN_OPTIONS, stream: false }));
+    await session.runTurn("deploy the app", { ...DEFAULT_TURN_OPTIONS, stream: false });
 
     expect(session.hasClarificationHandler).toBe(true);
     expect(answer).toHaveBeenCalledTimes(1);
@@ -64,10 +61,9 @@ describe("Session HITL clarifications", () => {
       },
       { text: "done" },
     ]);
-    const agent = new AgentService(mock.client, { tools: [askUser] });
-    const session = await Session.create(agent, mock.client, store, 4);
+    const { session } = await testSession(mock.client, store, { tools: [askUser] });
 
-    await collect(session.runTurn("go", { ...DEFAULT_TURN_OPTIONS, stream: false }));
+    await session.runTurn("go", { ...DEFAULT_TURN_OPTIONS, stream: false });
 
     expect(session.hasClarificationHandler).toBe(false);
   });

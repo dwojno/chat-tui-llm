@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { AgentService } from "../../src/agent/agent";
+import { Agent } from "../../src/agent/agent";
+import { EventBus } from "../../src/agent/events/bus";
+import type { TurnEvent } from "../../src/agent/events/events";
 import { ORCHESTRATOR_MODEL, TEMPERATURE } from "../../src/agent/config";
 import { DEFAULT_TURN_OPTIONS } from "../../src/agent/conversation/options";
 import { Session } from "../../src/integration/session";
 import type { Store } from "../../src/store";
 import { createMemoryStore, createMockOpenAI, type MockTurn } from "../helpers/mock-openai";
-import { collect } from "../../src/utils/async-gen";
 
 async function makeSession(
   turns: MockTurn[] = [],
@@ -15,9 +16,17 @@ async function makeSession(
 ) {
   const resolvedStore = store ?? (await createMemoryStore());
   const mock = createMockOpenAI(turns, compressions);
-  const agent = new AgentService(mock.client);
-  const session = await Session.create(agent, mock.client, resolvedStore, keepLastTurns);
-  return { session, mock, store: resolvedStore };
+  const bus = new EventBus();
+  const events: TurnEvent[] = [];
+  bus.subscribe((e) => events.push(e));
+  const agent = new Agent({
+    openai: mock.client,
+    temperature: TEMPERATURE,
+    cacheKey: "chat-cli:test",
+    instructions: "system",
+  });
+  const session = await Session.create(agent, mock.client, resolvedStore, keepLastTurns, bus);
+  return { session, mock, store: resolvedStore, events };
 }
 
 describe("Session state", () => {
@@ -42,13 +51,14 @@ describe("Session state", () => {
 });
 
 describe("Session.runTurn", () => {
-  it("forwards presentation events and accumulates response usage", async () => {
-    const { session } = await makeSession([{ text: "hello" }]);
+  it("returns the answer, streams deltas on the bus, and accumulates usage", async () => {
+    const { session, events } = await makeSession([{ text: "hello" }]);
 
-    const events = await collect(session.runTurn("hi", DEFAULT_TURN_OPTIONS));
+    const answer = await session.runTurn("hi", DEFAULT_TURN_OPTIONS);
 
-    expect(events.every((e) => e.type === "delta" || e.type === "answer")).toBe(true);
-    expect(events.at(-1)).toEqual({ type: "answer", content: "hello" });
+    expect(answer).toBe("hello");
+    expect(events.every((e) => e.type === "delta")).toBe(true);
+    expect(events.map((e) => (e.type === "delta" ? e.text : "")).join("")).toBe("hello");
 
     expect(await session.getUsageTotals()).toMatchObject({
       actualInput: 100,
@@ -60,7 +70,7 @@ describe("Session.runTurn", () => {
 
   it("renames a new chat from the first user prompt", async () => {
     const { session, store } = await makeSession([{ text: "hello" }]);
-    await collect(session.runTurn("My first question here", DEFAULT_TURN_OPTIONS));
+    await session.runTurn("My first question here", DEFAULT_TURN_OPTIONS);
 
     const row = await store.conversation.query().byId(store.conversationId).executeAndTakeFirst();
     expect(row?.title).toBe("My first question he");
@@ -68,14 +78,14 @@ describe("Session.runTurn", () => {
 
   it("sends the code-defined temperature constant regardless of profile", async () => {
     const { session, mock } = await makeSession([{ text: "hello" }]);
-    await collect(session.runTurn("hi", DEFAULT_TURN_OPTIONS));
+    await session.runTurn("hi", DEFAULT_TURN_OPTIONS);
     const params = mock.calls.stream[0] as { temperature?: number };
     expect(params.temperature).toBe(TEMPERATURE);
   });
 
   it("defaults the orchestrator model to ORCHESTRATOR_MODEL", async () => {
     const { session, mock } = await makeSession([{ text: "hi" }]);
-    await collect(session.runTurn("hi", DEFAULT_TURN_OPTIONS));
+    await session.runTurn("hi", DEFAULT_TURN_OPTIONS);
     const params = mock.calls.stream[0] as { model?: string };
     expect(params.model).toBe(ORCHESTRATOR_MODEL);
   });
@@ -84,7 +94,7 @@ describe("Session.runTurn", () => {
     const store = await createMemoryStore();
     await store.profile.update(store.profileId, { model: "gpt-4o-mini" });
     const { session, mock } = await makeSession([{ text: "hi" }], [], 4, store);
-    await collect(session.runTurn("hi", DEFAULT_TURN_OPTIONS));
+    await session.runTurn("hi", DEFAULT_TURN_OPTIONS);
     const params = mock.calls.stream[0] as { model?: string };
     expect(params.model).toBe("gpt-4o-mini");
   });
@@ -96,12 +106,10 @@ describe("Session.runTurn", () => {
     const { session, mock } = await makeSession(turns, ["ROLLING SUMMARY"], 4);
 
     for (let i = 0; i < 5; i++) {
-      await collect(
-        session.runTurn(`question ${i}`, {
-          ...DEFAULT_TURN_OPTIONS,
-          stream: false,
-        }),
-      );
+      await session.runTurn(`question ${i}`, {
+        ...DEFAULT_TURN_OPTIONS,
+        stream: false,
+      });
     }
 
     expect(mock.calls.create).toHaveLength(1);

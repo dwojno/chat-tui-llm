@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { parseCliArgs } from "../../src/integration/args";
+import { parseCliArgs } from "../../src/cli/args";
 
 // Turn the process-exiting failure paths into throws we can assert on.
 const exit = vi.spyOn(process, "exit").mockImplementation(((code?: number) => {

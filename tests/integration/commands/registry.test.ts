@@ -1,13 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { ResponseSchema } from "../../../src/agent/tools/utils/schemas";
+import { ResponseSchema } from "../../../src/tools/schemas";
 import type { Session } from "../../../src/integration/session";
 import type { ChatHandle } from "../../../src/ui/chat";
-import {
-  resolveCommand,
-  runCommand,
-  slashCommandCatalog,
-} from "../../../src/integration/commands/registry";
-import type { CommandContext } from "../../../src/integration/commands/types";
+import { resolveCommand, runCommand, slashCommandCatalog } from "../../../src/commands/registry";
+import type { CommandContext } from "../../../src/commands/types";
 
 function makeCtx(overrides: Partial<CommandContext> = {}) {
   const addMemory = vi.fn();

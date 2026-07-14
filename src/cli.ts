@@ -1,6 +1,6 @@
 import { config } from "dotenv";
-import { loadTelemetryConfig } from "./integration/telemetry/config";
-import { shutdownTelemetry, startTelemetry } from "./integration/telemetry/otel";
+import { loadTelemetryConfig } from "./telemetry/config";
+import { shutdownTelemetry, startTelemetry } from "./telemetry/otel";
 import { run } from "./main";
 
 config();

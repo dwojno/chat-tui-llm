@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { slashCommandCatalog, type SlashCommandInfo } from "../../integration/commands/registry";
+import { slashCommandCatalog, type SlashCommandInfo } from "../../commands/registry";
 import { suggestFilesAtCursor, type FileSuggestion } from "../file-suggestions";
 
 const SLASH_COMMANDS: SlashCommandInfo[] = slashCommandCatalog();

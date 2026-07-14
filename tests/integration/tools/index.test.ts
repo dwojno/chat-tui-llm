@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createAgentTools } from "../../../src/integration/tools";
-import { DELEGATE_TASK_NAME } from "../../../src/integration/tools/delegate-task";
-import { DELEGATE_TASKS_NAME } from "../../../src/integration/tools/delegate-tasks";
-import { WEATHER_TOOL_NAME } from "../../../src/integration/tools/weather";
-import { WEB_SEARCH_TOOL_NAME } from "../../../src/integration/tools/web-search";
+import { createAgentTools } from "../../../src/tools";
+import { DELEGATE_TASK_NAME } from "../../../src/tools/delegation/delegate-task";
+import { DELEGATE_TASKS_NAME } from "../../../src/tools/delegation/delegate-tasks";
+import { WEATHER_TOOL_NAME } from "../../../src/tools/weather";
+import { WEB_SEARCH_TOOL_NAME } from "../../../src/tools/web-search";
 import { createMemoryStore } from "../../helpers/mock-openai";
 
 describe("createAgentTools", () => {

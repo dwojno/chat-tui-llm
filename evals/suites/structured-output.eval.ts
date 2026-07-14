@@ -1,6 +1,6 @@
 import { evalite } from "evalite";
 import { z } from "zod";
-import { ResponseSchema } from "../../src/agent/tools/utils/schemas";
+import { ResponseSchema } from "../../src/tools/schemas";
 import {
   judged,
   matchesSchema,
@@ -65,6 +65,7 @@ evalite<ProbeSpec, ProbeResult, Expected>("structured output", {
       input: structured("What will the closing price of the S&P 500 be next Monday?"),
       expected: {
         schema: ResponseSchema,
+        allowRefusal: true,
         judge:
           "The answer acknowledges that a future market price cannot be known " +
           "or predicted. It must NOT state a specific predicted number as fact " +

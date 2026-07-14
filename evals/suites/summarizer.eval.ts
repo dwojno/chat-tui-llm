@@ -1,6 +1,6 @@
 import { evalite } from "evalite";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
-import { summarize } from "../../src/agent/tokens/summarizer";
+import { summarize } from "../../src/tokens/summarizer";
 import {
   judged,
   mentionsRequired,

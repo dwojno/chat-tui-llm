@@ -17,10 +17,12 @@ vi.mock("ink", () => ({
   useInput: () => {},
 }));
 
-import { processLine } from "../../src/integration/repl";
-import type { CommandContext } from "../../src/integration/commands/types";
-import { AgentService } from "../../src/agent/agent";
-import { createAgentTools } from "../../src/integration/tools";
+import { processLine } from "../../src/input/repl";
+import type { CommandContext } from "../../src/commands/types";
+import { Agent } from "../../src/agent/agent";
+import { EventBus } from "../../src/agent/events/bus";
+import { SYSTEM_INSTRUCTIONS } from "../../src/agent/prompts";
+import { createAgentTools } from "../../src/tools";
 import { Session } from "../../src/integration/session";
 import { renderChat, type ChatHandle, type Message } from "../../src/ui/chat";
 import {
@@ -52,19 +54,23 @@ interface Harness {
 async function setup(client: OpenAI): Promise<Harness> {
   const store = await createMemoryStore();
   const { tools, forkProfiles } = createAgentTools(store);
-  const session = await Session.create(
-    new AgentService(client, { tools, forkProfiles }),
-    client,
-    store,
-    4,
-  );
+  const bus = new EventBus();
+  const agent = new Agent({
+    openai: client,
+    temperature: 0.7,
+    cacheKey: "chat-cli:test",
+    instructions: SYSTEM_INSTRUCTIONS,
+    tools,
+    forkProfiles,
+  });
+  const session = await Session.create(agent, client, store, 4, bus);
   const chat = renderChat([], { interactive: false });
   const ctx: CommandContext = { session, chat };
   return {
     chat,
     session,
     ctx,
-    run: (line) => processLine(line, ctx, chat, session),
+    run: (line) => processLine(line, ctx, chat, session, bus),
     lastAssistant: () => [...chat.messages].toReversed().find((m) => m.role === "assistant"),
     // The transcript's function_call_output entries carry tool results/errors.
     toolOutputs: async () =>

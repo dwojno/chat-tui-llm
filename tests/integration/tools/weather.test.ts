@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { weatherTool } from "../../../src/integration/tools/weather";
-import { drain } from "../../../src/utils/async-gen";
+import { weatherTool } from "../../../src/tools/weather";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -9,7 +8,7 @@ afterEach(() => {
 describe("weatherTool", () => {
   it("returns a sunny report for the city (after its simulated latency)", async () => {
     vi.useFakeTimers();
-    const pending = drain(weatherTool.execute({ city: "Paris" }));
+    const pending = weatherTool.execute({ city: "Paris" });
     await vi.advanceTimersByTimeAsync(1000);
     expect(await pending).toBe("The weather in Paris is sunny");
   });

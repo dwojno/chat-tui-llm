@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estimateTokens } from "../../src/agent/tokens/tokens";
+import { estimateTokens } from "../../src/tokens/tokens";
 
 describe("estimateTokens", () => {
   it("estimates ~1 token per 4 characters, rounding up", () => {

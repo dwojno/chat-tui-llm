@@ -1,6 +1,6 @@
 import type { OpenAI } from "openai";
 import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
-import type { ForkResult } from "../../src/agent/tools/utils/fork-result";
+import type { ForkResult } from "../../src/tools/delegation/fork-result";
 import { LocalStore, type RagDeps, type Store } from "../../src/store";
 
 export type MockHandoff = string | Partial<ForkResult>;
@@ -19,7 +19,7 @@ function toForkResult(entry: MockHandoff | undefined): ForkResult {
 
 /**
  * Test doubles for the OpenAI Responses API. The app injects the client
- * everywhere (AgentService, summarize, compressHandoff), so a fake that
+ * everywhere (Agent, summarize, compressHandoff), so a fake that
  * shapes just the fields the code reads — `output`, `output_text`,
  * `output_parsed`, `usage` — is enough to drive the whole agent loop offline.
  *

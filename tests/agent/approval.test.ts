@@ -1,25 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
-import { AgentService } from "../../src/agent/agent";
-import { APPROVAL_DENIED_OUTPUT } from "../../src/agent/tools/approval";
-import type { ApprovalDecision, ApprovalRequest } from "../../src/agent/tools/approval";
+import { Agent } from "../../src/agent/agent";
+import { EventBus } from "../../src/agent/events/bus";
+import { APPROVAL_DENIED_OUTPUT } from "../../src/agent/humanLayer/approval";
+import type { ApprovalDecision, ApprovalRequest } from "../../src/agent/humanLayer/approval";
 import type { ToolDefinition } from "../../src/agent/tools/types";
 import type { TurnContext } from "../../src/agent/conversation/turn";
 import type { TurnEvent } from "../../src/agent/events/events";
 import { DEFAULT_TURN_OPTIONS } from "../../src/agent/conversation/options";
+import { runAgentLoop } from "../../src/runner/runner";
 import { createMockOpenAI, type MockTurn } from "../helpers/mock-openai";
-import { collect } from "../../src/utils/async-gen";
 
 const userMessage = (content: string): ResponseInputItem => ({ role: "user", content });
 
 type Item = Record<string, unknown>;
 
-const toolOutputs = (events: TurnEvent[]): string[] =>
-  events.flatMap((e) =>
-    e.type === "message" && (e.item as unknown as Item).type === "function_call_output"
-      ? [(e.item as unknown as Item).output as string]
-      : [],
+const toolOutputs = (items: ResponseInputItem[]): string[] =>
+  (items as unknown as Item[]).flatMap((i) =>
+    i.type === "function_call_output" ? [i.output as string] : [],
   );
 
 function gatedTool(onRun: () => void): ToolDefinition<z.ZodType> {
@@ -29,7 +28,7 @@ function gatedTool(onRun: () => void): ToolDefinition<z.ZodType> {
     label: "Deleting",
     description: "destructive test tool",
     parameters,
-    async *execute() {
+    execute: async () => {
       onRun();
       return "DID_DELETE";
     },
@@ -46,7 +45,7 @@ function safeTool(onRun: () => void): ToolDefinition<z.ZodType> {
     label: "Safe",
     description: "read-only test tool",
     parameters,
-    async *execute() {
+    execute: async () => {
       onRun();
       return "SAFE_OK";
     },
@@ -54,9 +53,31 @@ function safeTool(onRun: () => void): ToolDefinition<z.ZodType> {
   return tool as ToolDefinition<z.ZodType>;
 }
 
-function makeService(turns: MockTurn[], tools: ToolDefinition<z.ZodType>[]) {
+function makeAgent(turns: MockTurn[], tools: ToolDefinition<z.ZodType>[]) {
   const mock = createMockOpenAI(turns);
-  return { service: new AgentService(mock.client, { tools }), mock };
+  const agent = new Agent({
+    openai: mock.client,
+    temperature: 0.7,
+    cacheKey: "chat-cli:test",
+    instructions: "system",
+    tools,
+  });
+  return { agent, mock };
+}
+
+async function run(agent: Agent, messages: ResponseInputItem[], context: TurnContext) {
+  const events: TurnEvent[] = [];
+  const bus = new EventBus();
+  bus.subscribe((e) => events.push(e));
+  const result = await runAgentLoop({
+    agent,
+    messages,
+    options: DEFAULT_TURN_OPTIONS,
+    context,
+    bus,
+    maxToolSteps: 8,
+  });
+  return { events, result };
 }
 
 const gate =
@@ -71,15 +92,13 @@ const callThenAnswer: MockTurn[] = [
   { text: "done" },
 ];
 
-describe("AgentService.run HITL gate", () => {
+describe("runAgentLoop HITL gate", () => {
   it("runs a gated tool after approval", async () => {
     const onRun = vi.fn();
-    const { service } = makeService(callThenAnswer, [gatedTool(onRun)]);
+    const { agent } = makeAgent(callThenAnswer, [gatedTool(onRun)]);
     const ctx: TurnContext = { memories: [], requestApproval: gate("approve") };
 
-    const events = await collect(
-      service.run([userMessage("delete db")], DEFAULT_TURN_OPTIONS, ctx),
-    );
+    const { events, result } = await run(agent, [userMessage("delete db")], ctx);
 
     expect(events.some((e) => e.type === "approval_request" && e.toolName === "delete_thing")).toBe(
       true,
@@ -88,42 +107,38 @@ describe("AgentService.run HITL gate", () => {
       true,
     );
     expect(onRun).toHaveBeenCalledTimes(1);
-    expect(toolOutputs(events)).toEqual(["DID_DELETE"]);
-    expect(events.at(-1)).toEqual({ type: "answer", content: "done" });
+    expect(toolOutputs(result.items)).toEqual(["DID_DELETE"]);
+    expect(result.answer).toBe("done");
   });
 
   it("skips a rejected tool, feeds the denial back, and keeps going", async () => {
     const onRun = vi.fn();
-    const { service } = makeService(callThenAnswer, [gatedTool(onRun)]);
+    const { agent } = makeAgent(callThenAnswer, [gatedTool(onRun)]);
     const ctx: TurnContext = { memories: [], requestApproval: gate("reject") };
 
-    const events = await collect(
-      service.run([userMessage("delete db")], DEFAULT_TURN_OPTIONS, ctx),
-    );
+    const { events, result } = await run(agent, [userMessage("delete db")], ctx);
 
     expect(events.some((e) => e.type === "approval_resolved" && e.outcome === "reject")).toBe(true);
     expect(onRun).not.toHaveBeenCalled();
-    expect(toolOutputs(events)).toEqual([APPROVAL_DENIED_OUTPUT]);
-    expect(events.at(-1)).toEqual({ type: "answer", content: "done" });
+    expect(toolOutputs(result.items)).toEqual([APPROVAL_DENIED_OUTPUT]);
+    expect(result.answer).toBe("done");
   });
 
   it("runs unattended (no prompt) when no gate is injected", async () => {
     const onRun = vi.fn();
-    const { service } = makeService(callThenAnswer, [gatedTool(onRun)]);
+    const { agent } = makeAgent(callThenAnswer, [gatedTool(onRun)]);
 
-    const events = await collect(
-      service.run([userMessage("delete db")], DEFAULT_TURN_OPTIONS, { memories: [] }),
-    );
+    const { events, result } = await run(agent, [userMessage("delete db")], { memories: [] });
 
     expect(events.some((e) => e.type === "approval_request")).toBe(false);
     expect(onRun).toHaveBeenCalledTimes(1);
-    expect(toolOutputs(events)).toEqual(["DID_DELETE"]);
+    expect(toolOutputs(result.items)).toEqual(["DID_DELETE"]);
   });
 
   it("gates only flagged calls, leaving unflagged ones to run in order", async () => {
     const gatedRun = vi.fn();
     const safeRun = vi.fn();
-    const { service } = makeService(
+    const { agent } = makeAgent(
       [
         {
           calls: [
@@ -136,16 +151,13 @@ describe("AgentService.run HITL gate", () => {
       [gatedTool(gatedRun), safeTool(safeRun)],
     );
     const seen: ApprovalRequest[] = [];
-    const ctx: TurnContext = {
-      memories: [],
-      requestApproval: gate("reject", (r) => seen.push(r)),
-    };
+    const ctx: TurnContext = { memories: [], requestApproval: gate("reject", (r) => seen.push(r)) };
 
-    const events = await collect(service.run([userMessage("go")], DEFAULT_TURN_OPTIONS, ctx));
+    const { result } = await run(agent, [userMessage("go")], ctx);
 
     expect(seen.map((r) => r.toolName)).toEqual(["delete_thing"]);
     expect(gatedRun).not.toHaveBeenCalled();
     expect(safeRun).toHaveBeenCalledTimes(1);
-    expect(toolOutputs(events)).toEqual([APPROVAL_DENIED_OUTPUT, "SAFE_OK"]);
+    expect(toolOutputs(result.items)).toEqual([APPROVAL_DENIED_OUTPUT, "SAFE_OK"]);
   });
 });

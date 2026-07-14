@@ -10,8 +10,11 @@ import { PromptInput } from "./input/prompt-input";
 import { PickerOverlay, PromptOverlay } from "./input/picker-overlay";
 import { ApprovalOverlay } from "./input/approval-overlay";
 import type { PickerItem } from "./input/picker-keys";
-import type { ApprovalDecision, ApprovalRequest } from "../agent/tools/approval";
-import type { ClarificationRequest, ClarificationResponse } from "../agent/tools/clarification";
+import type { ApprovalDecision, ApprovalRequest } from "../agent/humanLayer/approval";
+import type {
+  ClarificationRequest,
+  ClarificationResponse,
+} from "../agent/humanLayer/clarification";
 
 export type { Message, Step, Role } from "./types";
 export type { ChatContextBar } from "./components/usage-bar";

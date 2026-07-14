@@ -23,6 +23,12 @@ export interface Expected {
   mustOmit?: string[];
   /** Schema the structured output must validate against. */
   schema?: z.ZodType;
+  /**
+   * For an unanswerable prompt: accept a refusal too. When set, `matchesSchema`
+   * passes if the output validates OR the model declined to emit a structured
+   * answer (no fabricated content) instead of inventing one.
+   */
+  allowRefusal?: boolean;
   /** Maximum word count. */
   maxWords?: number;
   /** Rubric for the LLM-as-judge scorer. */

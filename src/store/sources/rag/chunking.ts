@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { estimateTokens } from "../../../agent/tokens";
+import { estimateTokens } from "../../../tokens";
 
 /**
  * Structure-aware Markdown chunker (internal to the `sources` domain).

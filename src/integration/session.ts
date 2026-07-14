@@ -1,17 +1,17 @@
 import type { OpenAI } from "openai";
-import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
-import type { AgentService, TurnContext } from "../agent";
-import type { ApprovalDecision, ApprovalGate, ApprovalRequest } from "../agent/tools/approval";
+import type { ResponseInputItem, ResponseUsage } from "openai/resources/responses/responses.mjs";
+import type { Agent, TurnContext } from "../agent";
+import type { EventBus } from "../agent/events/bus";
+import type { ApprovalDecision, ApprovalGate, ApprovalRequest } from "../agent/humanLayer/approval";
 import type {
   ClarificationGate,
   ClarificationRequest,
   ClarificationResponse,
-} from "../agent/tools/clarification";
+} from "../agent/humanLayer/clarification";
 import type { TurnOptions } from "../agent/conversation";
 import { countUserTurns, splitAtLastTurns } from "../agent/conversation";
-import type { TurnEvent } from "../agent/events";
 import type { Span } from "@opentelemetry/api";
-import { summarize } from "../agent/tokens";
+import { summarize } from "../tokens";
 import {
   endSpan,
   recordLlmSpan,
@@ -19,18 +19,18 @@ import {
   setSpanIO,
   startSpan,
   withSpan,
-} from "../agent/telemetry";
+} from "../telemetry";
 import {
   type ConversationItemInsert,
   type IndexResult,
   type ItemKind,
   type SourceProgress,
   type Store,
-  type TokenColumns,
   responseUsageToTokens,
 } from "../store";
-import { CHEAP_MODEL, ORCHESTRATOR_MODEL } from "../agent/config";
+import { CHEAP_MODEL, MAX_TOOL_STEPS, ORCHESTRATOR_MODEL } from "../agent/config";
 import { createSerialQueue } from "../utils/serial-queue";
+import { runAgentLoop } from "../runner/runner";
 import { formatReport, usageSnapshot, type UsageSnapshot } from "./usage";
 
 function itemKind(item: ResponseInputItem): ItemKind {
@@ -45,8 +45,6 @@ function titleFromFirstPrompt(prompt: string): string {
 }
 
 export class Session {
-  private pendingUsage: TokenColumns | null = null;
-  private pendingMessages: ResponseInputItem[] = [];
   private currentTurnIndex = 0;
   private alwaysAllowed = new Set<string>();
   private handler: ApprovalGate | undefined;
@@ -54,10 +52,11 @@ export class Session {
   private readonly humanPrompts = createSerialQueue();
 
   private constructor(
-    private readonly agent: AgentService,
+    private readonly agent: Agent,
     private readonly openai: OpenAI,
     private activeStore: Store,
     private readonly keepLastTurns: number,
+    private readonly bus: EventBus,
   ) {}
 
   get store(): Store {
@@ -65,12 +64,13 @@ export class Session {
   }
 
   static async create(
-    agent: AgentService,
+    agent: Agent,
     openai: OpenAI,
     store: Store,
     keepLastTurns: number,
+    bus: EventBus,
   ): Promise<Session> {
-    return new Session(agent, openai, store, keepLastTurns);
+    return new Session(agent, openai, store, keepLastTurns, bus);
   }
 
   rebind(store: Store): void {
@@ -79,8 +79,6 @@ export class Session {
   }
 
   reset(): void {
-    this.pendingMessages = [];
-    this.pendingUsage = null;
     this.currentTurnIndex = 0;
     this.alwaysAllowed.clear();
   }
@@ -172,7 +170,7 @@ export class Session {
     return this.store.sources.reindex(this.store.profileId);
   }
 
-  async *runTurn(prompt: string, options: TurnOptions): AsyncGenerator<TurnEvent, void> {
+  async runTurn(prompt: string, options: TurnOptions): Promise<string> {
     const { conversation, conversationId } = this.store;
     const tail = await conversation.queryHistory(conversationId).afterLastSummary().execute();
     this.currentTurnIndex = countUserTurns(tail);
@@ -207,7 +205,7 @@ export class Session {
     };
     const turnOptions = { ...options, ...turnSettings };
 
-    yield* withSpan(
+    return withSpan(
       "chat.turn",
       {
         attributes: {
@@ -220,62 +218,56 @@ export class Session {
         },
         input: prompt,
       },
-      (turnSpan) => this.driveAgent(turnSpan, messages, turnOptions, context, turnSettings.model),
+      (turnSpan) => this.driveTurn(turnSpan, messages, turnOptions, context, turnSettings.model),
     );
   }
 
-  /** Drive the agent loop for one turn: persist items, feed usage, surface UI events. */
-  private async *driveAgent(
+  /** Run one turn through the loop, persist the produced transcript, and return the answer. */
+  private async driveTurn(
     turnSpan: Span,
     messages: readonly ResponseInputItem[],
     turnOptions: TurnOptions,
     context: TurnContext,
     model: string,
-  ): AsyncGenerator<TurnEvent, void> {
+  ): Promise<string> {
     const turnStart = performance.now();
     let firstToken = true;
-    for await (const event of this.agent.run(messages, turnOptions, context)) {
-      switch (event.type) {
-        case "message":
-          this.pendingMessages.push(event.item);
-          break;
-        case "usage":
-          if (event.kind === "response") {
-            await this.flushPendingMessages();
-            this.pendingUsage = responseUsageToTokens(event.usage ?? {});
-          } else {
-            await this.flushPendingMessages();
-          }
-          break;
-        default:
-          // First text token reaching the user — the turn-level TTFT that spans
-          // any tool rounds before the answer streamed, unlike per-call TTFT.
-          if (event.type === "delta" && firstToken) {
-            recordTurnTimeToFirstToken(turnSpan, (performance.now() - turnStart) / 1000, model);
-            firstToken = false;
-          }
-          if (event.type === "answer") setSpanIO(turnSpan, { output: event.content });
-          yield event;
+    const unsubscribe = this.bus.subscribe((event) => {
+      if (event.type === "delta" && firstToken) {
+        firstToken = false;
+        recordTurnTimeToFirstToken(turnSpan, (performance.now() - turnStart) / 1000, model);
       }
-    }
+    });
 
-    await this.flushPendingMessages();
-    await this.maintainWindow(turnSpan);
+    try {
+      const { answer, items, usage } = await runAgentLoop({
+        agent: this.agent,
+        messages,
+        options: turnOptions,
+        context,
+        bus: this.bus,
+        maxToolSteps: MAX_TOOL_STEPS,
+      });
+      await this.persistTurn(items, usage);
+      setSpanIO(turnSpan, { output: answer });
+      await this.maintainWindow(turnSpan);
+      return answer;
+    } finally {
+      unsubscribe();
+    }
   }
 
-  private async flushPendingMessages(): Promise<void> {
-    if (!this.pendingMessages.length) return;
-
-    const messages = this.pendingMessages;
-    this.pendingMessages = [];
-    const usage = this.pendingUsage;
-    this.pendingUsage = null;
-
-    const inserts: ConversationItemInsert[] = messages.map((item, index) => ({
+  private async persistTurn(
+    items: ResponseInputItem[],
+    usage: ResponseUsage | undefined,
+  ): Promise<void> {
+    if (!items.length) return;
+    const tokens = responseUsageToTokens(usage ?? {});
+    const inserts: ConversationItemInsert[] = items.map((item, index) => ({
       kind: itemKind(item),
       turnIndex: this.currentTurnIndex,
       payload: item,
-      tokens: index === messages.length - 1 ? (usage ?? undefined) : undefined,
+      tokens: index === items.length - 1 ? tokens : undefined,
     }));
     await this.store.conversation.createItems(this.store.conversationId, inserts);
   }

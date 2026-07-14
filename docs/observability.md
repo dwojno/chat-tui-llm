@@ -12,38 +12,35 @@ never wrapped" (see [architecture.md](./architecture.md)). Observability is the
 one sanctioned exception: the core imports `@opentelemetry/api` only. That package
 is an **API surface, not an SDK** — every call is a no-op until the composition
 root registers a provider (`startTelemetry` in
-[src/integration/telemetry/otel.ts](../src/integration/telemetry/otel.ts)). It is
+[src/telemetry/otel.ts](../src/telemetry/otel.ts)). It is
 not an LLM/SDK abstraction, and it adds no I/O or state to the core, so the
 stateless-core contract holds.
 
-## The async-generator constraint (why we re-enter context per `.next()`)
+## How spans nest (ambient context across `await`)
 
-The loop is entirely async generators driven externally (`for await … agent.run()`),
-and parallel tool calls are interleaved by `it-merge`. OTel's ambient active-context
-(`AsyncLocalStorage`) is **not** preserved across a `yield` by a naive
-`startActiveSpan(fn)` or a set-context-then-iterate: the external driver resumes
-`.next()` in **its** context, not the one live when the generator suspended. So the
-core keeps observability out of the domain types (`TurnContext` carries no span) and
-instead **binds each generator to its span's context on every resumption**:
+The loop and tools are plain `async`/`await` (no generators). OTel's ambient
+active-context rides on `AsyncLocalStorage`, which **is** preserved across `await`, so
+nesting needs no per-step ceremony — the core keeps observability out of the domain
+types (`TurnContext` carries no span) and relies on a single active-context wrapper:
 
-- **`bindActive(ctx, gen)`** ([src/agent/telemetry/trace.ts](../src/agent/telemetry/trace.ts))
-  wraps a generator so each `.next()` runs inside `context.with(ctx, …)`. Because the
-  binding lives _inside_ the generator, `it-merge` can race parallel tool calls and
-  each still resumes in its own span's context — the merge pump never has to know
-  about tracing. `Session.runTurn` binds the turn span around `agent.run`, `runFork`
-  binds the fork span, and `executeCall` binds each tool span around the tool body.
-- **Spans use ambient parents.** With the binding in place, `startSpan(name)` reads
-  `context.active()` for its parent, so `gen_ai.chat` / `execute_tool` nest under the
-  turn span with no threading, and the store path (`store.sources.search()` → the
-  embeddings/rerank `startActiveSpan` spans) nests under `execute_tool` automatically —
-  `search_knowledge_base` contains **zero** tracing code. `tests/agent/telemetry.test.ts`
-  asserts this nesting end-to-end (including through the `it-merge` path).
+- **`withSpan(name, init, run)`** ([src/telemetry/trace.ts](../src/telemetry/trace.ts))
+  starts a span, runs `run(span)` inside `context.with(contextWithSpan(span), …)`, and
+  ends it. Because the whole awaited call chain runs under that context, every span
+  created downstream nests correctly. `Session.runTurn` wraps the turn span around
+  `runAgentLoop`, `runFork` wraps the fork span, and `Agent.executeTool` wraps each
+  tool span around the tool body.
+- **Spans use ambient parents.** `startSpan(name)` reads `context.active()` for its
+  parent, so `gen_ai.chat` / `execute_tool` nest under the turn span with no threading,
+  and the store path (`store.sources.search()` → the embeddings/rerank
+  `startActiveSpan` spans) nests under `execute_tool` automatically —
+  `search_knowledge_base` contains **zero** tracing code.
+  `tests/agent/telemetry.test.ts` asserts this nesting end-to-end.
 
 ## Span tree
 
 ```
 chat.turn                         Session.runTurn — conversation.id, profile.id, chat.model, chat.turn.index, time_to_first_token_ms
-├─ gen_ai.chat <model>            per model round — gen_ai.step, usage, cost, finish reason, completion-start time (TTFT)
+├─ gen_ai.chat <model>            per model round — usage, cost, finish reason, completion-start time (TTFT)
 ├─ execute_tool <name>            per tool call (parallel-safe) — gen_ai.tool.name, args + result events
 │   └─ chat.turn (fork)           delegate_task — chat.fork.title, chat.fork.profile, chat.fork.memories
 │       ├─ gen_ai.chat <model>    the fork's own tool loop
@@ -93,7 +90,7 @@ avoids a `model` attribute so it stays the trace root. Content is truncated to 8
   non-streaming rounds (e.g. forks) omit it.
 - **User-facing (turn-level).** What the user actually waited for — turn start to
   the first text token streamed to them, spanning any tool-call rounds in between.
-  `Session.driveAgent` records it on the `chat.turn` root as the
+  `Session.driveTurn` records it on the `chat.turn` root as the
   `chat.turn.time_to_first_token_ms` attribute plus the
   `gen_ai.client.turn.time_to_first_token` metric (via `recordTurnTimeToFirstToken`).
   Langfuse has no turn-level TTFT widget, so read it from the root span's attributes
@@ -114,7 +111,7 @@ supplementary and are best pointed at a Prometheus/collector.
 
 ## Cost tracking
 
-`estimateCost` ([src/agent/telemetry/pricing.ts](../src/agent/telemetry/pricing.ts))
+`estimateCost` ([src/telemetry/pricing.ts](../src/telemetry/pricing.ts))
 holds a per-model USD-per-1M-token table (`gpt-4o`, `gpt-4o-mini`,
 `text-embedding-3-small`) and subtracts cached input tokens. Update it when
 pricing changes. Langfuse can also compute cost from model + tokens; the explicit
@@ -123,7 +120,7 @@ attribute covers backends that don't.
 ## Configuration
 
 All via env (see [.env.example](../.env.example)); parsed by
-[src/integration/telemetry/config.ts](../src/integration/telemetry/config.ts):
+[src/telemetry/config.ts](../src/telemetry/config.ts):
 
 | Var                           | Default                                 |
 | ----------------------------- | --------------------------------------- |

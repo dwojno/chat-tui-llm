@@ -7,7 +7,7 @@ import { ragScorers, type RagExpected, type RagInput } from "../harness/scorers/
  * End-to-end RAG eval — REAL, no mocks. On each run the harness prepares this
  * suite's isolated Qdrant collection + MinIO bucket, ingests the corpus in
  * `evals/harness/rag-corpus/` through the app's production `store.sources`
- * pipeline, then runs the real `AgentService` loop per query and scores real
+ * pipeline, then runs the real `Agent` loop per query and scores real
  * retrieval + real generation.
  *
  * Everything is programmatic: `harness.setup()` starts Qdrant + MinIO if

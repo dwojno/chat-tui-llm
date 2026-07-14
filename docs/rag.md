@@ -45,7 +45,7 @@ switches knowledge bases.
 
 ## Ingest (`/learn @file`)
 
-`/learn @file` ([commands/learn.ts](../src/integration/commands/learn.ts)) resolves
+`/learn @file` ([commands/learn.ts](../src/commands/learn.ts)) resolves
 the mention, then streams `session.indexSource(path)` →
 `facade.add` → `engine.indexDocument`
 ([engine.ts](../src/store/sources/rag/engine.ts)). One document flows through:
@@ -136,7 +136,7 @@ to raw RRF scores, since they have no absolute scale).
 ## The tools
 
 Composed in `createRagTools(store)`
-([integration/rag/tools.ts](../src/integration/rag/tools.ts)) and injected into
+([src/tools/rag.ts](../src/tools/rag.ts)) and injected into
 the agent; each closes over the live `Store` and calls `store.sources.*` for the
 **active profile**.
 
@@ -204,7 +204,7 @@ the "not configured" message; the rest of the agent is unaffected.
 
 Retrieval quality is measured end-to-end against the **real** pipeline — no mocks.
 The RAG harness ([evals/harness/rag.ts](../evals/harness/rag.ts)) runs the app's
-actual `AgentService` with the real store-backed tools over a fixed corpus in an
+actual `Agent` with the real store-backed tools over a fixed corpus in an
 isolated `eval-<suiteId>` profile, and captures `retrievedContext` from the
 agent's genuine tool outputs. The scorers
 ([evals/harness/scorers/rag-scorers.ts](../evals/harness/scorers/rag-scorers.ts))

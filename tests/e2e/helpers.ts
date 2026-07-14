@@ -2,10 +2,12 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { OpenAI } from "openai";
-import { AgentService } from "../../src/agent/agent";
-import { processLine } from "../../src/integration/repl";
-import type { CommandContext } from "../../src/integration/commands/types";
-import { createAgentTools } from "../../src/integration/tools";
+import { Agent } from "../../src/agent/agent";
+import { EventBus } from "../../src/agent/events/bus";
+import { SYSTEM_INSTRUCTIONS } from "../../src/agent/prompts";
+import { processLine } from "../../src/input/repl";
+import type { CommandContext } from "../../src/commands/types";
+import { createAgentTools } from "../../src/tools";
 import { Session } from "../../src/integration/session";
 import { LocalStore, type Store } from "../../src/store";
 import { renderChat, type ChatHandle, type Message } from "../../src/ui/chat";
@@ -40,12 +42,16 @@ export async function createE2EHarness(opts?: {
   const mock = opts?.client ? null : createMockOpenAI(opts?.turns ?? [], opts?.compressions ?? []);
   const client = opts?.client ?? mock!.client;
   const { tools, forkProfiles } = createAgentTools(store);
-  const session = await Session.create(
-    new AgentService(client, { tools, forkProfiles }),
-    client,
-    store,
-    4,
-  );
+  const bus = new EventBus();
+  const agent = new Agent({
+    openai: client,
+    temperature: 0.7,
+    cacheKey: "chat-cli:test",
+    instructions: SYSTEM_INSTRUCTIONS,
+    tools,
+    forkProfiles,
+  });
+  const session = await Session.create(agent, client, store, 4, bus);
   const chat = renderChat([], { interactive: false, conversationId: store.conversationId });
 
   const pickerQueue: (string | "create" | null)[] = [];
@@ -69,7 +75,7 @@ export async function createE2EHarness(opts?: {
     session,
     store,
     ctx,
-    run: (line) => processLine(line, ctx, chat, session),
+    run: (line) => processLine(line, ctx, chat, session, bus),
     lastAssistant: () => [...chat.messages].toReversed().find((m) => m.role === "assistant"),
     queuePicker: (...choices) => {
       pickerQueue.push(...choices);

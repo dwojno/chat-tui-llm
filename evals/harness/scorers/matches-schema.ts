@@ -7,17 +7,23 @@ export const matchesSchema = defineScorer(
   ({ output, expected }) => {
     const schema = expected?.schema;
     if (isAbsent(schema)) return notApplicable;
+    // A refusal (declining to fabricate an answer to an unanswerable prompt) is a
+    // desirable outcome the schema can't represent — accept it when allowed.
+    const refused = { score: 1, metadata: { note: "refusal accepted" } };
     let candidate: unknown = output.parsed;
     if (candidate == null) {
       try {
         candidate = JSON.parse(output.text);
       } catch {
-        return { score: 0, metadata: { error: "output was not valid JSON" } };
+        return expected?.allowRefusal
+          ? refused
+          : { score: 0, metadata: { error: "output was not valid JSON" } };
       }
     }
     const validation = schema.safeParse(candidate);
-    return validation.success
-      ? { score: 1 }
+    if (validation.success) return { score: 1 };
+    return expected?.allowRefusal
+      ? refused
       : {
           score: 0,
           metadata: {

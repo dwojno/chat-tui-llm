@@ -5,30 +5,39 @@ tool calling, and sub-agent delegation are hand-built on the raw OpenAI SDK. Thi
 document holds the rationale that used to live in inline comments — the code
 itself is kept comment-light.
 
-## The three layers
+## The layers
 
-The codebase is split into three independent layers plus a thin composition root:
+The codebase is split into focused layers plus a thin composition root. Everything
+depends inward on `agent/`; the core imports nothing outward.
 
 ```
 src/
-  agent/         PURE core — the agent loop and everything the model needs.
-                 No filesystem, no Ink, no persistence, no config paths.
-  ui/            The Ink TUI. Consumes a plain event stream; knows nothing
+  agent/         PURE core — the Agent's step()/executeTool() primitives + the
+                 tool/event/HITL contracts. No loop, no filesystem, no Ink, no
+                 persistence, no config globals (all injected).
+  runner/        runAgentLoop — the caller-owned model→tool→result loop.
+  tools/         Tool IMPLEMENTATIONS (weather, web-search, disk, rag, ask-user),
+                 delegation/, fork prompts/, and response formatting.
+  commands/      User-intent handlers that bridge input to the agent/session.
+  telemetry/     OTel spans + pricing + OTLP setup (leaf infra).
+  tokens/        Rolling-summary summarizer + token estimation (leaf infra).
+  input/         The REPL input loop (subscribes to the EventBus) + file mentions.
+  cli/           CLI boot/teardown: args, config, env, shutdown.
+  integration/   Thin wiring: Session (state + persistence), context switch, usage.
+  ui/            The Ink TUI. Driven by an EventBus subscription; knows nothing
                  about the agent's internals or storage.
-  integration/   Adapters + wiring: persistence, the OpenAI client, the REPL
-                 driver, CLI args, file-mention expansion, and the commands
-                 that bridge user input to the agent/session.
   store/         Store facade → domain facades (profile, conversation, memory,
                  sources) backed by SQLite via drizzle-orm.
   db/            Schema, migrations, and the SQLite connection.
-  main.ts        Composition root: builds every dependency once and hands them
-                 to the REPL, so each layer can be driven with test doubles.
+  main.ts        Composition root: builds every dependency once (incl. the EventBus)
+                 and hands them to the REPL, so each layer can be driven with doubles.
 ```
 
-Dependency direction is one-way: `ui` and `integration` depend on `agent`;
-`agent` depends on nothing above it. This is what makes the agent reusable
-outside the CLI — a web server could drive the same `AgentService` + `Session`
-and forward the same event stream over SSE.
+Dependency direction is one-way: everything (`ui`, `integration`, `runner`,
+`commands`, `tools`) depends inward on `agent`; `agent` depends on nothing above it.
+This is what makes the agent reusable outside the CLI — a web server could construct
+the same `Agent`, drive it with its own loop (or reuse `runAgentLoop`), and forward
+the same `EventBus` stream over SSE.
 
 **Frameworkless constraint.** The raw `openai` SDK is used directly inside the
 agent (injected, never wrapped). There is deliberately no LLM/SDK abstraction
@@ -39,25 +48,33 @@ The one sanctioned exception is `@opentelemetry/api`, imported by the core for
 observability. It is an inert API — every call is a no-op until the composition
 root registers an SDK — not an LLM/SDK wrapper, and it adds no I/O or state, so the
 stateless-core contract holds. See **[observability.md](./observability.md)** for
-the span tree, the GenAI semantic-convention attributes, and how spans nest via
-per-`.next()` context binding across the loop's async generators.
+the span tree, the GenAI semantic-convention attributes, and how spans nest via the
+ambient OTel context that `AsyncLocalStorage` propagates across `await`s.
 
-## The agent loop
+## The agent primitives and the loop
 
-`AgentService.run(messages, options, context, profile)`
-([src/agent/agent.ts](../src/agent/agent.ts)) is a single-turn **stateless** pure
-function: it copies the input, loops model → tool calls → repeat until the model
-stops requesting tools, emits a stream of `TurnEvent`s, and retains nothing after
-it returns. The agent never touches the `Store`; the Session resolves per-profile
-settings before calling `run`.
+The `Agent` ([src/agent/agent.ts](../src/agent/agent.ts)) exposes two **stateless,
+pure** primitives — it owns no loop: `step()` makes one model call (streaming `delta`
+to the injected `EventBus`) and returns `{ outputText, outputParsed, toolCalls,
+items, usage }`; `executeTool()` dispatches one tool call. Every collaborator and
+constant is injected via its constructor — the agent imports no config or prompt
+globals. The agent never touches the `Store`.
 
-The full mechanics — the loop steps, the `TurnEvent` contract, tools-as-streams,
+The **loop** lives in the caller: `runAgentLoop`
+([src/runner/runner.ts](../src/runner/runner.ts)) copies the input, then repeats
+`step` → approval gate → `Promise.all(executeTool)` → feed outputs back until the
+model stops requesting tools, and **returns** `{ answer, items, usage }`. Progress
+is observed via the `EventBus` (UI-only, never persisted); durable data is the
+return value. This is 12-factor-agents Factor 08 (own your control flow) and Factor
+05 (the persisted message thread is the single source of truth).
+
+The full mechanics — the loop steps, the `TurnEvent` contract, tools-as-promises,
 **model routing** (orchestrator vs fork vs cheap models, the code-defined
-temperature), **memories in context**, and the **generalized sub-agent**
-(`delegate_task` / `delegate_tasks`, fork profiles, and the structured
-`ForkResult` handoff) — live in **[agent-loop.md](./agent-loop.md)**. The rest of
-this document covers everything the agent deliberately does _not_ own: state,
-persistence, retrieval infrastructure, and the UI.
+temperature), **memories in context** (assembled by the runner, not the agent), and
+the **generalized sub-agent** (`delegate_task` / `delegate_tasks`, fork profiles, and
+the structured `ForkResult` handoff) — live in **[agent-loop.md](./agent-loop.md)**.
+The rest of this document covers everything the agent deliberately does _not_ own:
+state, persistence, retrieval infrastructure, and the UI.
 
 ## The Session (integration owns state)
 
@@ -73,8 +90,9 @@ from the `Store` on each turn — no in-memory `log`. `runTurn`:
 3. resolves the orchestrator `model` from the active profile
    (`userProfile?.model ?? ORCHESTRATOR_MODEL`) into `options` — temperature is a
    code constant, not resolved here (see [agent-loop.md](./agent-loop.md#model-routing));
-4. calls `agent.run(messages, options, { memories })`, forwarding presentation
-   events to the caller and persisting `message`/`usage` events;
+4. calls `runAgentLoop({ agent, messages, options, context: { memories }, bus, … })`,
+   then persists the returned `items` + `usage` in one transaction and returns the
+   `answer` (the UI observes `delta`/`tool`/`status` live via the injected bus);
 5. compacts the window when the unsummarized tail overflows.
 
 Swapping or extending backends is a new `Store` bundle
@@ -108,7 +126,7 @@ The last `KEEP_LAST_TURNS` (4) user turns are kept verbatim. When the window
 overflows, `maintainWindow` splits the unsummarized tail at a user-message
 boundary (so tool calls stay attached to their turn), folds the evicted turns
 into a rolling summary via the pure `summarize` helper
-([src/agent/tokens/summarizer.ts](../src/agent/tokens/summarizer.ts)), and
+([src/tokens/summarizer.ts](../src/tokens/summarizer.ts)), and
 **appends** a new `kind = 'summary'` row. Older transcript rows remain in the
 DB for audit; `queryHistory().afterLastSummary()` excludes them from model
 reads. Windowing lives in the Session, not the agent.
@@ -116,7 +134,7 @@ reads. Windowing lives in the Session, not the agent.
 ### Prompt caching
 
 Pinned memories are appended **last** in the request input via `buildContextBlock`
-([src/agent/dynamicContext/context.ts](../src/agent/dynamicContext/context.ts)),
+([src/context/context.ts](../src/context/context.ts)),
 after the conversation prefix. The rolling summary is part of that prefix —
 assembled by `forModel()` as a prepended `developer` message replacing evicted
 turns, not duplicated in the memories block. A `/remember` changes only the tail
@@ -154,8 +172,9 @@ lives in **[rag.md](./rag.md)**. Multi-hop retrieval is delegated to the
 ## The UI
 
 The Ink TUI ([src/ui/](../src/ui/)) is a thin adapter over the event stream. The
-REPL ([src/integration/repl.ts](../src/integration/repl.ts)) is a
-`for await … switch` that maps each presentation event to a `ChatHandle` call.
+REPL ([src/input/repl.ts](../src/input/repl.ts)) subscribes to the `EventBus` and
+maps each event (`delta`/`tool`/`status`/`approval_*`) to a `ChatHandle` call, then
+commits the answer returned by `Session.runTurn`.
 `chat.tsx` holds the root `Chat` component and the imperative `renderChat`
 factory; individual pieces live under `components/`, `hooks/`, and `input/`.
 

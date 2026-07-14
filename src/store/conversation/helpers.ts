@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { countUserTurns, renderItemsText, splitAtLastTurns } from "../../agent/conversation";
 import { SYSTEM_INSTRUCTIONS } from "../../agent/prompts";
-import { estimateTokens } from "../../agent/tokens";
+import { estimateTokens } from "../../tokens";
 import { conversation, conversationItem } from "../../db/schema";
 import { type UsageTotals } from "../../integration/usage";
 

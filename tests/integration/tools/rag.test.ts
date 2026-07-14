@@ -2,7 +2,10 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createRagTools } from "../../../src/integration/tools/rag";
+import { createRagTools } from "../../../src/tools/rag";
+import { EventBus } from "../../../src/agent/events/bus";
+import type { TurnEvent } from "../../../src/agent/events/events";
+import type { ToolRunContext } from "../../../src/agent/conversation/turn";
 import { LocalStore, type Store } from "../../../src/store";
 import { createFakeRag } from "../../helpers/fake-rag";
 import { drain } from "../../../src/utils/async-gen";
@@ -13,7 +16,7 @@ const DOC = ["# API", "", "## Auth", "", "Send a bearer token in the Authorizati
 
 type LooseTool = {
   name: string;
-  execute: (args: any, ctx?: unknown) => AsyncGenerator<unknown, string>;
+  execute: (args: any, ctx?: ToolRunContext) => Promise<string>;
 };
 
 function tool(tools: ReturnType<typeof createRagTools>, name: string): LooseTool {
@@ -53,43 +56,38 @@ describe("createRagTools", () => {
   });
 
   it("search_knowledge_base returns path:line pointers and points at read_source", async () => {
-    const out = await drain(
-      tool(tools, "search_knowledge_base").execute(
-        { query: "bearer token authorization header", limit: 3 },
-        undefined,
-      ),
-    );
+    const out = await tool(tools, "search_knowledge_base").execute({
+      query: "bearer token authorization header",
+      limit: 3,
+    });
     expect(out).toContain("api.md:");
     expect(out).toContain("read_source");
   });
 
   it("list_files lists indexed files", async () => {
-    const out = await drain(tool(tools, "list_files").execute({}, undefined));
+    const out = await tool(tools, "list_files").execute({});
     expect(out).toContain("api.md");
   });
 
-  it("grep_files streams status events and returns matching lines", async () => {
-    const gen = tool(tools, "grep_files").execute(
+  it("grep_files emits status events and returns matching lines", async () => {
+    const events: TurnEvent[] = [];
+    const bus = new EventBus();
+    bus.subscribe((e) => events.push(e));
+    const out = await tool(tools, "grep_files").execute(
       { pattern: "bearer", paths: null, ignoreCase: true, maxMatches: null },
-      undefined,
+      { bus } as unknown as ToolRunContext,
     );
-    const events: unknown[] = [];
-    let next = await gen.next();
-    while (!next.done) {
-      events.push(next.value);
-      next = await gen.next();
-    }
-    expect(events.some((e) => (e as { type?: string }).type === "status")).toBe(true);
-    expect(next.value).toMatch(/api\.md:\d+:.*bearer/i);
+    expect(events.some((e) => e.type === "status")).toBe(true);
+    expect(out).toMatch(/api\.md:\d+:.*bearer/i);
   });
 
   it("read_source returns a line range", async () => {
-    const out = await drain(
-      tool(tools, "read_source").execute(
-        { path: "api.md", mode: "lines", start: 1, end: 1 },
-        undefined,
-      ),
-    );
+    const out = await tool(tools, "read_source").execute({
+      path: "api.md",
+      mode: "lines",
+      start: 1,
+      end: 1,
+    });
     expect(out).toBe("# API");
   });
 
@@ -97,9 +95,7 @@ describe("createRagTools", () => {
     const plain = await LocalStore.open(":memory:");
     const plainTools = createRagTools(plain);
     await expect(
-      drain(
-        tool(plainTools, "search_knowledge_base").execute({ query: "x", limit: null }, undefined),
-      ),
+      tool(plainTools, "search_knowledge_base").execute({ query: "x", limit: null }),
     ).rejects.toThrow(/not configured/);
   });
 });

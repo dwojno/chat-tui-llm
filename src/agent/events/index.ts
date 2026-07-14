@@ -1,2 +1,2 @@
 export * from "./events";
-export * from "./merge";
+export * from "./bus";

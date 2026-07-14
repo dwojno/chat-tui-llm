@@ -1,16 +1,14 @@
 import { OpenAI } from "openai";
-import { parseCliArgs } from "./integration/args";
-import { runRepl } from "./integration/repl";
+import { parseCliArgs } from "./cli/args";
+import { runRepl } from "./input/repl";
 import { buildChatContext } from "./integration/switch";
-import { approvalsEnabled } from "./integration/env";
-import {
-  DB_PATH,
-  KEEP_LAST_TURNS,
-  OPENAI_MAX_RETRIES,
-  OPENAI_TIMEOUT_MS,
-} from "./integration/config";
-import { AgentService } from "./agent/agent";
-import { createAgentTools } from "./integration/tools";
+import { approvalsEnabled } from "./cli/env";
+import { DB_PATH, KEEP_LAST_TURNS, OPENAI_MAX_RETRIES, OPENAI_TIMEOUT_MS } from "./cli/config";
+import { Agent } from "./agent/agent";
+import { EventBus } from "./agent/events/bus";
+import { TEMPERATURE } from "./agent/config";
+import { SYSTEM_INSTRUCTIONS } from "./agent/prompts";
+import { createAgentTools } from "./tools";
 import { Session } from "./integration/session";
 import { createRagDeps, loadRagConfig, LocalStore, type OpenStoreOptions } from "./store";
 import { renderChat } from "./ui/chat";
@@ -27,12 +25,16 @@ export async function run(): Promise<void> {
   if (cli.conversationId !== undefined) openOpts.conversationId = cli.conversationId;
   const store = await LocalStore.open(DB_PATH, openOpts);
   const { tools, forkProfiles } = createAgentTools(store);
-  const agent = new AgentService(openai, {
+  const bus = new EventBus();
+  const agent = new Agent({
+    openai,
+    temperature: TEMPERATURE,
+    cacheKey: `chat-cli:${process.pid}`,
+    instructions: SYSTEM_INSTRUCTIONS,
     tools,
     forkProfiles,
-    cacheKey: `chat-cli:${process.pid}`,
   });
-  const session = await Session.create(agent, openai, store, KEEP_LAST_TURNS);
+  const session = await Session.create(agent, openai, store, KEEP_LAST_TURNS, bus);
 
   const chat = renderChat(messagesFromTranscript(await session.history()), {
     interactive,
@@ -46,5 +48,5 @@ export async function run(): Promise<void> {
     session.setClarificationHandler((req) => chat.promptClarification(req));
   }
 
-  await runRepl({ chat, session, interactive, store });
+  await runRepl({ chat, session, interactive, store, bus });
 }

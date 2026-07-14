@@ -2,13 +2,12 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { runCommand } from "../../../src/integration/commands/registry";
-import type { CommandContext } from "../../../src/integration/commands/types";
-import { AgentService } from "../../../src/agent/agent";
-import { Session } from "../../../src/integration/session";
+import { runCommand } from "../../../src/commands/registry";
+import type { CommandContext } from "../../../src/commands/types";
 import type { ChatHandle } from "../../../src/ui/chat";
 import { createMemoryStore, createMockOpenAI } from "../../helpers/mock-openai";
 import { createFakeRag } from "../../helpers/fake-rag";
+import { testSession } from "../../helpers/agent";
 
 let dir: string;
 
@@ -25,12 +24,7 @@ describe("learn command", () => {
   it("indexes valid @files and reports missing ones", async () => {
     writeFileSync("note.txt", "hello");
     const { client } = createMockOpenAI();
-    const session = await Session.create(
-      new AgentService(client),
-      client,
-      await createMemoryStore(createFakeRag().deps),
-      4,
-    );
+    const { session } = await testSession(client, await createMemoryStore(createFakeRag().deps));
     const push = vi.fn();
     const ctx: CommandContext = {
       session,

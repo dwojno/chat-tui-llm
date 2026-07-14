@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { describeToolCall, executeToolCall, toolLabel } from "../../../src/agent/tools";
 import type { ToolDefinition } from "../../../src/agent/tools/types";
-import { drain } from "../../../src/utils/async-gen";
 
 const params = z.object({ city: z.string() });
 const fakeTool: ToolDefinition<typeof params> = {
@@ -10,18 +9,14 @@ const fakeTool: ToolDefinition<typeof params> = {
   label: "Fetching weather data",
   description: "test",
   parameters: params,
-  async *execute({ city }) {
-    return `weather in ${city}`;
-  },
+  execute: async ({ city }) => `weather in ${city}`,
   summarize: ({ city }) => city,
 };
 const tools = [fakeTool] as ToolDefinition<z.ZodType>[];
 
 describe("executeToolCall", () => {
   it("runs a tool from the given list with parsed args", async () => {
-    const out = await drain(
-      executeToolCall(tools, "get_weather_data", JSON.stringify({ city: "Paris" })),
-    );
+    const out = await executeToolCall(tools, "get_weather_data", JSON.stringify({ city: "Paris" }));
     expect(out).toBe("weather in Paris");
   });
 

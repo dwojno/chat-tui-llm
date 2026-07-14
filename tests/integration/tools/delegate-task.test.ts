@@ -4,7 +4,7 @@ import {
   delegateTaskTool,
   parseDelegateTaskArgs,
   selectMemories,
-} from "../../../src/integration/tools/delegate-task";
+} from "../../../src/tools/delegation/delegate-task";
 import { toOpenAITool } from "../../../src/agent/tools/types";
 
 describe("parseDelegateTaskArgs", () => {

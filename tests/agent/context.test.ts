@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildContextBlock, keyMemories } from "../../src/agent/dynamicContext/context";
+import { buildContextBlock, keyMemories } from "../../src/context/context";
 
 const contentOf = (block: ReturnType<typeof buildContextBlock>): string =>
   block.length ? String((block[0] as { content: string }).content) : "";

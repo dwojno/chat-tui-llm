@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseFileMentions } from "../../src/integration/file-mentions";
+import { parseFileMentions } from "../../src/input/file-mentions";
 
 describe("parseFileMentions", () => {
   it("extracts unique @paths from a line", () => {

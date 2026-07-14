@@ -1,7 +1,7 @@
 import type { OpenAI } from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import { GEN_AI, setSpanIO, withLlmSpan } from "../../../agent/telemetry";
+import { GEN_AI, setSpanIO, withLlmSpan } from "../../../telemetry";
 
 /**
  * Relevance reranking over hybrid-retrieval candidates (internal to the

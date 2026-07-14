@@ -1,26 +1,25 @@
 import { describe, expect, it, vi } from "vitest";
-import { askUserTool } from "../../../src/integration/tools/ask-user";
+import { askUserTool } from "../../../src/tools/ask-user";
+import { EventBus } from "../../../src/agent/events/bus";
 import {
   CLARIFICATION_UNANSWERED_OUTPUT,
   type ClarificationRequest,
-} from "../../../src/agent/tools/clarification";
+} from "../../../src/agent/humanLayer/clarification";
 import type { ToolRunContext } from "../../../src/agent/conversation/turn";
-import { drain } from "../../../src/utils/async-gen";
 
 function ctxWith(answer: string | null) {
   const requestClarification = vi.fn(async (_request: ClarificationRequest) => ({ answer }));
-  return { ctx: { requestClarification } as unknown as ToolRunContext, requestClarification };
+  const ctx = { bus: new EventBus(), requestClarification } as unknown as ToolRunContext;
+  return { ctx, requestClarification };
 }
 
 describe("askUserTool", () => {
   it("returns the user's answer when the gate resolves one", async () => {
     const { ctx, requestClarification } = ctxWith("prod");
 
-    const result = await drain(
-      askUserTool.execute(
-        { question: "Which environment?", reason: null, options: ["staging", "prod"] },
-        ctx,
-      ),
+    const result = await askUserTool.execute(
+      { question: "Which environment?", reason: null, options: ["staging", "prod"] },
+      ctx,
     );
 
     expect(requestClarification).toHaveBeenCalledWith({
@@ -33,17 +32,20 @@ describe("askUserTool", () => {
   it("falls back to best-judgement guidance when the user gives no answer", async () => {
     const { ctx } = ctxWith(null);
 
-    const result = await drain(
-      askUserTool.execute({ question: "Which environment?", reason: null, options: null }, ctx),
+    const result = await askUserTool.execute(
+      { question: "Which environment?", reason: null, options: null },
+      ctx,
     );
 
     expect(result).toBe(CLARIFICATION_UNANSWERED_OUTPUT);
   });
 
   it("proceeds on its own when no human is available to answer", async () => {
-    const result = await drain(
-      askUserTool.execute({ question: "Which environment?", reason: null, options: null }),
-    );
+    const result = await askUserTool.execute({
+      question: "Which environment?",
+      reason: null,
+      options: null,
+    });
 
     expect(result).toContain("best judgement");
   });

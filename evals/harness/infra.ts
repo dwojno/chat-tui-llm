@@ -14,7 +14,6 @@ const exec = promisify(execFile);
  * (which run per worker) costs at most one health check.
  */
 const QDRANT_URL = process.env.QDRANT_URL ?? "http://localhost:6333";
-const MINIO_ENDPOINT = process.env.MINIO_ENDPOINT ?? "http://localhost:9000";
 const STARTUP_TIMEOUT_MS = 60_000;
 
 let ensured: Promise<void> | undefined;
@@ -49,11 +48,8 @@ async function run(): Promise<void> {
 }
 
 async function healthy(): Promise<boolean> {
-  const [qdrant, minio] = await Promise.all([
-    ping(`${QDRANT_URL}/collections`),
-    ping(`${MINIO_ENDPOINT}/minio/health/live`),
-  ]);
-  return qdrant && minio;
+  const qdrant = await ping(`${QDRANT_URL}/collections`);
+  return qdrant;
 }
 
 async function ping(url: string, timeoutMs = 1500): Promise<boolean> {

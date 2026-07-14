@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { OpenAI } from "openai";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
-import { summarize } from "../../src/agent/tokens/summarizer";
+import { summarize } from "../../src/tokens/summarizer";
 import { usage } from "../helpers/mock-openai";
 
 function fakeOpenAI(outputText: string) {

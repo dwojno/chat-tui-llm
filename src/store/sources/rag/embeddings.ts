@@ -1,5 +1,5 @@
 import type { OpenAI } from "openai";
-import { GEN_AI, setSpanIO, withLlmSpan } from "../../../agent/telemetry";
+import { GEN_AI, setSpanIO, withLlmSpan } from "../../../telemetry";
 
 /**
  * Embedding utilities (internal to the `sources` domain).

@@ -46,7 +46,7 @@ src/eval/
 with no mocks**. Each run resets its own isolated Qdrant collection + MinIO
 bucket (`kb_eval-rag`), ingests the corpus in
 [`rag-corpus/`](../evals/harness/rag-corpus/) through the app's production `store.sources`
-pipeline, then runs the **actual `AgentService` loop** (with the real
+pipeline, then runs the **actual `runAgentLoop`** (with the real
 store-backed RAG tools) once per query. `retrievedContext` is captured from the
 agent's genuine `search_knowledge_base` / `read_file` / `grep_files` tool
 outputs, so the RAGAS-style scorers (from

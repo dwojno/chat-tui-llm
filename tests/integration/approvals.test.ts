@@ -1,13 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { AgentService } from "../../src/agent/agent";
-import type { ApprovalDecision, ApprovalRequest } from "../../src/agent/tools/approval";
+import type { TurnEvent } from "../../src/agent/events/events";
+import type { ApprovalDecision, ApprovalRequest } from "../../src/agent/humanLayer/approval";
 import type { ToolDefinition } from "../../src/agent/tools/types";
 import type { ToolRunContext } from "../../src/agent/conversation/turn";
 import { DEFAULT_TURN_OPTIONS } from "../../src/agent/conversation/options";
-import { Session } from "../../src/integration/session";
 import { createMemoryStore, createMockOpenAI } from "../helpers/mock-openai";
-import { collect } from "../../src/utils/async-gen";
+import { testSession } from "../helpers/agent";
 
 function gatedTool(): ToolDefinition<z.ZodType> {
   const parameters = z.object({ target: z.string() });
@@ -16,7 +15,7 @@ function gatedTool(): ToolDefinition<z.ZodType> {
     label: "Deleting",
     description: "destructive test tool",
     parameters,
-    async *execute() {
+    async execute() {
       return "OK";
     },
     requiresApproval: true,
@@ -36,15 +35,14 @@ describe("Session HITL approvals", () => {
       },
       { text: "done" },
     ]);
-    const agent = new AgentService(mock.client, { tools: [gatedTool()] });
-    const session = await Session.create(agent, mock.client, store, 4);
+    const { session } = await testSession(mock.client, store, { tools: [gatedTool()] });
 
     const confirm = vi.fn(
       async (_r: ApprovalRequest): Promise<ApprovalDecision> => ({ outcome: "always" }),
     );
     session.setApprovalHandler(confirm);
 
-    await collect(session.runTurn("go", { ...DEFAULT_TURN_OPTIONS, stream: false }));
+    await session.runTurn("go", { ...DEFAULT_TURN_OPTIONS, stream: false });
 
     expect(session.hasApprovalHandler).toBe(true);
     expect(confirm).toHaveBeenCalledTimes(1);
@@ -57,7 +55,7 @@ describe("Session HITL approvals", () => {
       label: "Asking",
       description: "escape-hatch test tool",
       parameters: params,
-      async *execute(_args: { target: string }, ctx?: ToolRunContext) {
+      async execute(_args: { target: string }, ctx?: ToolRunContext) {
         await ctx?.requestApproval?.({ toolName: "ask_thing", allowAlways: false });
         return "OK";
       },
@@ -73,15 +71,14 @@ describe("Session HITL approvals", () => {
       },
       { text: "done" },
     ]);
-    const agent = new AgentService(mock.client, { tools: [tool] });
-    const session = await Session.create(agent, mock.client, store, 4);
+    const { session } = await testSession(mock.client, store, { tools: [tool] });
 
     const confirm = vi.fn(
       async (_r: ApprovalRequest): Promise<ApprovalDecision> => ({ outcome: "always" }),
     );
     session.setApprovalHandler(confirm);
 
-    await collect(session.runTurn("go", { ...DEFAULT_TURN_OPTIONS, stream: false }));
+    await session.runTurn("go", { ...DEFAULT_TURN_OPTIONS, stream: false });
 
     expect(confirm).toHaveBeenCalledTimes(2);
   });
@@ -92,10 +89,11 @@ describe("Session HITL approvals", () => {
       { calls: [{ name: "delete_thing", arguments: { target: "a" } }] },
       { text: "done" },
     ]);
-    const agent = new AgentService(mock.client, { tools: [gatedTool()] });
-    const session = await Session.create(agent, mock.client, store, 4);
+    const { session, bus } = await testSession(mock.client, store, { tools: [gatedTool()] });
+    const events: TurnEvent[] = [];
+    bus.subscribe((e) => events.push(e));
 
-    const events = await collect(session.runTurn("go", { ...DEFAULT_TURN_OPTIONS, stream: false }));
+    await session.runTurn("go", { ...DEFAULT_TURN_OPTIONS, stream: false });
 
     expect(session.hasApprovalHandler).toBe(false);
     expect(events.some((e) => e.type === "approval_request")).toBe(false);

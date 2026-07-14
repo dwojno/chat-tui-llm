@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import assert from "node:assert";
 import type { OpenAI } from "openai";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
-import { compressHandoff } from "../../src/agent/tools/utils/handoff";
-import type { ForkResult } from "../../src/agent/tools/utils/fork-result";
+import { compressHandoff } from "../../src/tools/delegation/handoff";
+import type { ForkResult } from "../../src/tools/delegation/fork-result";
 import { usage } from "../helpers/mock-openai";
 
 function fakeOpenAI(parsed: ForkResult | null, outputText = "", status = "completed") {

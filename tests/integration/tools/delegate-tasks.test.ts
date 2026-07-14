@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { AgentService } from "../../../src/agent/agent";
 import { toOpenAITool, type ForkProfiles } from "../../../src/agent/tools/types";
 import type { ToolRunContext } from "../../../src/agent/conversation/turn";
-import type { TurnEvent } from "../../../src/agent/events/events";
+import { EventBus } from "../../../src/agent/events/bus";
 import { FORK_MODEL } from "../../../src/agent/config";
-import { FORK_INSTRUCTIONS } from "../../../src/agent/prompts";
+import { FORK_INSTRUCTIONS } from "../../../src/tools/prompts/fork";
 import {
   DELEGATE_TASKS_NAME,
   delegateTasksTool,
   parseDelegateTasksArgs,
-} from "../../../src/integration/tools/delegate-tasks";
-import type { ForkResult } from "../../../src/agent/tools/utils/fork-result";
+} from "../../../src/tools/delegation/delegate-tasks";
+import type { ForkResult } from "../../../src/tools/delegation/fork-result";
+import { runAgentLoop } from "../../../src/runner/runner";
 import { createMockOpenAI, type MockHandoff, type MockTurn } from "../../helpers/mock-openai";
+import { testAgent } from "../../helpers/agent";
 
 const forkProfiles: ForkProfiles = {
   general: { instructions: FORK_INSTRUCTIONS, tools: [], model: FORK_MODEL },
@@ -20,25 +21,17 @@ const forkProfiles: ForkProfiles = {
 
 function makeCtx(turns: MockTurn[], handoffs: MockHandoff[]) {
   const mock = createMockOpenAI(turns, handoffs);
-  const agent = new AgentService(mock.client, { forkProfiles });
+  const agent = testAgent(mock.client, { forkProfiles });
   const ctx: ToolRunContext = {
     openai: mock.client,
     context: { memories: [] },
     messages: [],
-    runTurn: (msgs, options, context, profile) => agent.run(msgs, options, context, profile),
+    runTurn: (args) => runAgentLoop({ agent, maxToolSteps: 8, ...args }),
     forkProfiles,
+    bus: new EventBus(),
+    recordUsage: () => {},
   };
   return { ctx, mock };
-}
-
-async function drain(gen: AsyncGenerator<TurnEvent, string>) {
-  const events: TurnEvent[] = [];
-  let step = await gen.next();
-  while (!step.done) {
-    events.push(step.value);
-    step = await gen.next();
-  }
-  return { events, result: step.value };
 }
 
 describe("parseDelegateTasksArgs", () => {
@@ -82,16 +75,14 @@ describe("delegateTasksTool", () => {
       [{ summary: "digest A" }, { summary: "digest B" }],
     );
 
-    const { result } = await drain(
-      delegateTasksTool.execute(
-        {
-          tasks: [
-            { title: "A", task: "do a", relevantMemoryKeys: null },
-            { title: "B", task: "do b", relevantMemoryKeys: null },
-          ],
-        },
-        ctx,
-      ),
+    const result = await delegateTasksTool.execute(
+      {
+        tasks: [
+          { title: "A", task: "do a", relevantMemoryKeys: null },
+          { title: "B", task: "do b", relevantMemoryKeys: null },
+        ],
+      },
+      ctx,
     );
 
     const parsed = JSON.parse(result) as ForkResult[];

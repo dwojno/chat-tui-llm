@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { AgentService } from "../../src/agent/agent";
-import { buildExitMessage } from "../../src/integration/shutdown";
-import { Session } from "../../src/integration/session";
+import { buildExitMessage } from "../../src/cli/shutdown";
 import { createMemoryStore, createMockOpenAI } from "../helpers/mock-openai";
+import { testSession } from "../helpers/agent";
 
 describe("buildExitMessage", () => {
   it("prunes empty conversations before printing the exit report", async () => {
@@ -17,7 +16,7 @@ describe("buildExitMessage", () => {
     await store.conversation.switchTo(kept.id);
 
     const mock = createMockOpenAI();
-    const session = await Session.create(new AgentService(mock.client), mock.client, store, 4);
+    const { session } = await testSession(mock.client, store);
 
     const message = await buildExitMessage(store, session);
 
@@ -29,7 +28,7 @@ describe("buildExitMessage", () => {
   it("omits the resume hint when the active conversation was pruned", async () => {
     const store = await createMemoryStore();
     const mock = createMockOpenAI();
-    const session = await Session.create(new AgentService(mock.client), mock.client, store, 4);
+    const { session } = await testSession(mock.client, store);
 
     const message = await buildExitMessage(store, session);
 

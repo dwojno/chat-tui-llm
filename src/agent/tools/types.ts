@@ -1,7 +1,6 @@
 import type { z } from "zod";
-import type { TurnEvent } from "../events/events";
 import type { OpenAITool, ToolRunContext } from "../conversation/turn";
-import type { ApprovalNeed } from "./approval";
+import type { ApprovalNeed } from "../humanLayer/approval";
 
 export type { OpenAITool };
 
@@ -10,7 +9,7 @@ export interface ToolDefinition<TArgs extends z.ZodType> {
   label: string;
   description: string;
   parameters: TArgs;
-  execute: (args: z.infer<TArgs>, ctx?: ToolRunContext) => AsyncGenerator<TurnEvent, string>;
+  execute: (args: z.infer<TArgs>, ctx?: ToolRunContext) => Promise<string>;
   summarize?: (args: z.infer<TArgs>) => string;
   requiresApproval?: boolean;
   approvalPolicy?: (args: z.infer<TArgs>) => boolean | ApprovalNeed;
