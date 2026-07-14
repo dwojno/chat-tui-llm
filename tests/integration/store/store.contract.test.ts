@@ -16,6 +16,12 @@ const assistantMsg = (content: string, turn = 0) => ({
   payload: { type: "assistant_answer" as const, content },
 });
 
+const summary = (content: string) => ({
+  kind: "summary" as const,
+  turnIndex: null,
+  payload: { type: "summary" as const, content },
+});
+
 async function addSources(
   store: Store,
   profileId: string,
@@ -125,22 +131,24 @@ export function storeContract(name: string, createStore: () => Promise<Store>): 
       ).toEqual([]);
     });
 
-    it("forModel excludes items evicted behind the latest summary", async () => {
+    it("forModel returns every summary segment plus the messages after the last one", async () => {
       const store = await createStore();
       const { conversationId } = store;
-      await store.conversation.createItems(conversationId, userMsg("old"));
-      await store.conversation.createItems(conversationId, {
-        kind: "summary",
-        turnIndex: null,
-        payload: { content: "rolled up" },
-        tokens: { summarizerTokens: 5 },
-      });
-      await store.conversation.createItems(conversationId, userMsg("new", 1));
+      // [m1, m2, m3, summary1, mN, summary2, mNx]
+      await store.conversation.createItems(conversationId, userMsg("m1"));
+      await store.conversation.createItems(conversationId, userMsg("m2"));
+      await store.conversation.createItems(conversationId, userMsg("m3"));
+      await store.conversation.createItems(conversationId, summary("S1"));
+      await store.conversation.createItems(conversationId, userMsg("mN"));
+      await store.conversation.createItems(conversationId, summary("S2"));
+      await store.conversation.createItems(conversationId, userMsg("mNx"));
 
-      const modelInput = await store.conversation.queryHistory(conversationId).forModel().execute();
-
-      // The summary rides in TurnContext (via readLatestSummaryText), not the event list.
-      expect(modelInput).toEqual([{ type: "user_message", content: "new" }]);
+      // → [summary1, summary2, mNx]: summaries stand in for the evicted messages.
+      expect(await store.conversation.queryHistory(conversationId).forModel().execute()).toEqual([
+        { type: "summary", content: "S1" },
+        { type: "summary", content: "S2" },
+        { type: "user_message", content: "mNx" },
+      ]);
     });
 
     it("forModel returns the tail when there is no summary row", async () => {

@@ -34,9 +34,9 @@ export class HistoryQuery {
     return this;
   }
 
-  /** Events since the last summary boundary — what the reducer renders for the model. */
+  /** The model window: every summary segment, then the messages after the last one. */
   forModel(): this {
-    this.config.afterLastSummary = true;
+    this.config.forModel = true;
     return this;
   }
 

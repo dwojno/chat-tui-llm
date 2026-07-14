@@ -87,15 +87,20 @@ describe("buildMessage", () => {
     expect(contentOf(msg)).toContain("<next_step>");
   });
 
-  it("orders summary before events and memories after, with discretion rules", () => {
+  it("renders a summary event before the tail, with memories last and discretion rules", () => {
     const content = contentOf(
       buildMessage({
-        events: [{ type: "user_message", content: "hello" }],
-        summary: "earlier we discussed tea",
+        events: [
+          { type: "summary", content: "earlier we discussed tea" },
+          { type: "user_message", content: "hello" },
+        ],
         memories: ["likes tea"],
       }),
     );
-    expect(content.indexOf("<conversation_summary>")).toBeLessThan(content.indexOf("<events>"));
+    expect(content).toContain("<conversation_summary>");
+    expect(content.indexOf("<conversation_summary>")).toBeLessThan(
+      content.indexOf("<user_message>"),
+    );
     expect(content.indexOf("<events>")).toBeLessThan(content.indexOf("<user_known_memories>"));
     expect(content).toContain("M1: likes tea");
     expect(content).toContain("never volunteer them");

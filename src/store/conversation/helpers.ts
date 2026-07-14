@@ -56,7 +56,11 @@ export function rowToStored(row: {
 }
 
 export function transcriptItems(items: StoredItem[]): AgentEvent[] {
-  return items.flatMap((row) => (row.kind === "summary" ? [] : [row.payload as AgentEvent]));
+  return items.map((row) =>
+    row.kind === "summary"
+      ? { type: "summary", content: (row.payload as { content: string }).content }
+      : (row.payload as AgentEvent),
+  );
 }
 
 export function usageFromItems(items: StoredItem[]): UsageTotals {

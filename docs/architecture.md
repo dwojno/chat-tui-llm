@@ -75,7 +75,7 @@ custom-format prompt, not a default role array), one event log is the **entire t
 state**, the runner **owns the control flow** (a plain function, not a framework),
 tool failures are **compacted into context** so the model self-heals, and the core is
 a **stateless reducer** that retains nothing — which makes pause/resume and
-trigger-from-anywhere clean seams, because the log *is* the resumable state.
+trigger-from-anywhere clean seams, because the log _is_ the resumable state.
 
 The full mechanics — the reducer + custom context format, the hybrid loop (native
 tool-calling + reserved control intents), compact-error self-healing, the `TurnEvent`
@@ -93,16 +93,17 @@ accounting, the context window, and persistence. It reads all transcript state
 from the `Store` on each turn — no in-memory `log`. `runTurn`:
 
 1. appends the user message to the store as a `user_message` event;
-2. loads the event log via `queryHistory(conversationId).forModel()` (the
-   `AgentEvent[]` after the latest summary row) and reads the rolling summary text
-   separately — the summary rides in `TurnContext.summary`, not inline in the log;
+2. loads the model window via `queryHistory(conversationId).forModel()` — the
+   `AgentEvent[]` of every summary segment plus the messages after the last one
+   (summaries are `summary` events in the log, not a side channel);
 3. resolves the orchestrator `model` from the active profile
    (`userProfile?.model ?? ORCHESTRATOR_MODEL`) into `options` — temperature is a
    code constant, not resolved here (see [agent-loop.md](./agent-loop.md#model-routing));
-4. calls `runAgentLoop({ agent, events, options, context: { memories, summary }, bus, … })`,
+4. calls `runAgentLoop({ agent, events, options, context: { memories }, bus, … })`,
    then persists the returned `events` + `usage` in one transaction and returns the
    `answer` (the UI observes `delta`/`tool`/`status` live via the injected bus);
-5. compacts the window when the unsummarized tail overflows.
+5. compacts the window when the unsummarized tail overflows (folds it into a new
+   `summary` segment — see [agent-loop.md](./agent-loop.md#windowing)).
 
 Swapping or extending backends is a new `Store` bundle
 ([src/store/](../src/store/)); nothing in the agent changes. A future
@@ -131,22 +132,21 @@ and resumes a prior thread directly.
 
 ### Context window management
 
-The last `KEEP_LAST_TURNS` (4) user turns are kept verbatim. When the window
-overflows, `maintainWindow` splits the unsummarized tail at a user-message
-boundary (so tool calls stay attached to their turn), folds the evicted turns
-into a rolling summary via the pure `summarize` helper
-([src/tokens/summarizer.ts](../src/tokens/summarizer.ts)), and
-**appends** a new `kind = 'summary'` row. Older transcript rows remain in the
-DB for audit; `queryHistory().afterLastSummary()` excludes them from model
-reads. Windowing lives in the Session, not the agent.
+When the un-summarized tail exceeds `KEEP_LAST_TURNS` (4) user turns, `maintainWindow`
+folds the **whole tail** into one `summary` segment via the pure `summarize` helper
+([src/tokens/summarizer.ts](../src/tokens/summarizer.ts)) and **appends** it as a new
+`kind = 'summary'` event. Segments are never rewritten; `queryHistory().forModel()`
+returns every segment plus the messages after the last one, so evicted turns are
+represented (never dropped) — see [agent-loop.md](./agent-loop.md#windowing). Windowing
+lives in the Session, not the agent.
 
 ### Prompt caching
 
 The reducer ([src/runner/thread/reducer.ts](../src/runner/thread/reducer.ts)) packs
-one `user` message ordered **summary → events → memories → next-step framing**. The
-rolling summary leads (it changes only on re-summarization), events are append-only,
-and pinned memories go **last** so a `/remember` changes only the tail and never
-invalidates the cached prefix above it. Rendering is deterministic (no ids/timestamps
+one `user` message ordered **events → memories → next-step framing**, where the event
+list itself leads with the `summary` segments. Segments change only when a new one is
+minted, messages are append-only, and pinned memories go **last** so a `/remember`
+changes only the tail and never invalidates the cached prefix above it. Rendering is deterministic (no ids/timestamps
 in the text), so the leading token run is byte-stable step to step and
 `prompt_cache_key` keeps paying off. The discretion rules in that
 block (telling the model not to volunteer stored memories) are a single source of

@@ -5,7 +5,6 @@ import { toYaml } from "./yaml";
 
 export interface ReduceInput {
   events: readonly AgentEvent[];
-  summary?: string;
   memories?: readonly string[];
 }
 
@@ -44,6 +43,8 @@ export function eventToPrompt(event: AgentEvent): string | null {
     case "approval_request":
     case "approval_response":
       return null;
+    case "summary":
+      return tagBlock("conversation_summary", event.content);
     case "user_message":
     case "human_response":
     case "assistant_answer":
@@ -93,9 +94,8 @@ function memoriesBlock(memories: readonly string[]): string {
   ].join("\n");
 }
 
-export function buildMessage({ events, summary, memories = [] }: ReduceInput): ResponseInputItem[] {
+export function buildMessage({ events, memories = [] }: ReduceInput): ResponseInputItem[] {
   const parts = [
-    summary ? `<conversation_summary>\n${summary}\n</conversation_summary>` : "",
     `<events>\n${threadToPrompt(events)}\n</events>`,
     memories.length ? `<context>\n${memoriesBlock(memories)}\n</context>` : "",
     `<next_step>\n${NEXT_STEP}\n</next_step>`,

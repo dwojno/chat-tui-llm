@@ -31,15 +31,15 @@ evals/
   suites/         the tests, one *.eval.ts per prompt
 ```
 
-| Suite                               | Prompt under test                       | Scores                                                                                                        |
-| ----------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `suites/delegation.eval.ts`         | `<delegation>` in `SYSTEM_INSTRUCTIONS` | multi-step work → `delegate_task` with a concise `title`; simple asks → direct                                |
-| `suites/fork-tools.eval.ts`         | `FORK_INSTRUCTIONS` + `forkTools`       | a sub-agent uses `web_search` for research, `get_weather_data` for weather, and forces neither when none fits |
-| `suites/weather-routing.eval.ts`    | `<tool_use>`                            | single-city asks call `get_weather_data` with the right city                                                  |
-| `suites/ask-user-routing.eval.ts`   | clarification guidance in `SYSTEM_INSTRUCTIONS` | ambiguous asks seek the missing info (ask) instead of guessing                                        |
-| `suites/context-discretion.eval.ts` | memory discretion rules                 | stored facts stay quiet unless the message calls for them                                                     |
-| `suites/structured-output.eval.ts`  | `/structured` `ResponseSchema`          | output validates as `{ answer, sources[] }`                                                                   |
-| `suites/summarizer.eval.ts`         | `summarizer.ts`                         | rolling summary stays short and keeps the facts                                                               |
+| Suite                               | Prompt under test                               | Scores                                                                                                        |
+| ----------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `suites/delegation.eval.ts`         | `<delegation>` in `SYSTEM_INSTRUCTIONS`         | multi-step work → `delegate_task` with a concise `title`; simple asks → direct                                |
+| `suites/fork-tools.eval.ts`         | `FORK_INSTRUCTIONS` + `forkTools`               | a sub-agent uses `web_search` for research, `get_weather_data` for weather, and forces neither when none fits |
+| `suites/weather-routing.eval.ts`    | `<tool_use>`                                    | single-city asks call `get_weather_data` with the right city                                                  |
+| `suites/ask-user-routing.eval.ts`   | clarification guidance in `SYSTEM_INSTRUCTIONS` | ambiguous asks seek the missing info (ask) instead of guessing                                                |
+| `suites/context-discretion.eval.ts` | memory discretion rules                         | stored facts stay quiet unless the message calls for them                                                     |
+| `suites/structured-output.eval.ts`  | `/structured` `ResponseSchema`                  | output validates as `{ answer, sources[] }`                                                                   |
+| `suites/summarizer.eval.ts`         | `summarizer.ts`                                 | rolling summary stays short and keeps the facts                                                               |
 
 ## RAG eval (end-to-end, real services)
 

@@ -115,4 +115,21 @@ describe("Session.runTurn", () => {
     expect(mock.calls.create).toHaveLength(1);
     expect((await session.getUsageTotals()).summarizer).toBeGreaterThan(0);
   });
+
+  it("keeps a summary + recent turns in the model window after overflow — no turn is silently dropped", async () => {
+    const turns: MockTurn[] = Array.from({ length: 6 }, (_, i) => ({ text: `answer ${i}` }));
+    const comps = Array.from({ length: 6 }, (_, i) => `SEGMENT ${i}`);
+    const { session, store } = await makeSession(turns, comps, 4);
+
+    for (let i = 0; i < 6; i++) {
+      await session.runTurn(`question ${i}`, { ...DEFAULT_TURN_OPTIONS, stream: false });
+    }
+
+    const model = await store.conversation.queryHistory(store.conversationId).forModel().execute();
+    // A summary segment stands in for the evicted turns; the latest turn stays verbatim.
+    expect(model.some((e) => e.type === "summary")).toBe(true);
+    expect(model.some((e) => e.type === "user_message" && e.content === "question 5")).toBe(true);
+    // The oldest turn is folded into the summary — represented, not lost as before.
+    expect(model.some((e) => e.type === "user_message" && e.content === "question 0")).toBe(false);
+  });
 });

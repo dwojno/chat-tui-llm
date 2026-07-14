@@ -10,7 +10,7 @@ import type {
 } from "../agent/humanLayer/clarification";
 import type { TurnOptions } from "../agent/conversation";
 import type { AgentEvent } from "../runner/thread/events";
-import { countUserTurns, splitAtLastTurns } from "../runner/thread/window";
+import { countUserTurns } from "../runner/thread/window";
 import type { Span } from "@opentelemetry/api";
 import { summarize } from "../tokens";
 import {
@@ -198,11 +198,9 @@ export class Session {
     );
 
     const events = await conversation.queryHistory(conversationId).forModel().execute();
-    const summary = await conversation.readLatestSummaryText(conversationId);
     const turnSettings = await this.effectiveTurnSettings();
     const context: TurnContext = {
       memories: await this.memories(),
-      ...(summary ? { summary } : {}),
       ...(this.handler ? { requestApproval: this.approvalGate } : {}),
       ...(this.clarificationHandler ? { requestClarification: this.clarificationGate } : {}),
     };
@@ -277,15 +275,14 @@ export class Session {
     await this.store.conversation.createItems(this.store.conversationId, inserts);
   }
 
+  // Once the un-summarized tail overflows keepLastTurns, fold the WHOLE tail into a
+  // new summary *segment* and append it. forModel() returns every segment plus the
+  // messages after the last one, so nothing is silently dropped as the window slides.
   private async maintainWindow(parent?: Span): Promise<void> {
     const { conversation, conversationId } = this.store;
-    const tail = await conversation.queryHistory(conversationId).afterLastSummary().execute();
-    if (countUserTurns(tail) <= this.keepLastTurns) return;
+    const evicted = await conversation.queryHistory(conversationId).afterLastSummary().execute();
+    if (countUserTurns(evicted) <= this.keepLastTurns) return;
 
-    const { evicted } = splitAtLastTurns(tail, this.keepLastTurns);
-    if (!evicted.length) return;
-
-    const priorSummary = await conversation.readLatestSummaryText(conversationId);
     const span = startSpan("conversation.summarize", {
       parent,
       attributes: {
@@ -294,18 +291,18 @@ export class Session {
       },
     });
     try {
-      const { text, usage } = await summarize(this.openai, priorSummary, evicted);
+      const { text, usage } = await summarize(this.openai, "", evicted);
       recordLlmSpan(span, {
         model: CHEAP_MODEL,
         operation: "summarize",
         usage,
-        input: JSON.stringify({ priorSummary, evicted }),
+        input: JSON.stringify({ evicted }),
         output: text,
       });
       await conversation.createItems(conversationId, {
         kind: "summary",
         turnIndex: null,
-        payload: { content: text },
+        payload: { type: "summary", content: text },
         tokens: { summarizerTokens: usage?.total_tokens ?? 0 },
       });
       endSpan(span);

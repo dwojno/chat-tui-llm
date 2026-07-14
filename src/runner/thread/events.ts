@@ -9,6 +9,7 @@ export type AgentEvent =
   | { type: "approval_response"; id: string; outcome: ApprovalOutcome }
   | { type: "clarification_request"; question: string; options?: string[] }
   | { type: "human_response"; content: string }
-  | { type: "assistant_answer"; content: string; sources?: string[] };
+  | { type: "assistant_answer"; content: string; sources?: string[] }
+  | { type: "summary"; content: string };
 
 export type AgentEventType = AgentEvent["type"];

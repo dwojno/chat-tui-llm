@@ -67,11 +67,7 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<LoopResult> 
 
   let steps = 0;
   for (;;) {
-    const input = buildMessage({
-      events,
-      ...(context.summary !== undefined ? { summary: context.summary } : {}),
-      memories: context.memories,
-    });
+    const input = buildMessage({ events, memories: context.memories });
     const step = await agent.step({
       messages: input,
       ...stepArgs,

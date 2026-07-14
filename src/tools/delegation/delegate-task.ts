@@ -59,9 +59,8 @@ export function selectMemories(
   return keys.map((key) => byKey.get(key)).filter((text): text is string => text !== undefined);
 }
 
-function buildForkBrief(summary: string, memories: readonly string[], task: string): string {
+function buildForkBrief(memories: readonly string[], task: string): string {
   const parts = [
-    summary ? `Parent context:\n${summary}` : "",
     memories.length ? `Known memories:\n- ${memories.join("\n- ")}` : "",
     `Your task:\n${task}`,
   ].filter(Boolean);
@@ -79,9 +78,8 @@ export async function runFork(
   ctx: ToolRunContext,
   { title, task, relevantMemoryKeys, profile }: RunForkArgs,
 ): Promise<ForkResult> {
-  const summary = ctx.context.summary ?? "";
   const memories = selectMemories(ctx.context.memories, relevantMemoryKeys);
-  const brief = buildForkBrief(summary, memories, task);
+  const brief = buildForkBrief(memories, task);
   const userMessage = {
     role: "user",
     content: brief,

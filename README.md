@@ -27,9 +27,9 @@ decision, append the result, repeat.
    └──────────────────── append AgentEvent ◀── run tools / answer ◀────────────────────┘
 ```
 
-- **Pure-function agent** — `Agent.step()` is *one* model call, `executeTool()` is *one* dispatch. No loop, no retained state, no config/prompt imports — the whole core is a pure function of its injected deps. [`agent/agent.ts`](src/agent/agent.ts)
+- **Pure-function agent** — `Agent.step()` is _one_ model call, `executeTool()` is _one_ dispatch. No loop, no retained state, no config/prompt imports — the whole core is a pure function of its injected deps. [`agent/agent.ts`](src/agent/agent.ts)
 - **Own the context window** — a reducer folds the event log into a single XML-tagged, YAML-bodied `<user>` message instead of a raw role array. Every token is deliberate; ordering keeps the prompt cache warm. [`runner/thread/reducer.ts`](src/runner/thread/reducer.ts)
-- **The log is the state** — the append-only `AgentEvent` log *is* the entire turn state. The core keeps nothing between turns, so a run is resumable by construction (pause/resume + trigger-anywhere are clean seams). [`runner/thread/events.ts`](src/runner/thread/events.ts)
+- **The log is the state** — the append-only `AgentEvent` log _is_ the entire turn state. The core keeps nothing between turns, so a run is resumable by construction (pause/resume + trigger-anywhere are clean seams). [`runner/thread/events.ts`](src/runner/thread/events.ts)
 - **Compact errors → self-heal** — a tool failure becomes a compact `error` event fed back to the model; resolved errors are pruned from the window, and repeated failures escalate to a human instead of spinning. [`runner/runner.ts`](src/runner/runner.ts)
 - **Own the control flow** — `runAgentLoop` is a plain async function you can read top to bottom. It keeps **native** tool-calling (several tools per turn, in parallel; token-streamed answers) and layers in reserved control intents (`done_for_now`, `request_more_information`) it interprets by name. [`runner/runner.ts`](src/runner/runner.ts)
 
@@ -41,7 +41,7 @@ SSE. See [docs/agent-loop.md](docs/agent-loop.md) for the full mechanics.
 
 - **Context-window management** — last 4 turns kept verbatim; older turns fold into a rolling summary and drop out, preserving a stable, cacheable prompt prefix. Owned by the session, not the agent. [`tokens/summarizer.ts`](src/tokens/summarizer.ts)
 - **Sub-agent delegation** — the model spins up ephemeral child agents (several in parallel), each with its own context, tools, and model, handing back a compressed structured digest. Their tool activity streams back live under a model-chosen label. [`tools/delegation/`](src/tools/delegation/)
-- **Injected tools** — the core ships *zero* tools; the host composes a main set + fork sets as one `ToolDefinition` type. Built-ins: weather + a web search; compose your own in [`src/tools/`](src/tools/).
+- **Injected tools** — the core ships _zero_ tools; the host composes a main set + fork sets as one `ToolDefinition` type. Built-ins: weather + a web search; compose your own in [`src/tools/`](src/tools/).
 - **Knowledge base (RAG)** — `/learn @file` converts a source (md/txt/code, PDF, DOCX, HTML, XLSX, CSV) → a per-profile blob store (local disk by default, MinIO/S3 optional) → heading-aware chunks → per-profile Qdrant collection, indexed with **hybrid dense+sparse search fused via RRF**, then an **LLM reranker** keeps only on-topic passages (returned whole, with `path:line` cites). Lives entirely in the `sources` store domain; the core stays RAG-agnostic. [`store/sources/`](src/store/sources/)
 - **Observability** — OpenTelemetry (GenAI semantic conventions) → OTLP; the full turn → LLM-call → tool → fork span tree with token/cost. Off by default, vendor-neutral. [docs/observability.md](docs/observability.md)
 - **Structured output**, **prompt evals** against the live model ([evals/](evals/)), and a fast **offline test suite** (model mocked; unit + e2e) covering the loop, tool failures, delegation, and the reducer. [tests/](tests/)
@@ -82,15 +82,15 @@ pnpm start -- --conversation <uuid>   # -c for short; resume a previous one
 
 At the `>` prompt, type a message for a streaming reply, or use a command:
 
-| Command                | Description                                                               |
-| ---------------------- | ------------------------------------------------------------------------- |
-| `/remember <memory>`   | Pin a memory; injected into every later turn (survives truncation)        |
-| `/learn @file [@…]`    | Convert, upload, chunk, embed and index files for RAG                     |
-| `/sources` · `/reindex`| List / re-index the files indexed in the current profile                  |
-| `/profile`             | Switch or create a profile — own bucket, collection + memory              |
-| `/conversation`        | Switch or start a chat thread within the current profile                  |
-| `/json` · `/structured`| Reply in JSON mode / validated against a Zod schema                       |
-| `exit`                 | Leave the REPL (Ctrl+C / Ctrl+D also work)                                |
+| Command                 | Description                                                        |
+| ----------------------- | ------------------------------------------------------------------ |
+| `/remember <memory>`    | Pin a memory; injected into every later turn (survives truncation) |
+| `/learn @file [@…]`     | Convert, upload, chunk, embed and index files for RAG              |
+| `/sources` · `/reindex` | List / re-index the files indexed in the current profile           |
+| `/profile`              | Switch or create a profile — own bucket, collection + memory       |
+| `/conversation`         | Switch or start a chat thread within the current profile           |
+| `/json` · `/structured` | Reply in JSON mode / validated against a Zod schema                |
+| `exit`                  | Leave the REPL (Ctrl+C / Ctrl+D also work)                         |
 
 Prefix a path with `@` in any message to inline a file into the turn (sandboxed to the
 working dir, binaries skipped, size-capped). On exit, a token-savings report contrasts

@@ -42,6 +42,8 @@ export function eventsToInputItems(events: readonly AgentEvent[]): ResponseInput
         return [{ role: "user", content: event.content }];
       case "assistant_answer":
         return [{ role: "assistant", content: event.content }];
+      case "summary":
+        return [{ role: "developer", content: event.content }];
       case "clarification_request":
         return [{ role: "assistant", content: event.question }];
       case "tool_call":

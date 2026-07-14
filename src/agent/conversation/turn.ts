@@ -8,7 +8,6 @@ import type { TurnOptions } from "./options";
 
 export type TurnContext = {
   memories: readonly string[];
-  summary?: string;
   requestApproval?: ApprovalGate;
   requestClarification?: ClarificationGate;
 };
