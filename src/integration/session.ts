@@ -29,12 +29,7 @@ import {
   type Store,
   responseUsageToTokens,
 } from "../store";
-import {
-  CHEAP_MODEL,
-  MAX_CONSECUTIVE_ERRORS,
-  MAX_TOOL_STEPS,
-  ORCHESTRATOR_MODEL,
-} from "../agent/config";
+import { CHEAP_MODEL, MAX_CONSECUTIVE_ERRORS, MAX_TOOL_STEPS, ORCHESTRATOR_MODEL } from "../config";
 import { createSerialQueue } from "../utils/serial-queue";
 import { runAgentLoop } from "../runner/runner";
 import { formatReport, usageSnapshot, type UsageSnapshot } from "./usage";

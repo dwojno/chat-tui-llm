@@ -93,33 +93,40 @@ export class Agent {
     };
   }
 
-  async step(args: StepArgs): Promise<StepResult> {
-    const { messages, options, profile = this.defaultProfile, bus } = args;
-    const response = await this.streamResponse({
+  async step({
+    messages,
+    options,
+    profile = this.defaultProfile,
+    bus,
+    forbidTools = false,
+  }: StepArgs): Promise<StepResult> {
+    const { output, output_text, output_parsed, usage } = await this.streamResponse({
       input: messages,
       options,
       profile,
       bus,
-      forbidTools: args.forbidTools ?? false,
+      forbidTools,
     });
-    const output = response.output;
     const toolCalls = getFunctionCalls(output);
     return {
-      outputText: response.output_text,
-      outputParsed: response.output_parsed,
+      outputText: output_text,
+      outputParsed: output_parsed,
       toolCalls,
-      usage: response.usage,
+      usage,
     };
   }
 
-  async executeTool(call: ResponseFunctionToolCall, deps: ToolExecDeps): Promise<string> {
+  async executeTool(
+    { name, arguments: args }: ResponseFunctionToolCall,
+    deps: ToolExecDeps,
+  ): Promise<string> {
     const ctx = this.toolContext(deps);
     return withSpan(
-      `execute_tool ${call.name}`,
-      { attributes: { "gen_ai.tool.name": call.name }, input: call.arguments },
+      `execute_tool ${name}`,
+      { attributes: { "gen_ai.tool.name": name }, input: args },
       async (span) => {
         try {
-          const result = await executeToolCall(this.registry, call.name, call.arguments, ctx);
+          const result = await executeToolCall(this.registry, name, args, ctx);
           setSpanIO(span, { output: result });
           return result;
         } catch (error) {
@@ -131,25 +138,31 @@ export class Agent {
     );
   }
 
-  toolMeta(call: { name: string; arguments: string }): {
+  toolMeta({ name, arguments: args }: { name: string; arguments: string }): {
     label?: string;
     detail?: string;
     approval: ApprovalNeed;
   } {
-    const label = toolLabel(this.registry, call.name);
-    const detail = describeToolCall(this.registry, call.name, call.arguments);
+    const label = toolLabel(this.registry, name);
+    const detail = describeToolCall(this.registry, name, args);
     return {
       ...(label !== undefined ? { label } : {}),
       ...(detail !== undefined ? { detail } : {}),
-      approval: this.approvalFor(call),
+      approval: this.approvalFor({ name, arguments: args }),
     };
   }
 
-  private approvalFor(call: { name: string; arguments: string }): ApprovalNeed {
-    const tool = this.registry.find((t) => t.name === call.name);
+  private approvalFor({
+    name: callName,
+    arguments: callArgs,
+  }: {
+    name: string;
+    arguments: string;
+  }): ApprovalNeed {
+    const tool = this.registry.find(({ name }) => name === callName);
     if (!tool) return { required: false };
     try {
-      return evaluateApproval(tool, tool.parameters.parse(JSON.parse(call.arguments)));
+      return evaluateApproval(tool, tool.parameters.parse(JSON.parse(callArgs)));
     } catch {
       return { required: tool.requiresApproval === true };
     }
@@ -168,13 +181,17 @@ export class Agent {
     };
   }
 
-  private buildRequestParams(args: {
+  private buildRequestParams({
+    input,
+    options,
+    profile,
+    forbidTools,
+  }: {
     input: readonly ResponseInputItem[];
     options: TurnOptions;
     profile: TurnProfile;
     forbidTools: boolean;
   }) {
-    const { input, options, profile, forbidTools } = args;
     const text = options.structured_output
       ? { format: zodTextFormat(options.structured_output, "response_schema") }
       : options.json_mode
@@ -197,19 +214,25 @@ export class Agent {
     };
   }
 
-  private async streamResponse(args: {
+  private async streamResponse({
+    input,
+    options,
+    profile,
+    bus,
+    forbidTools,
+  }: {
     input: readonly ResponseInputItem[];
     options: TurnOptions;
     profile: TurnProfile;
     bus: EventBus;
     forbidTools: boolean;
   }): Promise<ParsedResponse<unknown>> {
-    const params = this.buildRequestParams(args);
+    const params = this.buildRequestParams({ input, options, profile, forbidTools });
     const span = startSpan(`gen_ai.chat ${params.model}`);
     const startedAt = performance.now();
 
     try {
-      const response = await this.callModel(params, args.options.stream, args.bus, span);
+      const response = await this.callModel(params, options.stream, bus, span);
       recordLlmSpan(span, {
         model: params.model,
         operation: "chat",

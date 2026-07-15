@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { AgentEvent } from "../../runner/thread/events";
-import { SYSTEM_INSTRUCTIONS } from "../../agent/prompts";
+import { SYSTEM_INSTRUCTIONS } from "../../prompts";
 import { estimateTokens } from "../../tokens";
 import { conversation, conversationItem } from "../../db/schema";
 import { type UsageTotals } from "../../integration/usage";

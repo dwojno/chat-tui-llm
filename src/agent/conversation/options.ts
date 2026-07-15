@@ -1,5 +1,4 @@
 import type { ZodSchema } from "zod";
-import { MODEL } from "../config";
 
 export type TurnOptions = {
   stream: boolean;
@@ -11,7 +10,7 @@ export type TurnOptions = {
 
 export const DEFAULT_TURN_OPTIONS = {
   stream: true,
-  model: MODEL,
+  model: "gpt-4o-mini",
   max_output_tokens: 1000,
   structured_output: undefined,
   json_mode: false,

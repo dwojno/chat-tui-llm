@@ -1,8 +1,15 @@
 import type { z } from "zod";
-import type { OpenAITool, ToolRunContext } from "../conversation/turn";
+import type { ToolRunContext } from "../conversation/turn";
 import type { ApprovalNeed } from "../humanLayer/approval";
 
-export type { OpenAITool };
+export type OpenAITool = {
+  type: "function";
+  name: string;
+  label: string;
+  parameters: Record<string, unknown>;
+  strict: boolean;
+  description: string;
+};
 
 export interface ToolDefinition<TArgs extends z.ZodType> {
   name: string;

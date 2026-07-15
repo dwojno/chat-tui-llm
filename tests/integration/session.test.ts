@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Agent } from "../../src/agent/agent";
 import { EventBus } from "../../src/agent/events/bus";
 import type { TurnEvent } from "../../src/agent/events/events";
-import { ORCHESTRATOR_MODEL, TEMPERATURE } from "../../src/agent/config";
+import { ORCHESTRATOR_MODEL, TEMPERATURE } from "../../src/config";
 import { DEFAULT_TURN_OPTIONS } from "../../src/agent/conversation/options";
 import { Session } from "../../src/integration/session";
 import type { Store } from "../../src/store";

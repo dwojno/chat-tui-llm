@@ -1,4 +1,4 @@
-import { ORCHESTRATOR_MODEL } from "../agent/config";
+import { ORCHESTRATOR_MODEL } from "../config";
 import type { ChatHandle } from "../ui/chat";
 import type { Session } from "./session";
 import type { Store } from "../store";

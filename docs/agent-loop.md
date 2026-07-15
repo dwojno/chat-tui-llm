@@ -224,7 +224,7 @@ subscribes to the bus; a web server could forward the same stream over SSE.
 
 ## Model routing
 
-Role-routed via constants ([config/index.ts](../src/agent/config/index.ts)):
+Role-routed via constants ([config.ts](../src/config.ts)):
 
 | Constant                                    | Value         | Used by                                    |
 | ------------------------------------------- | ------------- | ------------------------------------------ |

@@ -21,7 +21,7 @@ import { processLine } from "../../src/input/repl";
 import type { CommandContext } from "../../src/commands/types";
 import { Agent } from "../../src/agent/agent";
 import { EventBus } from "../../src/agent/events/bus";
-import { SYSTEM_INSTRUCTIONS } from "../../src/agent/prompts";
+import { SYSTEM_INSTRUCTIONS } from "../../src/prompts";
 import { createAgentTools } from "../../src/tools";
 import { Session } from "../../src/integration/session";
 import { renderChat, type ChatHandle, type Message } from "../../src/ui/chat";
