@@ -1,6 +1,5 @@
 import { defineScorer, isAbsent, notApplicable } from "./common";
 
-/** Did the model pick the expected tool (or answer directly when 'direct')? */
 export const routing = defineScorer(
   "routing",
   "calls the expected tool, or answers directly when route is 'direct'",

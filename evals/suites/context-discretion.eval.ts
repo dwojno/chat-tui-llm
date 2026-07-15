@@ -9,13 +9,6 @@ import {
   type ProbeSpec,
 } from "../harness";
 
-/**
- * Context discretion (see the <context> rules in buildContextBlock). Stored
- * facts are injected as background memory with an explicit rule: never volunteer
- * them on greetings / small talk / unrelated messages, but DO use them when the
- * current message clearly calls for it. Both failure modes are pinned: leaking a
- * fact unprompted, and failing to use one when relevant.
- */
 const MEMORIES = [
   "The user is allergic to peanuts.",
   "The user lives in Seattle.",
@@ -29,7 +22,6 @@ const withMemories = (prompt: string): ProbeSpec => ({
 
 evalite<ProbeSpec, ProbeResult, Expected>("context discretion", {
   data: () => [
-    // ── Must NOT leak on irrelevant messages ─────────────────────────────
     {
       input: withMemories("Good morning!"),
       expected: { mustOmit: ["peanut", "Seattle", "Rust"] },
@@ -41,30 +33,23 @@ evalite<ProbeSpec, ProbeResult, Expected>("context discretion", {
         mustOmit: ["peanut", "Seattle", "Rust"],
       },
     },
-    // EDGE: topic brushes a fact (a city question) but never asks about the
-    // user — the model must not blurt "since you live in Seattle…".
     {
       input: withMemories("What are some good cities for coffee lovers?"),
       expected: { mustOmit: ["Seattle", "peanut", "Rust"] },
     },
-    // EDGE: open-ended recommendation with no personal hook — no facts belong here.
     {
       input: withMemories("Recommend a good novel to read this weekend."),
       expected: { mustOmit: ["peanut", "Seattle", "Rust"] },
     },
-    // EDGE: "tell me about yourself" is about the ASSISTANT, not the user —
-    // must not recite the user's stored facts.
     {
       input: withMemories("Tell me a bit about yourself."),
       expected: { mustOmit: ["peanut", "Seattle", "Rust"] },
     },
-    // EDGE: capability question — must not dump memory.
     {
       input: withMemories("What kinds of things can you help me with?"),
       expected: { mustOmit: ["peanut", "Seattle", "Rust"] },
     },
 
-    // ── Must USE the fact when clearly relevant ──────────────────────────
     {
       input: withMemories("Can you suggest a quick snack I could make for myself?"),
       expected: {
@@ -78,18 +63,14 @@ evalite<ProbeSpec, ProbeResult, Expected>("context discretion", {
       input: withMemories("What programming language do I like best?"),
       expected: { mustContain: ["Rust"] },
     },
-    // EDGE: indirect recall — "where do I live" must surface the stored city.
     {
       input: withMemories("Remind me — where do I live again?"),
       expected: { mustContain: ["Seattle"] },
     },
-    // EDGE: indirect allergy probe — must surface the allergy.
     {
       input: withMemories("Do I have any food allergies I should watch out for?"),
       expected: { mustContain: ["peanut"] },
     },
-    // EDGE: relevance requires COMBINING facts — a local dinner rec should use
-    // the Seattle location and steer clear of peanuts.
     {
       input: withMemories("Recommend somewhere to grab dinner tonight."),
       expected: {

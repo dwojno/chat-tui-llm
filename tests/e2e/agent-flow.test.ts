@@ -3,7 +3,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// Headless Ink so we can assert on the committed message list (see chat.test).
 vi.mock("ink", () => ({
   render: () => ({
     rerender: vi.fn(),
@@ -32,13 +31,6 @@ import {
   type MockTurn,
 } from "@tests/helpers/mock-openai";
 import type { OpenAI } from "openai";
-
-/**
- * End-to-end through the real REPL adapter: a raw input line → command routing
- * → the agent loop → real tools/forks → rendered chat. Only the model (and
- * `fetch`, for web_search) is mocked. Each case asserts on what a user would
- * actually see land in the transcript.
- */
 
 let dir: string;
 
@@ -72,7 +64,6 @@ async function setup(client: OpenAI): Promise<Harness> {
     ctx,
     run: (line) => processLine(line, ctx, chat, session, bus),
     lastAssistant: () => [...chat.messages].toReversed().find((m) => m.role === "assistant"),
-    // tool_result / error events carry the tool outputs and (compacted) failures.
     toolOutputs: async () =>
       (await session.history()).flatMap((e) =>
         e.type === "tool_result" ? [e.output] : e.type === "error" ? [`Error: ${e.message}`] : [],
@@ -83,7 +74,6 @@ async function setup(client: OpenAI): Promise<Harness> {
 const mocked = async (turns: MockTurn[], compressions: string[] = []): Promise<Harness> =>
   setup(createMockOpenAI(turns, compressions).client);
 
-/** Stub global fetch (web_search's backend) with a canned implementation. */
 function stubFetch(impl: () => unknown) {
   vi.stubGlobal(
     "fetch",
@@ -145,7 +135,6 @@ describe("E2E: happy paths", () => {
       content: `summarize @${fixture}`,
     });
     const transcript = await h.session.history();
-    // The @ref is resolved to a real path (no @, no inlined body, no instruction).
     expect(transcript[0]).toMatchObject({
       type: "user_message",
       content: expect.stringContaining(fixture),
@@ -162,7 +151,6 @@ describe("E2E: happy paths", () => {
 
 describe("E2E: bad LLM output", () => {
   it("renders an empty answer when structured output fails to parse", async () => {
-    // Schema validation failed upstream → output_parsed is null.
     const h = await mocked([{ text: "", parsed: null }]);
     await h.run("/structured give me json");
     expect(h.lastAssistant()).toMatchObject({ role: "assistant", content: "" });
@@ -222,7 +210,7 @@ describe("E2E: model/API failure", () => {
   it("surfaces an API error in the transcript instead of crashing the REPL", async () => {
     const h = await setup(createThrowingOpenAI("API down"));
     const result = await h.run("hello");
-    expect(result).toBe("continue"); // REPL survives
+    expect(result).toBe("continue");
     expect(h.lastAssistant()?.content).toBe("⚠️ API down");
   });
 });
@@ -256,7 +244,6 @@ describe("E2E: delegation", () => {
 
     const assistant = h.lastAssistant();
     expect(assistant?.content).toBe("Final synthesized answer.");
-    // The fork's web_search shows up as a nested, tagged step.
     expect(assistant?.steps).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

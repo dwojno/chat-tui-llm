@@ -5,40 +5,18 @@ import { z } from "zod";
 import { openai } from "../client";
 import type { RagResult } from "../rag";
 
-/**
- * Scorers for the RAG eval. The RAGAS-style metrics (Faithfulness, Context
- * Precision, Answer Relevancy, Context Relevancy) come from `autoevals` — its
- * canonical implementations — wrapped as evalite scorers that feed them the
- * *real* retrieved context from the task output. One hand-rolled judge covers
- * the "insufficient context" behaviour autoevals doesn't measure.
- *
- * The judge model is deliberately NOT the model under test, and `gpt-4.1-mini`
- * supports the `temperature: 0` + structured-output calls autoevals makes.
- */
 const JUDGE_MODEL = process.env.RAG_JUDGE_MODEL ?? "gpt-4.1-mini";
 
-/** The query sent through the pipeline (plus display-only case metadata). */
 export interface RagInput {
   query: string;
-  /** Edge-case category from the dataset — shown in the UI, not scored. */
   category?: string;
-  /** "easy" | "medium" | "hard" — shown in the UI, not scored. */
   difficulty?: string;
 }
 
-/** Per-row expectation. All fields optional; a scorer no-ops (n/a) when absent. */
 export interface RagExpected {
-  /** Reference answer — enables Context Precision (needs a ground truth). */
   groundTruth?: string;
-  /** This query is NOT answerable from the corpus; the answer must say so. */
   expectInsufficient?: boolean;
-  /** The correct response is a refusal (e.g. prompt injection), so answer-quality metrics don't apply. */
   expectRefusal?: boolean;
-  /**
-   * Basenames of the source files that SHOULD be retrieved/cited to answer
-   * (only for genuine retrieval cases — omit for no-answer/decline cases, where
-   * the listed docs are near-misses). Enables the retrieval + citation scorers.
-   */
   goldContextIds?: string[];
 }
 
@@ -46,7 +24,6 @@ type RagScorer = ReturnType<typeof createScorer<RagInput, RagResult, RagExpected
 
 const notApplicable = { score: 1, metadata: { note: "n/a" } };
 
-/** autoevals scores may be null (reported as 0); normalise for evalite. */
 const toScore = (result: { score: number | null; metadata?: unknown }) => ({
   score: result.score ?? 0,
   metadata: result.metadata,
@@ -54,7 +31,6 @@ const toScore = (result: { score: number | null; metadata?: unknown }) => ({
 
 const auth = () => ({ client: openai(), model: JUDGE_MODEL });
 
-/** Are the generated answer's claims grounded in the retrieved context? */
 export const faithfulness: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Faithfulness",
   description: "answer claims are supported by the retrieved context (no hallucination)",
@@ -71,12 +47,10 @@ export const faithfulness: RagScorer = createScorer<RagInput, RagResult, RagExpe
   },
 });
 
-/** Does the answer actually address the question (no padding/evasion)? */
 export const answerRelevancy: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Answer Relevancy",
   description: "the answer is relevant and complete for the question",
   scorer: async ({ input, output, expected }) => {
-    // A correct refusal/decline is intentionally "irrelevant" to the asked question.
     if (expected?.expectInsufficient || expected?.expectRefusal) return notApplicable;
     return toScore(
       await AnswerRelevancy({
@@ -89,7 +63,6 @@ export const answerRelevancy: RagScorer = createScorer<RagInput, RagResult, RagE
   },
 });
 
-/** Is the retrieved context relevant to the question (retrieval quality)? */
 export const contextRelevancy: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Context Relevancy",
   description: "the retrieved chunks are relevant to the question",
@@ -107,7 +80,6 @@ export const contextRelevancy: RagScorer = createScorer<RagInput, RagResult, Rag
   },
 });
 
-/** Does the retrieved context contain what's needed for the reference answer? */
 export const contextPrecision: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Context Precision",
   description: "retrieved context supports the ground-truth answer (needs groundTruth)",
@@ -130,11 +102,6 @@ const InsufficientVerdict = z.object({
   rationale: z.string(),
 });
 
-/**
- * For queries the corpus can't answer: the answer must clearly signal that the
- * retrieved context is insufficient, rather than fabricating one. Hand-rolled
- * because it's a behavioural check, not a RAGAS metric.
- */
 export const admitsInsufficient: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Admits Insufficient",
   description: "on an unanswerable query, the answer says the context is insufficient",
@@ -163,26 +130,15 @@ export const admitsInsufficient: RagScorer = createScorer<RagInput, RagResult, R
   },
 });
 
-/** overlap(a ⊇ wanted): fraction of `wanted` present in `have`. */
 const coverage = (wanted: string[], have: Set<string>): number =>
   wanted.length ? wanted.filter((id) => have.has(id)).length / wanted.length : 1;
 
-/**
- * precision(have ∩ wanted / have): the mirror of `coverage` — of the files the
- * agent actually retrieved, what fraction were gold? Divides by `have.length`
- * (what we retrieved), whereas `coverage` divides by `wanted.length` (gold).
- */
 const precision = (wanted: string[], have: string[]): number => {
   if (!have.length) return 1;
   const gold = new Set(wanted);
   return have.filter((id) => gold.has(id)).length / have.length;
 };
 
-/**
- * Retrieval recall: of the gold source files, how many did the agent actually
- * pull context from? Measures the retriever independently of the wording of the
- * answer. n/a when a case has no gold ids (no-answer / out-of-domain / decline).
- */
 export const contextRecall: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Context Recall",
   description: "gold source files that the agent actually retrieved (retriever quality)",
@@ -201,14 +157,6 @@ export const contextRecall: RagScorer = createScorer<RagInput, RagResult, RagExp
   },
 });
 
-/**
- * Retrieval precision: of the source files the agent pulled context from, how
- * many were actually gold? The counterpart to Context Recall — it PENALISES
- * over-retrieval (touching files beyond what the answer needs), which is exactly
- * the "receives all the things" problem. Coarse: scored at file-basename
- * granularity (there is no chunk-level gold), so it measures file *selectivity*,
- * not chunk-level correctness. n/a when a case has no gold ids.
- */
 export const retrievalPrecision: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Retrieval Precision",
   description: "retrieved source files that were actually gold (penalises over-retrieval)",
@@ -228,12 +176,6 @@ export const retrievalPrecision: RagScorer = createScorer<RagInput, RagResult, R
   },
 });
 
-/**
- * Retrieval F1: harmonic mean of file-level precision and recall — one number
- * that drops if the agent either misses gold files (recall) OR fetches
- * extraneous ones (precision). Recomputed from the same primitives as the two
- * standalone scorers, since evalite runs each scorer in isolation. n/a without gold.
- */
 export const retrievalF1: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Retrieval F1",
   description: "harmonic mean of retrieval precision and recall",
@@ -248,10 +190,6 @@ export const retrievalF1: RagScorer = createScorer<RagInput, RagResult, RagExpec
   },
 });
 
-/**
- * Citation correctness: of the gold source files, how many did the agent cite
- * in its `Sources:` line? This is the grounding the user sees. n/a without gold.
- */
 export const citationRecall: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Citation Recall",
   description: "gold source files that the agent cited in its answer",
@@ -266,13 +204,6 @@ export const citationRecall: RagScorer = createScorer<RagInput, RagResult, RagEx
   },
 });
 
-/**
- * Citation grounding: every file the agent cites must be one it actually
- * retrieved — a cited file that was never retrieved is a fabricated citation.
- * Independent of gold, so it also guards the no-answer/decline cases. Score is
- * the fraction of citations that are backed by real retrieval; n/a when the
- * answer cites nothing.
- */
 export const citationGrounding: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Citation Grounding",
   description: "every cited file was actually retrieved (no fabricated citations)",

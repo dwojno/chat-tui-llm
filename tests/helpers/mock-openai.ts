@@ -17,22 +17,9 @@ function toForkResult(entry: MockHandoff | undefined): ForkResult {
   return typeof entry === "string" ? { ...base, summary: entry } : { ...base, ...entry };
 }
 
-/**
- * Test doubles for the OpenAI Responses API. The app injects the client
- * everywhere (Agent, summarize, compressHandoff), so a fake that
- * shapes just the fields the code reads — `output`, `output_text`,
- * `output_parsed`, `usage` — is enough to drive the whole agent loop offline.
- *
- * `createMockOpenAI(turns, compressions)` scripts a run:
- * - `turns`   feed `responses.stream` / `responses.parse` (one per model round,
- *             in call order) — the model's decisions.
- * - `compressions` feed `responses.create` (summarizer + fork handoffs).
- */
-
 let counter = 0;
 const nextId = (prefix: string): string => `${prefix}_${counter++}`;
 
-/** A minimal but structurally-valid `ResponseUsage`. */
 export function usage(overrides: Partial<ResponseUsage> = {}): ResponseUsage {
   return {
     input_tokens: 100,
@@ -44,7 +31,6 @@ export function usage(overrides: Partial<ResponseUsage> = {}): ResponseUsage {
   } as ResponseUsage;
 }
 
-/** An assistant `message` output item carrying `text`. */
 export function assistantMessage(text: string) {
   return {
     type: "message",
@@ -55,7 +41,6 @@ export function assistantMessage(text: string) {
   };
 }
 
-/** A `function_call` output item. `args` may be an object (JSON-encoded) or raw string. */
 export function functionCall(
   name: string,
   args: string | Record<string, unknown> = {},
@@ -71,13 +56,9 @@ export function functionCall(
   };
 }
 
-/** One scripted model round. */
 export interface MockTurn {
-  /** Answer text (streamed as deltas, and set as `output_text`). */
   text?: string;
-  /** Tool calls the model requests this round. */
   calls?: { name: string; arguments?: string | Record<string, unknown>; callId?: string }[];
-  /** `output_parsed` for structured-output turns. */
   parsed?: unknown;
   usage?: ResponseUsage;
 }
@@ -95,7 +76,6 @@ function buildResponse(turn: MockTurn) {
   };
 }
 
-/** Split answer text into a few streamed deltas, mimicking token streaming. */
 function toDeltas(text: string): string[] {
   if (!text) return [];
   const words = text.split(/(\s+)/).filter(Boolean);
@@ -117,15 +97,12 @@ function makeStream(turn: MockTurn) {
 
 export interface MockOpenAI {
   client: OpenAI;
-  /** Recorded request params, per method, in call order. */
   calls: {
     stream: unknown[];
     parse: unknown[];
     create: unknown[];
-    /** Subset of `parse` calls that requested the structured `fork_result` format. */
     handoff: unknown[];
   };
-  /** How many scripted turns remain unconsumed. */
   turnsRemaining: () => number;
 }
 
@@ -134,14 +111,6 @@ function isForkResultParse(params: unknown): boolean {
   return format?.name === "fork_result";
 }
 
-/**
- * Build a fake OpenAI client that replays `turns` through `stream`/`parse` and
- * `compressions` through the compression paths. A summarizer call
- * (`responses.create`) yields a string digest; a fork handoff (`responses.parse`
- * with the `fork_result` format) yields a structured `ForkResult`. Both draw
- * from the same `compressions` queue in call order. Unscripted calls degrade to
- * an empty answer / generic digest so a test only scripts what it asserts on.
- */
 export function createMockOpenAI(
   turns: MockTurn[] = [],
   compressions: MockHandoff[] = [],
@@ -194,10 +163,6 @@ export function createMockOpenAI(
   };
 }
 
-/**
- * A client whose every Responses call rejects — models a transient API failure
- * (network/5xx) so tests can assert the REPL recovers instead of crashing.
- */
 export function createThrowingOpenAI(message = "API unavailable"): OpenAI {
   const fail = () => {
     throw new Error(message);
@@ -211,7 +176,6 @@ export function createThrowingOpenAI(message = "API unavailable"): OpenAI {
   } as unknown as OpenAI;
 }
 
-/** An ephemeral `:memory:` SQLite {@link Store} for exercising a Session offline. */
 export function createMemoryStore(rag?: RagDeps): Promise<Store> {
   return LocalStore.open(":memory:", rag ? { rag } : {});
 }

@@ -79,7 +79,7 @@ describe("compressHandoff", () => {
   });
 
   it("treats a truncated response as a failure and sanitizes the JSON blob", async () => {
-    // A partial object parsed AND status incomplete: findings can't be trusted.
+    
     const { client } = fakeOpenAI(forkResult, '{"summary":"SSR renders on the ser', "incomplete");
     const result = await compressHandoff(client, childItems, "");
     expect(result.result.confidence).toBe("low");

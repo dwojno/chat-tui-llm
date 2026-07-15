@@ -34,7 +34,6 @@ export class HistoryQuery {
     return this;
   }
 
-  /** The model window: every summary segment, then the messages after the last one. */
   forModel(): this {
     this.config.forModel = true;
     return this;

@@ -11,7 +11,7 @@ function mockFetch(impl: () => unknown) {
   return fetchMock;
 }
 
-// Re-import per test so each gets a fresh resilience policy (fresh circuit breaker).
+
 let webSearchTool: WebSearchTool;
 beforeEach(async () => {
   vi.resetModules();

@@ -1,16 +1,6 @@
 import assert from "node:assert";
 import { estimateTokens } from "@/app/tokens";
 
-/**
- * Structure-aware Markdown chunker (internal to the `sources` domain).
- *
- * Splits on Markdown headings, then packs each section's lines into
- * ~`chunkTokens` windows with ~`chunkOverlap` token overlap. Each chunk keeps
- * its heading breadcrumb (contextual header) and its 1-based line range in the
- * converted Markdown, so retrieval can cite `path:startLine-endLine` and the
- * `read_file` tool can slice the exact region. Deterministic — unit-testable.
- */
-
 export interface Chunk {
   index: number;
   headingPath: string;
@@ -70,7 +60,6 @@ function lineTokens(line: NumberedLine): number {
   return estimateTokens(line.text) + 1;
 }
 
-/** Embedding input for a chunk: heading breadcrumb prepended to the body. */
 export function embedText(chunk: Chunk): string {
   return chunk.headingPath ? `${chunk.headingPath}\n\n${chunk.content}` : chunk.content;
 }

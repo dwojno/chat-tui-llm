@@ -9,14 +9,12 @@ import type { RankedHit, RerankCandidate, Reranker } from "@/store/sources/rag/r
 
 const EMBED_DIM = 64;
 
-/** Identity reranker: keeps the fused order (no LLM), so tests stay deterministic. */
 export class IdentityReranker implements Reranker {
   async rerank(_query: string, candidates: RerankCandidate[], topK: number): Promise<RankedHit[]> {
     return candidates.slice(0, topK).map((candidate) => ({ index: candidate.index, relevance: 1 }));
   }
 }
 
-/** Deterministic bag-of-tokens embedder: shared tokens ⇒ higher cosine. */
 export class DeterministicEmbedder implements DenseEmbedder {
   async embed(texts: string[]): Promise<number[][]> {
     return texts.map((text) => {
@@ -154,7 +152,6 @@ export function createFakeRag(overrides: Partial<RagConfig> = {}): FakeRag {
   return { deps: { engine }, blob, index };
 }
 
-/** Ranks: returns 1-based rank for each point by score (desc), aligned to input order. */
 function rankBy(points: VectorPoint[], score: (point: VectorPoint) => number): number[] {
   const scored = points.map((point, i) => ({ i, s: score(point) }));
   scored.sort((a, b) => b.s - a.s);

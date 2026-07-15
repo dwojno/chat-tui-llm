@@ -151,7 +151,6 @@ export class Session {
     return usageSnapshot(totals);
   }
 
-  /** Full persisted transcript (all turns, not just the in-context window) for UI replay. */
   history(): Promise<AgentEvent[]> {
     return this.store.conversation.queryHistory(this.store.conversationId).execute();
   }
@@ -164,12 +163,10 @@ export class Session {
     await this.store.memory.create(this.store.profileId, memory);
   }
 
-  /** Add + index a single source file, streaming progress steps then the result. */
   indexSource(path: string): AsyncGenerator<SourceProgress, IndexResult> {
     return this.store.sources.add(this.store.profileId, path);
   }
 
-  /** Re-index every source in the current profile, streaming progress. */
   reindexSources(): AsyncGenerator<SourceProgress, IndexResult[]> {
     return this.store.sources.reindex(this.store.profileId);
   }
@@ -212,8 +209,8 @@ export class Session {
         attributes: {
           "conversation.id": conversationId,
           "profile.id": this.store.profileId,
-          // Non-gen_ai key on purpose: a `model` attribute would make Langfuse
-          // classify this root span as a generation instead of the trace root.
+          
+          
           "chat.model": turnSettings.model,
           "chat.turn.index": this.currentTurnIndex,
         },
@@ -223,7 +220,6 @@ export class Session {
     );
   }
 
-  /** Run one turn through the loop, persist the produced transcript, and return the answer. */
   private async driveTurn(
     turnSpan: Span,
     events: readonly AgentEvent[],
@@ -275,9 +271,6 @@ export class Session {
     await this.store.conversation.createItems(this.store.conversationId, inserts);
   }
 
-  // Once the un-summarized tail overflows keepLastTurns, fold the WHOLE tail into a
-  // new summary *segment* and append it. forModel() returns every segment plus the
-  // messages after the last one, so nothing is silently dropped as the window slides.
   private async maintainWindow(parent?: Span): Promise<void> {
     const { conversation, conversationId } = this.store;
     const evicted = await conversation.queryHistory(conversationId).afterLastSummary().execute();

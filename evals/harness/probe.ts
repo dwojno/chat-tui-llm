@@ -9,36 +9,24 @@ import type { OpenAITool } from "@/agent/tools/types";
 import { mainToolSchemas } from "@/app/tools";
 import { openai } from "./client";
 
-/** A tool call the model emitted, with arguments parsed for convenience. */
 export interface ProbeToolCall {
   name: string;
   arguments: string;
-  /** `arguments` parsed to an object (`{}` if it failed to parse). */
   args: Record<string, unknown>;
 }
 
-/** The observable surface of one model turn — all a scorer may inspect. */
 export interface ProbeResult {
-  /** Plain-text output (`output_text`), trimmed. */
   text: string;
-  /** Every `function_call` item the model emitted this turn. */
   toolCalls: ProbeToolCall[];
-  /** Structured `output_parsed`, when a structured/JSON format was requested. */
   parsed: unknown;
   usage: ResponseUsage | undefined;
 }
 
-/** What to send the model for one probe. */
 export interface ProbeSpec {
-  /** The user message. */
   prompt: string;
-  /** Defaults to the production system prompt. */
   instructions?: string;
-  /** Defaults to the production tool set (weather + delegate_task). */
   tools?: OpenAITool[];
-  /** Out-of-window memory injected as the trailing developer message. */
   context?: { memories?: string[]; summary?: string };
-  /** Structured-output schema (mirrors the `/structured` command). */
   structuredOutput?: ZodType;
   temperature?: number;
 }
@@ -52,13 +40,6 @@ function parseArgs(json: string): Record<string, unknown> {
   }
 }
 
-/**
- * Run exactly ONE model turn against the given prompt/tools and return its
- * observable surface. Unlike the Agent, this does NOT execute
- * tools or run the loop — it captures the model's *first* decision (which tool
- * it chose, what it said), which is exactly what a routing eval grades. Tools
- * are still passed so the model has the real menu of choices.
- */
 export async function probePrompt(spec: ProbeSpec): Promise<ProbeResult> {
   const summary = spec.context?.summary ?? "";
   const prefix: ResponseInputItem[] = summary

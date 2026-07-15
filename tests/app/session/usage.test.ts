@@ -58,7 +58,7 @@ describe("formatReport", () => {
     const report = formatReport(totals);
     expect(report).toContain("Context report — 1 turn");
     expect(report).toMatch(/served from cache:\s+80 tok \(40%\)/);
-    // saved = baseline(1000) - (actualInput 200 + summarizer 30) = 770
+    
     expect(report).toMatch(/Saved vs naive:\s+770 tok/);
   });
 });

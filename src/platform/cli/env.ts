@@ -2,12 +2,6 @@ import { z } from "zod";
 import { loadRagConfig } from "@/store";
 import { loadTelemetryConfig } from "@/platform/telemetry/config";
 
-/**
- * App-level process-env validation, run once at startup so misconfiguration
- * fails fast with a readable message instead of surfacing as a cryptic runtime
- * error later. App-wide vars are checked here; RAG-specific vars are validated
- * by the sources domain's own schema (`loadRagConfig`).
- */
 const schema = z.object({
   OPENAI_API_KEY: z.string().min(1),
   TAVILY_API_KEY: z.string().optional(),

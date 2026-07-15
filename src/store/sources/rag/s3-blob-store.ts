@@ -14,11 +14,6 @@ import type { RagConfig } from "./config";
 
 const S3_MAX_ATTEMPTS = 4;
 
-/**
- * S3/MinIO adapter for `BlobStore`. Each namespace maps to its own bucket
- * (`${prefix}${namespace}`) — a private detail of this adapter, not part of the
- * neutral contract.
- */
 export class S3BlobStore implements BlobStore {
   private readonly client: S3Client;
   private readonly ensured = new Set<string>();

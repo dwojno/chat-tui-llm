@@ -8,12 +8,6 @@ import { QdrantIndex } from "./qdrant";
 import { LlmReranker } from "./reranker";
 import { S3BlobStore } from "./s3-blob-store";
 
-/**
- * The assembled RAG engine plus the raw inputs used to build it. Passed to
- * `SqliteSourcesFacade` so the facade never touches concrete infra clients.
- * Built by `createRagDeps` from just an OpenAI client + config, keeping the
- * domain internals (S3/Qdrant/embeddings) private to this package.
- */
 export interface RagDeps {
   engine: RagEngine;
 }

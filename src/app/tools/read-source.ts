@@ -18,11 +18,6 @@ const parameters = z.object({
     ),
 });
 
-/**
- * Read a slice of an indexed source file (converted Markdown) from blob storage.
- * The fork uses this to read the FULL file a search pointer located, then
- * answers from that — not from the search preview.
- */
 export function createReadSourceTool(store: Store): ToolDefinition<typeof parameters> {
   return {
     name: READ_SOURCE_NAME,

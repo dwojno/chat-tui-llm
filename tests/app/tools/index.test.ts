@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { describe, expect, it } from "vitest";
 import { createAgentTools } from "@/app/tools";
 import { DELEGATE_TASK_NAME } from "@/app/tools/delegation/delegate-task";
@@ -15,7 +16,7 @@ describe("createAgentTools", () => {
     expect(names).toContain(DELEGATE_TASK_NAME);
     expect(names).toContain(DELEGATE_TASKS_NAME);
     expect(names).toEqual(expect.arrayContaining(["read_file", "write_file", "edit_file"]));
-    // KB tools are fork-only — the main agent reaches them via delegation.
+    
     expect(names).not.toContain("search_knowledge_base");
     expect(names).not.toContain("read_source");
   });
@@ -23,6 +24,7 @@ describe("createAgentTools", () => {
   it("gives the general fork web_search + weather but never delegate tools (no recursion)", async () => {
     const store = await createMemoryStore();
     const { forkProfiles } = createAgentTools(store);
+    assert(forkProfiles.general !== undefined);
     const names = forkProfiles.general.tools.map((t) => t.name);
     expect(names).toEqual(expect.arrayContaining([WEATHER_TOOL_NAME, WEB_SEARCH_TOOL_NAME]));
     expect(names).not.toContain(DELEGATE_TASK_NAME);
@@ -32,6 +34,7 @@ describe("createAgentTools", () => {
   it("gives the rag_research fork the knowledge-base tools only", async () => {
     const store = await createMemoryStore();
     const { forkProfiles } = createAgentTools(store);
+    assert(forkProfiles.rag_research !== undefined);
     const names = forkProfiles.rag_research.tools.map((t) => t.name);
     expect(names).toEqual(["search_knowledge_base", "list_files", "grep_files", "read_source"]);
     expect(names).not.toContain(WEB_SEARCH_TOOL_NAME);

@@ -54,13 +54,6 @@ export function parseFileMentions(text: string): string[] {
   return paths;
 }
 
-/**
- * Resolve `@`-mentions in place: each mention that points to a readable file
- * inside the working directory is replaced with that file's path; the `@` is
- * dropped. We do not inline file contents and we do not add any instruction —
- * the message just carries a real path, and the agent decides what to do with
- * it. Mentions that don't resolve are left untouched.
- */
 export async function resolveFileMentions(text: string, cwd = process.cwd()): Promise<string> {
   const mentions = parseFileMentions(text);
   if (!mentions.length) return text;
@@ -74,9 +67,9 @@ export async function resolveFileMentions(text: string, cwd = process.cwd()): Pr
 
   return text.replace(MENTION_RE, (match, mention: string) => {
     const full = resolved.get(mention);
-    if (!full) return match; // unresolved — leave the @ref as the user wrote it
-    // `match` is the boundary char (start/whitespace) + "@" + mention; keep the
-    // boundary, swap "@mention" for the resolved path.
+    if (!full) return match; 
+    
+    
     const lead = match.slice(0, match.length - mention.length - 1);
     return `${lead}${full}`;
   });

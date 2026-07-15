@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Stub tool *execution* so the loop runs offline and instantly. Everything
-// else from the tools module — describeToolCall, toolLabel — stays real.
+
+
 vi.mock("@/agent/tools", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/agent/tools")>();
   return {
@@ -97,7 +97,7 @@ describe("runAgentLoop", () => {
     const { agent } = makeAgent([{ text: "first" }, { text: "second" }]);
 
     const first = await run(agent, [userMessage("one")]);
-    // The caller owns the user message; only the produced events come back.
+    
     expect(first.result.events.some((e) => e.type === "user_message")).toBe(false);
     expect(first.result.events.at(-1)).toMatchObject({
       type: "assistant_answer",
@@ -205,8 +205,8 @@ describe("runAgentLoop", () => {
   });
 
   it("forbids tools on the final round to stop an infinite tool loop", async () => {
-    const turns: MockTurn[] = Array.from({ length: 8 }, () => ({
-      calls: [{ name: "get_weather_data", arguments: { city: "Paris" } }],
+    const turns: MockTurn[] = Array.from({ length: 8 }, (_, i) => ({
+      calls: [{ name: "get_weather_data", arguments: { city: `City${i}` } }],
     }));
     turns.push({ text: "forced answer" });
 
@@ -218,6 +218,74 @@ describe("runAgentLoop", () => {
     expect(mock.calls.stream).toHaveLength(9);
     expect(lastParams.tools).toEqual([]);
     expect(result.answer).toBe("forced answer");
+  });
+});
+
+describe("runAgentLoop guardrails", () => {
+  it("runs a repeated identical tool call only once and reuses the result", async () => {
+    const { agent } = makeAgent([
+      { calls: [{ name: "get_weather_data", arguments: { city: "Paris" } }] },
+      { calls: [{ name: "get_weather_data", arguments: { city: "Paris" } }] },
+      { text: "done" },
+    ]);
+
+    const { result } = await run(agent, [userMessage("weather?")]);
+
+    expect(exec).toHaveBeenCalledTimes(1);
+    const results = result.events.filter((e) => e.type === "tool_result");
+    expect(results).toHaveLength(2);
+    expect(results.every((e) => e.output === "TOOL_RESULT")).toBe(true);
+    expect(result.answer).toBe("done");
+  });
+
+  it("re-executes an identical call after the first one errored", async () => {
+    exec.mockReset();
+    exec.mockRejectedValueOnce(new Error("boom"));
+    exec.mockResolvedValue("recovered");
+    const { agent } = makeAgent([
+      { calls: [{ name: "get_weather_data", arguments: { city: "Paris" } }] },
+      { calls: [{ name: "get_weather_data", arguments: { city: "Paris" } }] },
+      { text: "done" },
+    ]);
+
+    await run(agent, [userMessage("weather?")]);
+
+    expect(exec).toHaveBeenCalledTimes(2);
+  });
+
+  it("collapses identical calls made in the same round to one execution", async () => {
+    const { agent } = makeAgent([
+      {
+        calls: [
+          { name: "get_weather_data", arguments: { city: "Paris" } },
+          { name: "get_weather_data", arguments: { city: "Paris" } },
+        ],
+      },
+      { text: "done" },
+    ]);
+
+    const { result } = await run(agent, [userMessage("weather twice?")]);
+
+    expect(exec).toHaveBeenCalledTimes(1);
+    expect(result.events.filter((e) => e.type === "tool_result")).toHaveLength(2);
+  });
+
+  it("cuts off a call that keeps erroring instead of retrying forever", async () => {
+    exec.mockReset();
+    exec.mockImplementation(async () => {
+      throw new Error("boom");
+    });
+    const turns: MockTurn[] = Array.from({ length: 4 }, () => ({
+      calls: [{ name: "get_weather_data", arguments: { city: "Paris" } }],
+    }));
+    turns.push({ text: "gave up" });
+    const { agent } = makeAgent(turns);
+
+    const { result } = await run(agent, [userMessage("weather?")]);
+
+    expect(exec).toHaveBeenCalledTimes(2);
+    const errors = result.events.filter((e) => e.type === "error");
+    expect(errors.some((e) => /keeps failing/.test(e.message))).toBe(true);
   });
 });
 
@@ -375,8 +443,8 @@ describe("runAgentLoop control intents", () => {
     exec.mockImplementation(async () => {
       throw new Error("boom");
     });
-    const turns: MockTurn[] = Array.from({ length: 8 }, () => ({
-      calls: [{ name: "get_weather_data", arguments: { city: "X" } }],
+    const turns: MockTurn[] = Array.from({ length: 8 }, (_, i) => ({
+      calls: [{ name: "get_weather_data", arguments: { city: `X${i}` } }],
     }));
     turns.push({ text: "forced answer" });
     const { agent } = makeAgent(turns);

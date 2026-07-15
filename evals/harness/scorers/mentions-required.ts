@@ -1,6 +1,5 @@
 import { containsTerm, defineScorer, isAbsent, notApplicable } from "./common";
 
-/** Fraction of required substrings present in the answer. */
 export const mentionsRequired = defineScorer(
   "mentions-required",
   "answer includes every required substring",

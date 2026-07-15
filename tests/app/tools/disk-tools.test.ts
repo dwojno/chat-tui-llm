@@ -92,7 +92,7 @@ describe("edit_file", () => {
     writeFileSync("code.ts", "x\nx");
     const out = await editFileTool.execute({ path: "code.ts", oldString: "x", newString: "y" });
     expect(out).toMatch(/not unique/);
-    // File is untouched.
+    
     expect(readFileSync(join(dir, "code.ts"), "utf8")).toBe("x\nx");
   });
 

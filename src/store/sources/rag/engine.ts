@@ -10,17 +10,11 @@ import { toMarkdown } from "./markdown";
 import type { ChunkPayload, SearchResult, VectorIndex, VectorPoint } from "./qdrant";
 import type { RerankCandidate, Reranker } from "./reranker";
 
-/** A retrieval result paired with the score used for ranking/filtering it. */
 interface ScoredResult {
   result: SearchResult;
   score: number;
 }
 
-/**
- * RAG engine (internal to the `sources` domain): composes markdown conversion,
- * chunking, embedding, object storage and the vector index. Stateless w.r.t.
- * the SQLite `source` table — the facade owns row bookkeeping.
- */
 export class RagEngine {
   constructor(
     private readonly config: RagConfig,
@@ -85,14 +79,6 @@ export class RagEngine {
     return { s3Key: key, contentHash, chunkCount: chunks.length };
   }
 
-  /**
-   * Hybrid search, then rerank + relevance-filter down to the most relevant
-   * passages. With reranking on we over-fetch a larger candidate pool
-   * (`limit * multiplier`, capped), have the reranker rescore it against the
-   * query, drop hits below a fraction of the top relevance, and keep `limit`.
-   * This is what turns "top-N regardless of relevance" into "only what's
-   * actually relevant". Reranking degrades gracefully (fused order) on failure.
-   */
   async search(profileId: string, query: string, limit: number): Promise<SearchHit[]> {
     const dense = await this.embedder.embed([query]);
     const vector = dense[0];
@@ -104,10 +90,6 @@ export class RagEngine {
     const results = await this.index.search(profileId, vector, query, candidateCount);
     if (!results.length) return [];
 
-    // Rerank produces 0..1 relevance scores with real spread, so the relative
-    // cutoff is meaningful. Without reranking we keep the RRF top-N as-is: RRF
-    // scores sit in a narrow rank-reciprocal band, so a relative cutoff on them
-    // is unreliable — leaving it off also makes this a clean RRF-only baseline.
     const ranked = this.config.rerankEnabled
       ? this.applyRelativeCutoff(await this.rerank(query, results, limit), limit)
       : results.slice(0, limit).map((result) => ({ result, score: result.score }));
@@ -121,11 +103,6 @@ export class RagEngine {
     }));
   }
 
-  /**
-   * Rerank the fused candidates by true relevance to the query. Returns hits in
-   * descending relevance with a 0..1 `score` (the reranker's relevance, which
-   * replaces the RRF score — a meaningful signal the relative filter can use).
-   */
   private async rerank(
     query: string,
     results: SearchResult[],
@@ -144,13 +121,6 @@ export class RagEngine {
     });
   }
 
-  /**
-   * Drop reranked hits scoring below `rerankRelativeCutoff` of the top hit, then
-   * keep at most `limit`. Relative to this query's own best hit rather than an
-   * absolute threshold, since a good match for a broad query can still score
-   * lower than a weak match for a precise one. Always keeps at least the top hit
-   * so a match never filters down to nothing.
-   */
   private applyRelativeCutoff(ranked: ScoredResult[], limit: number): ScoredResult[] {
     if (!ranked.length) return ranked;
     const top = ranked[0];
@@ -160,7 +130,6 @@ export class RagEngine {
     return kept.slice(0, limit);
   }
 
-  /** Display text for a hit: heading breadcrumb + chunk body, capped generously. */
   private snippetFor(payload: ChunkPayload): string {
     const body = truncate(payload.text, this.config.snippetMaxChars);
     return payload.headingPath ? `${payload.headingPath}\n${body}` : body;
@@ -211,20 +180,12 @@ export class RagEngine {
     await this.blob.remove(profileId, key);
   }
 
-  /**
-   * Wipe a profile's knowledge base: drop its Qdrant collection and clear every
-   * object in its bucket. Used to start an index over from scratch (and by the
-   * evals to guarantee a fresh, isolated index per run). SQLite bookkeeping is
-   * the facade's concern — this only touches the vector + object stores.
-   */
   async reset(profileId: string): Promise<void> {
     await this.index.dropCollection(profileId);
     try {
       const keys = await this.blob.list(profileId);
       await Promise.all(keys.map((key) => this.blob.remove(profileId, key)));
-    } catch {
-      // Bucket may not exist yet — nothing to clear.
-    }
+    } catch {}
   }
 }
 

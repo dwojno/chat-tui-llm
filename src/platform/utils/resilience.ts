@@ -1,5 +1,3 @@
-/** Retry-with-backoff + circuit-breaker policies, built on cockatiel. */
-
 import {
   circuitBreaker,
   ConsecutiveBreaker,
@@ -48,7 +46,6 @@ function isNetworkError(error: unknown): boolean {
   return NETWORK_MARKERS.some((marker) => message.includes(marker));
 }
 
-/** Transient failures worth retrying: HTTP 429/5xx and network errors. */
 export function isRetryableError(error: unknown): boolean {
   if (isBrokenCircuitError(error)) return false;
   const status = httpStatus(error);

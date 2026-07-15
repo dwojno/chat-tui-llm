@@ -1,10 +1,5 @@
 import { defineScorer, isAbsent, notApplicable } from "./common";
 
-/**
- * Is a called tool's argument present and within its word budget? Pins the
- * delegate_task `title` contract: a short label, not a verbatim copy of the
- * user's (long) prompt. Uses the largest matching arg across the turn's calls.
- */
 export const conciseArg = defineScorer(
   "concise-arg",
   "a called tool arg is present and within its word budget",

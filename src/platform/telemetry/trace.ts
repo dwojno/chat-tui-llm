@@ -77,15 +77,10 @@ export function startSpan(
   );
 }
 
-/** Context with `span` active, so downstream spans created under it nest correctly. */
 export function contextWithSpan(span: Span): Context {
   return trace.setSpan(context.active(), span);
 }
 
-/**
- * Run `run` under a fresh span this helper owns: start it, record `input`, keep
- * it active (so downstream spans nest under it), end it, and re-raise on throw.
- */
 export async function withSpan<R>(
   name: string,
   init: { attributes?: Attributes; input?: unknown },
@@ -116,40 +111,23 @@ function truncate(text: string): string {
   return text.length > CONTENT_MAX_CHARS ? `${text.slice(0, CONTENT_MAX_CHARS)}…` : text;
 }
 
-// Langfuse populates an observation's Input/Output from these attributes (not
-// from span events), and expects each as a JSON string. Set both so the trace UI
-// shows request/response content.
 const LANGFUSE_INPUT = "langfuse.observation.input";
 const LANGFUSE_OUTPUT = "langfuse.observation.output";
 export const LANGFUSE_OBSERVATION_TYPE = "langfuse.observation.type";
 export const LANGFUSE_MODEL_NAME = "langfuse.observation.model.name";
 const LANGFUSE_COMPLETION_START_TIME = "langfuse.observation.completion_start_time";
 
-/**
- * Record when the first output token arrived for a single model call. Langfuse
- * derives that generation's "Time to first token" from this
- * (`completion_start_time` − span start) — a plain span event is not read for
- * it. Per-call: it excludes any earlier tool rounds in the same turn.
- */
 export function recordCompletionStart(span: Span, at: Date): void {
   span.setAttribute(LANGFUSE_COMPLETION_START_TIME, at.toISOString());
 }
 
 const CHAT_TURN_TTFT_MS = "chat.turn.time_to_first_token_ms";
 
-/**
- * Record user-facing time-to-first-token on the turn span: wall-clock from turn
- * start to the first text token streamed to the user, spanning the whole turn
- * (tool rounds included). Distinct from a generation's per-call
- * `completion_start_time`; Langfuse has no turn-level TTFT widget, so this rides
- * as an attribute + metric rather than the built-in generation field.
- */
 export function recordTurnTimeToFirstToken(span: Span, seconds: number, model: string): void {
   span.setAttribute(CHAT_TURN_TTFT_MS, Math.round(seconds * 1000));
   turnTtftHistogram.record(seconds, { [GEN_AI.requestModel]: model });
 }
 
-/** JSON-encode a value; pass through strings that are already valid JSON so args aren't double-encoded. */
 function toJson(value: unknown): string {
   if (typeof value === "string") {
     try {
@@ -162,7 +140,6 @@ function toJson(value: unknown): string {
   return JSON.stringify(value) ?? "";
 }
 
-/** Attach request/response content to a span (Input/Output in Langfuse); no-op when capture is off. */
 export function setSpanIO(span: Span, io: { input?: unknown; output?: unknown }): void {
   if (!captureContent) return;
   if (io.input !== undefined && io.input !== null)
@@ -171,13 +148,6 @@ export function setSpanIO(span: Span, io: { input?: unknown; output?: unknown })
     span.setAttribute(LANGFUSE_OUTPUT, truncate(toJson(io.output)));
 }
 
-/**
- * Run `fn` inside an active LLM span, stamping the standard GenAI + Langfuse
- * attributes and handling the span lifecycle. Uses an active span (not an
- * explicit parent) so store-path spans nest under the ambient tool context. The
- * callback owns usage/IO and any graceful fallback; only an unexpected throw is
- * recorded as a span error and re-raised.
- */
 export async function withLlmSpan<T>(
   name: string,
   init: {

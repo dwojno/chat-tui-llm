@@ -148,7 +148,6 @@ export class ConversationItemQuery {
     return this;
   }
 
-  /** Every summary row, plus non-summary rows after the latest summary — the model window. */
   summariesOrAfter(boundary: number | null): this {
     if (boundary == null) return this;
     const cond = or(eq(conversationItem.kind, "summary"), gt(conversationItem.id, boundary));
@@ -292,7 +291,7 @@ export class ConversationRepository {
   async runHistoryQuery(conversationId: string, config: HistoryQueryConfig): Promise<AgentEvent[]> {
     const targetId = config.conversationId ?? conversationId;
 
-    // The model window: every summary segment, then the messages after the last one.
+    
     if (config.forModel) {
       const boundary = await this.summaryBoundaryId(targetId);
       const rows = await this.items()

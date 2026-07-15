@@ -6,7 +6,6 @@ export const LIST_SOURCES_NAME = "list_files" as const;
 
 const parameters = z.object({});
 
-/** List the source files indexed in the current profile's knowledge base. */
 export function createListSourcesTool(store: Store): ToolDefinition<typeof parameters> {
   return {
     name: LIST_SOURCES_NAME,

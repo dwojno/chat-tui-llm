@@ -13,7 +13,6 @@ import {
 const user = (content: string): AgentEvent => ({ type: "user_message", content });
 const assistant = (content: string): AgentEvent => ({ type: "assistant_answer", content });
 
-/** A synthetic evicted window carrying concrete facts a summary must preserve. */
 const TRIP: AgentEvent[] = [
   user("I am planning a trip to Japan in October. Budget is $3000."),
   assistant(
@@ -28,7 +27,6 @@ const TRIP: AgentEvent[] = [
   user("Also I decided NOT to rent a car — trains only."),
 ];
 
-/** The user changes their mind mid-thread: the summary must keep the LATEST. */
 const REVISED: AgentEvent[] = [
   ...TRIP,
   user("Actually, bump the budget to $5000 — and skip Osaka, add Nara instead."),
@@ -38,17 +36,9 @@ const REVISED: AgentEvent[] = [
 
 interface SummarizeInput {
   evicted: AgentEvent[];
-  /** A prior rolling summary to fold the new turns into. */
   prior?: string;
 }
 
-/**
- * The summarizer (folds evicted turns into a rolling summary; ≤ ~150 words,
- * preserving facts / decisions / preferences). We run the real `summarize()`
- * and score the output for length and fact retention. The edge rows target the
- * failure modes summaries are prone to: dropping updates in favour of stale
- * values, losing negations, and discarding prior-summary facts on a merge.
- */
 evalite<SummarizeInput, ProbeResult, Expected>("summarizer fidelity", {
   data: () => [
     {
@@ -63,8 +53,6 @@ evalite<SummarizeInput, ProbeResult, Expected>("summarizer fidelity", {
           "should be concise and free of pleasantries.",
       },
     },
-    // EDGE: updates + negation. The summary must reflect the FINAL state, not
-    // the superseded values, and must keep the "no temples" negation.
     {
       input: { evicted: REVISED },
       expected: {
@@ -76,7 +64,6 @@ evalite<SummarizeInput, ProbeResult, Expected>("summarizer fidelity", {
           "visit temples. Mentioning the old $3000 or Osaka as current is a fail.",
       },
     },
-    // EDGE: merge. A prior summary plus new turns — facts from BOTH must survive.
     {
       input: {
         prior:

@@ -9,9 +9,9 @@ export async function applyContextSwitch(
   store: Store,
 ): Promise<void> {
   session.rebind(store);
-  // Start the switched-to conversation with a clean view — we don't replay the
-  // previous conversation's transcript. The model still receives the persisted
-  // history from the store on the next turn; this only clears the UI.
+  
+  
+  
   chat.replaceMessages([]);
   chat.setUsage(await session.getUsageTotals());
   chat.setContext(await buildChatContext(store));

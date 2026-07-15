@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-// Drive the ChatHandle state machine headlessly: replace Ink's real render
-// (raw-mode stdin, timers, ANSI) with a no-op so we can assert on the committed
-// message list — the logic that must survive streaming, steps, and commits.
+
+
+
 vi.mock("ink", () => ({
   render: () => ({
     rerender: vi.fn(),
@@ -60,7 +60,7 @@ describe("renderChat handle", () => {
     const chat = renderChat();
     chat.setStreaming("");
     chat.addStep({ label: "stale step" });
-    chat.setStreaming(""); // reopen
+    chat.setStreaming(""); 
     chat.commitStreaming("answer");
     expect(chat.messages.at(-1)).toEqual({
       role: "assistant",

@@ -1,8 +1,4 @@
-/**
- * Fallback tool → label map for the UI. Live tool events carry their own
- * `label` (from the injected tool definitions); this map is only used when
- * replaying persisted history, where the label was not stored.
- */
+
 const TOOL_LABELS: Record<string, string> = {
   get_weather_data: "Fetching weather data",
   web_search: "Searching the web",

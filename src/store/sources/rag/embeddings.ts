@@ -1,15 +1,6 @@
 import type { OpenAI } from "openai";
 import { GEN_AI, setSpanIO, withLlmSpan } from "@/platform/telemetry";
 
-/**
- * Embedding utilities (internal to the `sources` domain).
- *
- * Dense vectors come from OpenAI. Sparse vectors are produced by Qdrant
- * server-side inference in the primary path (see `qdrant.ts`); `encodeSparse`
- * is a self-contained BM25-lite encoder used as an offline fallback and by
- * tests, so the pipeline stays exercisable without a live inference server.
- */
-
 export interface DenseEmbedder {
   embed(texts: string[]): Promise<number[][]>;
 }
@@ -101,7 +92,6 @@ export function tokenize(text: string): string[] {
     .filter((token) => token.length >= 2 && !STOPWORDS.has(token));
 }
 
-/** FNV-1a hash into a 24-bit index space, keeping sparse vectors compact. */
 function hashToken(token: string): number {
   let hash = 0x81_1c_9d_c5;
   for (let i = 0; i < token.length; i++) {
@@ -111,7 +101,6 @@ function hashToken(token: string): number {
   return (hash >>> 8) & 0xff_ff_ff;
 }
 
-/** BM25-lite sparse vector: hashed token indices with log-scaled term frequency. */
 export function encodeSparse(text: string): SparseVector {
   const counts = new Map<number, number>();
   for (const token of tokenize(text)) {

@@ -11,11 +11,6 @@ function isWithin(root: string, target: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
 
-/**
- * Local-disk adapter for `BlobStore`. Each namespace is a directory under
- * `blobDir`; each key is a (possibly nested) file within it. Path traversal
- * outside the namespace directory is rejected.
- */
 export class DiskBlobStore implements BlobStore {
   private readonly blobDir: string;
 

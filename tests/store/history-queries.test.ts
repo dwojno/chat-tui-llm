@@ -2,14 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { Store } from "@/store";
 import { openMemoryStore } from "./helpers";
 
-/**
- * The three read modes of `queryHistory()` are the contract the whole agent loop
- * leans on, so they get their own coverage:
- *   - `.execute()`           → full transcript for UI replay (never summaries)
- *   - `.afterLastSummary()`  → the un-summarized tail the windower folds
- *   - `.forModel()`          → every summary segment + the messages after the last one
- */
-
 const user = (content: string, turn = 0) => ({
   kind: "user_message" as const,
   turnIndex: turn,
@@ -85,7 +77,6 @@ describe("queryHistory().forModel() — the model window", () => {
   });
 
   it("keeps every summary segment and drops the messages they cover", async () => {
-    // [m1, m2, m3, S1, mN, S2, mNx] → [S1, S2, mNx]
     const store = await seed([
       user("m1"),
       user("m2"),

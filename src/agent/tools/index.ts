@@ -42,7 +42,6 @@ export function executeToolCall(
   return tool.execute(args, ctx);
 }
 
-/** The label the UI should show for a tool call (falls back to the raw name). */
 export function toolLabel(tools: ToolDefinition<z.ZodType>[], name: string): string | undefined {
   return tools.find((t) => t.name === name)?.label;
 }

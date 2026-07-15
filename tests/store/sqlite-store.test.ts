@@ -64,7 +64,7 @@ describe("LocalStore (sqlite)", () => {
       expect(await second.memory.query().forProfile(second.profileId).execute()).toEqual([
         expect.objectContaining({ text: "persistent fact" }),
       ]);
-      // Each open starts a fresh conversation (profile is restored, session is not).
+      
       expect(second.conversationId).not.toBe(first.conversationId);
     } finally {
       rmSync(dir, { recursive: true, force: true });

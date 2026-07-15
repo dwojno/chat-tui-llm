@@ -1,14 +1,13 @@
 import { defineScorer, isAbsent, notApplicable } from "./common";
 
-/** Does the structured/JSON output validate against the expected schema? */
 export const matchesSchema = defineScorer(
   "matches-schema",
   "output validates against the expected Zod schema",
   ({ output, expected }) => {
     const schema = expected?.schema;
     if (isAbsent(schema)) return notApplicable;
-    // A refusal (declining to fabricate an answer to an unanswerable prompt) is a
-    // desirable outcome the schema can't represent — accept it when allowed.
+    
+    
     const refused = { score: 1, metadata: { note: "refusal accepted" } };
     let candidate: unknown = output.parsed;
     if (candidate == null) {

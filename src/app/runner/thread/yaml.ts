@@ -10,7 +10,6 @@ function scalar(value: unknown): string {
   return String(value);
 }
 
-/** Minimal YAML block serializer for the reducer's context format (no dependency). */
 export function toYaml(value: unknown, indent = 0): string {
   const pad = INDENT.repeat(indent);
 

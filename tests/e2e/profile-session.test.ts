@@ -143,8 +143,8 @@ describe("E2E: conversations", () => {
     h.queuePicker(convA);
     await h.run("/conversation");
 
-    // Switching back binds convA but shows a clean view — convA's transcript is
-    // NOT replayed; only the switch acknowledgement is present.
+    
+    
     expect(h.chat.messages).toEqual([
       { role: "assistant", content: expect.stringContaining("Switched to conversation") },
     ]);
@@ -195,7 +195,7 @@ describe("E2E: conversations", () => {
 
     const reopened = await LocalStore.open(tempDbPath(dir));
     expect(reopened.profileId).toBe(store.profileId);
-    // A new session starts a fresh conversation; resume a prior one via --conversation.
+    
     expect(reopened.conversationId).not.toBe(firstConversationId);
     expect(await reopened.conversation.queryHistory(reopened.conversationId).execute()).toEqual([]);
   });

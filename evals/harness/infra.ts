@@ -3,16 +3,6 @@ import { promisify } from "node:util";
 
 const exec = promisify(execFile);
 
-/**
- * Ensure the RAG services (Qdrant + MinIO) are up before the RAG eval runs.
- * Health-checks first (a no-op when they're already running), otherwise starts
- * them with `docker compose up -d` and waits for health. Never throws — if
- * docker is unavailable it warns and returns, so the prompt-only eval suites
- * still run; the RAG suite surfaces a clear error later if infra is truly down.
- *
- * Idempotent per process (memoized), so wiring it into evalite's `setupFiles`
- * (which run per worker) costs at most one health check.
- */
 const QDRANT_URL = process.env.QDRANT_URL ?? "http://localhost:6333";
 const STARTUP_TIMEOUT_MS = 60_000;
 

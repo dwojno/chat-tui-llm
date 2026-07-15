@@ -3,24 +3,6 @@ import { evalite } from "evalite";
 import { createRagHarness, type RagResult } from "../harness/rag";
 import { ragScorers, type RagExpected, type RagInput } from "../harness/scorers/rag-scorers";
 
-/**
- * End-to-end RAG eval — REAL, no mocks. On each run the harness prepares this
- * suite's isolated Qdrant collection + MinIO bucket, ingests the corpus in
- * `evals/harness/rag-corpus/` through the app's production `store.sources`
- * pipeline, then runs the real `Agent` loop per query and scores real
- * retrieval + real generation.
- *
- * Everything is programmatic: `harness.setup()` starts Qdrant + MinIO if
- * needed, resets the collection/bucket, and ingests — there are no CLIs. A real
- * `OPENAI_API_KEY` is required. Run just this suite with `pnpm eval:rag`.
- *
- * Cases come from `evals/harness/rag-dataset.json` (30 examples across 15
- * edge-case categories). The eval agent runs under a grounding directive that
- * forces it to answer only from the knowledge base and to end each answer with
- * a `Sources:` citation line, so we can score two grounding signals: what it
- * actually retrieved (`Context Recall`) and what it claims it used
- * (`Citation Recall` / `Citation Grounding`).
- */
 const harness = createRagHarness({
   suiteId: "rag",
   corpusDir: "evals/harness/rag-corpus",
@@ -38,12 +20,6 @@ interface DatasetExample {
   notes: string;
 }
 
-/**
- * Cases whose `gold_context_ids` are near-misses a naive retriever might wrongly
- * surface, NOT docs that should be retrieved. The no-answer / out-of-domain
- * cases are already excluded via `expectInsufficient`; this covers the direct
- * prompt-injection case, whose correct behaviour is to decline, not retrieve.
- */
 const NON_RETRIEVAL_IDS = new Set(["rag-024"]);
 
 function usedRagResearchFork(output: RagResult): boolean {
@@ -91,8 +67,6 @@ evalite<RagInput, RagResult, RagExpected>("rag pipeline", {
   },
   task: (input) => harness.myRagPipeline(input.query),
   scorers: ragScorers,
-  // Surface the case metadata + the real retrieval/citation signals so a
-  // reviewer can confirm grounding is genuine (retrieved vs cited vs gold).
   columns: ({ input, output, expected }) => [
     {
       label: "Category",

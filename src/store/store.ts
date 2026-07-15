@@ -16,7 +16,6 @@ const IN_MEMORY = ":memory:";
 
 export interface OpenStoreOptions {
   conversationId?: string | undefined;
-  /** When present, enables the sources RAG pipeline (S3/Qdrant/embeddings). */
   rag?: RagDeps | undefined;
 }
 
@@ -82,7 +81,7 @@ export class LocalStore implements Store {
     const ctx = new StoreContext(DEFAULT_PROFILE_ID, "", dbPath, inMemory);
     const facades = createFacades(db, ctx, opts.rag);
 
-    // Explicit override (e.g. `--conversation <id>`) wins over the pointer.
+    
     if (opts.conversationId) {
       const restored = await facades.conversation
         .query()

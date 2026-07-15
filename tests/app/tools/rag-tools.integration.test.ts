@@ -9,19 +9,7 @@ import type { ToolRunContext } from "@/agent/conversation/turn";
 import { createRagDeps, loadRagConfig, LocalStore, type Store } from "@/store";
 import { drain } from "@/platform/utils/async-gen";
 
-/**
- * Live integration for the agent-facing RAG tools (search_knowledge_base,
- * list_files, grep_files, read_source) against real Qdrant + real OpenAI
- * embeddings — verifying the tools return the CORRECT data (right file located,
- * right snippet, right line range, right grep hit) for a known corpus.
- *
- * Opt-in only. Run with (see `just integration`):
- *   RAG_INTEGRATION=1 RAG_RERANK_ENABLED=false pnpm exec vitest run \
- *     tests/app/tools/rag-tools.integration.test.ts
- *
- * The reranker is disabled so search takes the deterministic RRF-only path
- * (real embeddings + real Qdrant hybrid search, no LLM in the loop).
- */
+
 const RUN = process.env.RAG_INTEGRATION === "1";
 const CORPUS = "tests/fixtures/rag-corpus";
 const TEST_TIMEOUT = 60_000;

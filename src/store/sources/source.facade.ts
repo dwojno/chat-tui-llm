@@ -28,8 +28,8 @@ export abstract class SourcesFacade {
   abstract update(id: number, patch: { path: string }): Promise<void>;
   abstract delete(id: OneOrMany<number>): Promise<void>;
 
-  // RAG lifecycle — the domain's public API, consumed by the agent tools.
-  // Streaming operations are async generators so the UI can show live progress.
+  
+  
   abstract add(profileId: string, path: string): AsyncGenerator<SourceProgress, IndexResult>;
   abstract reindex(profileId: string): AsyncGenerator<SourceProgress, IndexResult[]>;
   abstract remove(profileId: string, id: number): Promise<void>;

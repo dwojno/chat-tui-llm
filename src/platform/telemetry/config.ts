@@ -1,12 +1,5 @@
 import { z } from "zod";
 
-/**
- * OpenTelemetry configuration, validated once at startup (mirrors the RAG
- * domain's `loadRagConfig`). The exporter is vendor-neutral: point the standard
- * `OTEL_EXPORTER_OTLP_*` vars at self-hosted Langfuse, LangSmith, or any OTLP
- * collector. Telemetry is off unless `OTEL_ENABLED` is truthy, so nothing
- * changes for offline runs and tests.
- */
 const schema = z.object({
   OTEL_ENABLED: z.string().optional(),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),

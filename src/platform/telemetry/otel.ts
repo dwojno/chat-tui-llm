@@ -41,13 +41,10 @@ export function startTelemetry(config: TelemetryConfig): void {
   sdk.start();
 }
 
-/** Drain the batch processor before the process exits — short CLI runs would otherwise lose spans. */
 export async function shutdownTelemetry(): Promise<void> {
   if (!sdk) return;
   try {
     await sdk.shutdown();
-  } catch {
-    // Ignore flush failures on shutdown; nothing actionable at exit.
-  }
+  } catch {}
   sdk = undefined;
 }

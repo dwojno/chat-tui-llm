@@ -2,11 +2,6 @@ import type { AgentEvent } from "@/app/runner/thread/events";
 import { toolStepLabel } from "./labels";
 import type { Message, Step } from "./types";
 
-/**
- * Replay a persisted transcript as chat bubbles. Mirrors the live REPL: one
- * bubble per user/assistant message, with a turn's tool calls folded into the
- * steps of the assistant message that follows them.
- */
 export function messagesFromTranscript(events: readonly AgentEvent[]): Message[] {
   const messages: Message[] = [];
   let pendingSteps: Step[] = [];

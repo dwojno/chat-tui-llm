@@ -3,15 +3,6 @@ import { QdrantClient } from "@qdrant/js-client-rest";
 import { createResiliencePolicy, type ResiliencePolicy } from "@/platform/utils/resilience";
 import { DENSE_VECTOR_SIZE, type RagConfig } from "./config";
 
-/**
- * Per-profile vector index on Qdrant (internal to the `sources` domain).
- *
- * Each profile gets a collection `kb_${profileId}` with a dense named vector
- * (OpenAI, cosine) and a sparse named vector produced by Qdrant server-side
- * inference (`QDRANT_SPARSE_MODEL`, e.g. bm25). Search fuses both with RRF via
- * the Query API. The `VectorIndex` interface lets tests swap an in-memory fake.
- */
-
 export interface ChunkPayload {
   path: string;
   chunkIndex: number;
@@ -23,10 +14,8 @@ export interface ChunkPayload {
 }
 
 export interface VectorPoint {
-  /** Stable seed (profileId + path + chunkIndex) → deterministic point id. */
   seed: string;
   dense: number[];
-  /** Raw text for sparse inference and snippet display. */
   text: string;
   payload: ChunkPayload;
 }
@@ -102,7 +91,6 @@ export class QdrantIndex implements VectorIndex {
           id: pointId(point.seed),
           vector: {
             [DENSE]: point.dense,
-            // Server-side inference: Qdrant embeds the document into a sparse vector.
             [SPARSE]: { text: point.text, model: this.config.qdrantSparseModel },
           },
           payload: { ...point.payload },

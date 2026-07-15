@@ -33,11 +33,6 @@ function toolCallBody(name: string, args: unknown): string {
     : toYaml({ intent: name, args });
 }
 
-/**
- * Render one event as a context block (Factor 03 style: `<{intent}>` for a tool
- * call, `<{intent}_result>` for its result), or null to omit it. Approval
- * bookkeeping stays out of the model's view.
- */
 export function eventToPrompt(event: AgentEvent): string | null {
   switch (event.type) {
     case "approval_request":

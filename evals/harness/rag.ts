@@ -15,34 +15,8 @@ import { createAgentTools } from "@/app/tools";
 import { createRagTools } from "@/app/tools/rag";
 import { createRagDeps, loadRagConfig, LocalStore, type IndexResult, type Store } from "@/store";
 
-/**
- * A real, non-mocked RAG pipeline wired for evaluation as a true end-to-end
- * test: it runs the app's actual `Agent` loop (from `src/agent/agent.ts`)
- * with the real store-backed RAG tools injected exactly as `main.ts` composes
- * them. The agent itself decides to call `search_knowledge_base` (hybrid
- * dense+sparse Qdrant search, RRF-fused) over the real index, reads back real
- * source content, and answers. Nothing here is stubbed.
- *
- * `retrievedContext` is captured from the agent's *actual* knowledge-base tool
- * outputs during the run — the real passages the model grounded on — so the
- * eval scores what the system genuinely retrieved and generated.
- *
- * Each suite gets its own isolated profile (`eval-<suiteId>` → its own Qdrant
- * collection + MinIO bucket) so suites reset and run in parallel without
- * colliding, and never touch the user's real profiles. SQLite bookkeeping runs
- * in-memory, so evals leave no trace in `.chat-state/chat.db`.
- */
-
-/** Knowledge-base tools whose output counts as "retrieved context". */
 const KB_TOOLS = new Set(["search_knowledge_base", "read_source", "grep_files"]);
 
-/**
- * Grounding directive appended to the real system prompt *for the eval only*
- * (the harness builds its own Agent, so production behaviour is
- * untouched). It forces the agent to answer strictly from the knowledge base
- * and to end every reply with a machine-parseable citation line, so we can
- * score both what it retrieved and what it claims it used.
- */
 const CITATION_DIRECTIVE = `
 <grounding>
 You are being evaluated on grounded, cited answers. For every reply:
@@ -56,66 +30,29 @@ You are being evaluated on grounded, cited answers. For every reply:
   If you used no sources, write "Sources: none".
 </grounding>`;
 
-/** What `myRagPipeline` returns to the eval (the contract the suite scores). */
 export interface RagResult {
   query: string;
   answer: string;
-  /** The real text the agent retrieved from the KB tools during the run. */
   retrievedContext: string[];
-  /**
-   * Basenames of the source files the agent actually pulled context from
-   * (parsed from the KB tool calls + outputs). Deduped. The ground truth of
-   * what retrieval surfaced — scored for recall against a case's gold ids.
-   */
   retrievedSources: string[];
-  /**
-   * Basenames the agent *claimed* it used, parsed from the trailing `Sources:`
-   * citation line its answer must end with. Compared against `gold` (did it
-   * cite the right files?) and against `retrievedSources` (grounding: every
-   * cited file must have actually been retrieved — no fabricated citations).
-   */
   citedSources: string[];
-  /**
-   * Total number of hit blocks the KB tools returned across the run (search +
-   * grep hits, counted from the `path:line` prefixes). A diagnostic for
-   * over-fetch *volume* — file-basename gold can't score chunk count, but this
-   * is the clearest "receives all the things" signal.
-   */
   retrievedHitCount: number;
-  /** What the agent actually did this turn — for trace inspection. */
   toolCalls: { name: string; arguments: string }[];
 }
 
 export interface RagHarness {
-  /** Wipe the suite's Qdrant collection + MinIO bucket (clean slate). */
   reset(): Promise<void>;
-  /**
-   * Ingest corpus files. With no `select`, ingests every file in `corpusDir`;
-   * pass a list of basenames or repo-relative paths to ingest only those. The
-   * services are auto-prepared (Qdrant + MinIO started if needed) on first use.
-   * Idempotent: re-running re-indexes each file in place (stale chunks dropped,
-   * deterministic point ids) — no duplicates.
-   */
   ingest(select?: string[]): Promise<IndexResult[]>;
-  /**
-   * `reset()` then `ingest(select)` — a guaranteed-fresh index. This is the
-   * one call a suite needs to prepare its bucket + collection and load a
-   * (possibly partial) corpus programmatically.
-   */
   setup(select?: string[]): Promise<IndexResult[]>;
-  /** Run the real agent for one query and capture its answer + retrieved text. */
   myRagPipeline(query: string): Promise<RagResult>;
-  /** The isolated profile id (collection `kb_<id>`), available after first use. */
   profileId(): Promise<string>;
 }
 
 export interface RagHarnessOptions {
-  /** Unique per suite — drives the profile, Qdrant collection + MinIO bucket. */
   suiteId: string;
-  /** Folder of source files to index (repo-relative). */
   corpusDir: string;
-  /** Shared OpenAI client (falls back to a new one). */
   openai?: OpenAI;
+  instructions?: string;
 }
 
 const CHAT_MODEL = process.env.RAG_CHAT_MODEL ?? EVAL_PROBE_MODEL;
@@ -132,32 +69,20 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
 
   const wire = (): Promise<Wired> =>
     (wiredPromise ??= (async () => {
-      // Prepare the services (start Qdrant + MinIO if they aren't up) before we
-      // touch the store, so a suite is self-sufficient without evalite's
-      // setupFiles. Memoized + never throws — at most one health check.
       await ensureInfra();
       const store = await LocalStore.open(":memory:", {
         rag: createRagDeps(openai, loadRagConfig()),
       });
-      // Isolate this suite in its own profile so the RAG tools (which target
-      // `store.profileId`) hit a dedicated collection + bucket.
       const profile = await store.profile.create(`eval-${opts.suiteId}`);
       await store.profile.switchTo(profile.id);
       const { forkProfiles } = createAgentTools(store);
-      // This eval scores retrieval from the TOP-LEVEL tool calls, so the agent is
-      // given the KB tools directly and, deliberately, NO delegation tools. With
-      // delegate_task available the agent hands KB work to the rag_research fork,
-      // whose search/read_source calls are compressed into a ForkResult and never
-      // surface at the top level — making retrieval look empty (0 hits) even though
-      // the fork retrieved fine. Excluding delegation forces direct, measurable
-      // retrieval; production (where KB is fork-only) is unaffected.
       const agent = new Agent({
         openai,
         temperature: 0.7,
         tools: createRagTools(store),
         forkProfiles,
         cacheKey: `eval-${opts.suiteId}`,
-        instructions: `${SYSTEM_INSTRUCTIONS}\n${CITATION_DIRECTIVE}`,
+        instructions: opts.instructions ?? `${SYSTEM_INSTRUCTIONS}\n${CITATION_DIRECTIVE}`,
       });
       return { store, agent, profileId: store.profileId };
     })());
@@ -179,9 +104,6 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
 
     const results: IndexResult[] = [];
     for (const path of files) {
-      // add() converts → uploads → chunks → embeds → indexes. It never throws
-      // on a bad file; it returns { status: "error" } so one odd format can't
-      // sink the whole ingest.
       results.push(await drainToResult(store, profileId, path));
     }
     return results;
@@ -221,7 +143,6 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
       if (item.type === "function_call") {
         callNames.set(item.call_id, item.name);
         toolCalls.push({ name: item.name, arguments: item.arguments });
-        // read_source / grep_files name their target(s) in the call arguments.
         if (KB_TOOLS.has(item.name)) {
           for (const path of pathsFromArgs(item.arguments)) sources.add(basename(path));
         }
@@ -231,7 +152,6 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
           const output =
             typeof item.output === "string" ? item.output : JSON.stringify(item.output);
           retrievedContext.push(output);
-          // search / grep prefix each result line with its `path:line…`.
           const paths = pathsFromOutput(output);
           hitCount += paths.length;
           for (const path of paths) sources.add(basename(path));
@@ -259,10 +179,8 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
   };
 }
 
-/** A `path:line…` token at the start of a tool-output line (search/grep hits). */
 const OUTPUT_PATH = /(?:^|\n)\s*([^\s:]+\.[A-Za-z0-9]+):\d/g;
 
-/** File paths named in a KB tool call's arguments (`read_source`/`grep_files`). */
 function pathsFromArgs(argsJson: string): string[] {
   try {
     const parsed = JSON.parse(argsJson) as { path?: unknown; paths?: unknown };
@@ -277,17 +195,12 @@ function pathsFromArgs(argsJson: string): string[] {
   }
 }
 
-/** File paths that appear as line prefixes in a search/grep tool output. */
 function pathsFromOutput(text: string): string[] {
   return [...text.matchAll(OUTPUT_PATH)]
     .map((match) => match[1])
     .filter((path): path is string => path !== undefined);
 }
 
-/**
- * Basenames from the answer's trailing `Sources:` citation line (the grounding
- * directive requires one). Returns [] for "Sources: none" or a missing line.
- */
 function citedSourcesFrom(answer: string): string[] {
   const lines = [...answer.matchAll(/sources?\s*:\s*([^\n]+)/gi)];
   const segment = lines.at(-1)?.[1];
@@ -296,11 +209,6 @@ function citedSourcesFrom(answer: string): string[] {
   return [...new Set(tokens.map((token) => basename(token)))];
 }
 
-/**
- * List the corpus files to ingest. With no `select`, returns every non-hidden
- * file in `corpusDir`; otherwise keeps only those whose basename or full
- * repo-relative path is named in `select`, so a suite can ingest a subset.
- */
 async function resolveCorpusFiles(corpusDir: string, select?: string[]): Promise<string[]> {
   const entries = await readdir(corpusDir, { withFileTypes: true });
   const all = entries
@@ -311,11 +219,6 @@ async function resolveCorpusFiles(corpusDir: string, select?: string[]): Promise
   return all.filter((path) => wanted.has(path) || wanted.has(basename(path)));
 }
 
-/**
- * `store.sources.add` is an async generator whose *return* value carries the
- * IndexResult (its yields are progress events for the interactive UI). Drive it
- * to completion and hand back that return.
- */
 async function drainToResult(store: Store, profileId: string, path: string): Promise<IndexResult> {
   const gen = store.sources.add(profileId, path);
   let next = await gen.next();

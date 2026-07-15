@@ -4,7 +4,6 @@ import type { Store } from "@/store";
 
 export const SEARCH_KNOWLEDGE_BASE_NAME = "search_knowledge_base" as const;
 
-/** Preview cap per hit — enough to judge relevance, not to answer from. */
 const PREVIEW_CHARS = 200;
 
 const parameters = z.object({
@@ -27,11 +26,6 @@ function preview(snippet: string): string {
   return collapsed.length > PREVIEW_CHARS ? `${collapsed.slice(0, PREVIEW_CHARS)}…` : collapsed;
 }
 
-/**
- * Locate-only search: returns compact pointers (path, line range, heading, a
- * short preview) so the caller can pick the right file — NOT the full passage.
- * Read the located file with read_source to get the content to answer from.
- */
 export function createSearchKnowledgeBaseTool(store: Store): ToolDefinition<typeof parameters> {
   return {
     name: SEARCH_KNOWLEDGE_BASE_NAME,

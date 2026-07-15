@@ -1,10 +1,5 @@
 import { defineScorer, isAbsent, notApplicable } from "./common";
 
-/**
- * Were the forbidden tools left uncalled? Catches a sub-agent grabbing an
- * irrelevant tool — e.g. get_weather_data on a research task — which the
- * `route` scorer alone misses when the right tool is also called.
- */
 export const avoidsTools = defineScorer(
   "avoids-tools",
   "none of the forbidden tools were called",

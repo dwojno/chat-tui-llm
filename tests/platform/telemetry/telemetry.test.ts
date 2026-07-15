@@ -35,8 +35,8 @@ const weatherTool: ToolDefinition<typeof weatherParams> = {
   label: "Fetching weather data",
   description: "test weather tool",
   parameters: weatherParams,
-  // Mimic a store-path span: it relies purely on the ambient active context
-  // being the execute_tool span, with no explicit parent threaded in.
+  
+  
   execute: async () => {
     trace.getTracer("test").startActiveSpan("store.lookup", (child) => child.end());
     return "sunny";
@@ -99,7 +99,7 @@ describe("agent telemetry", () => {
     expect(tool?.attributes["langfuse.observation.input"]).toBe(JSON.stringify({ city: "Paris" }));
     expect(tool?.attributes["langfuse.observation.output"]).toBe(JSON.stringify("sunny"));
 
-    // Store-path span nests under execute_tool purely via ambient context.
+    
     const storeSpan = spans.find((s) => s.name === "store.lookup");
     expect(storeSpan).toBeDefined();
     expect(parentId(storeSpan)).toBe(tool?.spanContext().spanId);

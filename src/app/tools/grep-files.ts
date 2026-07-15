@@ -15,7 +15,6 @@ const parameters = z.object({
   maxMatches: z.number().int().min(1).max(1000).nullable().describe("Cap on matches (null = 200)"),
 });
 
-/** Regex-search the raw text of indexed files, streaming matches as they land. */
 export function createGrepFilesTool(store: Store): ToolDefinition<typeof parameters> {
   return {
     name: GREP_FILES_NAME,

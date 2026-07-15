@@ -6,22 +6,16 @@ import { LocalStore, type Store } from "@/store";
 import { createFakeRag, type FakeRag } from "@tests/helpers/fake-rag";
 import { collect, drain } from "@/platform/utils/async-gen";
 
-/**
- * End-to-end RAG integration test: exercises the real pipeline (markdown
- * conversion → chunking → embedding → object storage → vector index → hybrid
- * search → grep → read) with only the external I/O (S3/Qdrant/OpenAI) faked.
- */
-
 const GUIDE = [
-  "# Deployment Guide", // 1
-  "", // 2
-  "## Database Setup", // 3
-  "", // 4
-  "Configure the PostgreSQL connection string and run migrations first.", // 5
-  "", // 6
-  "## Caching Layer", // 7
-  "", // 8
-  "Enable Redis caching to speed up repeated queries.", // 9
+  "# Deployment Guide",
+  "",
+  "## Database Setup",
+  "",
+  "Configure the PostgreSQL connection string and run migrations first.",
+  "",
+  "## Caching Layer",
+  "",
+  "Enable Redis caching to speed up repeated queries.",
 ].join("\n");
 
 describe("sources RAG pipeline", () => {

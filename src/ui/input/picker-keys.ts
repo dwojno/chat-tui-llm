@@ -10,7 +10,6 @@ export type PickerKeyAction =
   | { type: "confirm" }
   | { type: "cancel" };
 
-/** Total selectable rows: items + create row. */
 export function pickerRowCount(itemCount: number): number {
   return itemCount + 1;
 }

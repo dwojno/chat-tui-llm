@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { render } from "ink-testing-library";
 import { PickerModal } from "@/ui/components/picker-modal";
 
-/** Ink emits ANSI styling; assert on the visible text with those stripped. */
 // eslint-disable-next-line no-control-regex
-const strip = (frame: string | undefined): string => (frame ?? "").replace(/\[[0-9;]*m/g, "");
+const strip = (frame: string | undefined): string =>
+  (frame ?? "").replace(/\[[0-9;]*m/g, "");
 
 const LONG_LABEL = "Compare Nirvana with Pearl Jam discographies";
 

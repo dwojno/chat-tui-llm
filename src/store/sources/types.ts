@@ -1,9 +1,3 @@
-/**
- * Public result types for the `sources` domain RAG API. These are the shapes
- * the integration-layer tools consume via `store.sources.*` — the only surface
- * exposed outside the domain.
- */
-
 export interface SearchHit {
   path: string;
   startLine: number;
@@ -19,7 +13,6 @@ export interface GrepMatch {
 }
 
 export interface GrepOptions {
-  /** Restrict to these source paths (default: all indexed files). */
   paths?: string[];
   ignoreCase?: boolean;
   maxMatches?: number;
@@ -33,7 +26,6 @@ export interface SearchOptions {
   limit?: number;
 }
 
-/** A progress step yielded by streaming operations (indexing) for the UI. */
 export interface SourceProgress {
   message: string;
 }

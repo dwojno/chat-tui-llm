@@ -6,16 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createRagDeps, loadRagConfig, LocalStore, type Store } from "@/store";
 import { drain } from "@/platform/utils/async-gen";
 
-/**
- * Live RAG integration against real MinIO + Qdrant + OpenAI.
- *
- * Opt-in only — requires `docker compose up -d` and OPENAI_API_KEY. Run with:
- *   RAG_INTEGRATION=1 pnpm test tests/store/rag/live.integration.test.ts
- *
- * This is the check for the "Qdrant server-side sparse inference" risk: if the
- * local Qdrant image cannot embed the sparse `Document`, `add`/`search` will
- * surface the error here.
- */
+
 const RUN = process.env.RAG_INTEGRATION === "1";
 
 describe.runIf(RUN)("live RAG (MinIO + Qdrant + OpenAI)", () => {

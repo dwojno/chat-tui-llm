@@ -3,37 +3,17 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { GEN_AI, setSpanIO, withLlmSpan } from "@/platform/telemetry";
 
-/**
- * Relevance reranking over hybrid-retrieval candidates (internal to the
- * `sources` domain). Hybrid RRF fusion is recall-oriented — it returns the top
- * `limit` fused hits regardless of how relevant each one actually is. A reranker
- * rescores a *larger* candidate pool against the query's true intent and keeps
- * only the best, which is what cuts the "receives all the things" over-retrieval.
- *
- * The abstraction lets the LLM implementation be swapped for a Cohere/cross-
- * encoder one later (a one-line change in `deps.ts`) — the engine only depends
- * on this interface.
- */
-
-/** A candidate passage handed to the reranker; `index` maps back to the engine's own hit array. */
 export interface RerankCandidate {
   index: number;
-  /** Heading breadcrumb + chunk body — the same shape the embedder saw. */
   text: string;
 }
 
-/** A reranked hit: the original candidate index plus a 0..1 relevance score. */
 export interface RankedHit {
   index: number;
   relevance: number;
 }
 
 export interface Reranker {
-  /**
-   * Return the most relevant candidates in descending relevance order, at most
-   * `topK`. MUST NOT throw — implementations catch failures and degrade to the
-   * input order so a search never fails because reranking did.
-   */
   rerank(query: string, candidates: RerankCandidate[], topK: number): Promise<RankedHit[]>;
 }
 
@@ -56,7 +36,6 @@ const INSTRUCTIONS =
   "passages that are off-topic — do not pad the list. Use only the `index` " +
   "values shown; never invent one.";
 
-/** Reranker backed by a single structured-output LLM call (reuses the app's OpenAI client). */
 export class LlmReranker implements Reranker {
   constructor(
     private readonly openai: OpenAI,
@@ -64,7 +43,6 @@ export class LlmReranker implements Reranker {
   ) {}
 
   async rerank(query: string, candidates: RerankCandidate[], topK: number): Promise<RankedHit[]> {
-    // Nothing to prune — skip the round-trip and keep the fused order.
     if (candidates.length <= topK) return identity(candidates, topK);
 
     return withLlmSpan(
@@ -102,8 +80,6 @@ export class LlmReranker implements Reranker {
             .filter((hit) => valid.has(hit.index) && !seen.has(hit.index) && seen.add(hit.index))
             .slice(0, topK)
             .map((hit) => ({ index: hit.index, relevance: clamp01(hit.relevance) }));
-          // A well-formed-but-empty ranking means the model judged nothing relevant;
-          // fall back to fused order rather than returning zero hits.
           span.setAttribute("rerank.kept", ranked.length);
           setSpanIO(span, { output: JSON.stringify(ranked) });
           return ranked.length ? ranked : identity(candidates, topK);
@@ -118,7 +94,6 @@ export class LlmReranker implements Reranker {
   }
 }
 
-/** Fused-order fallback: keep the top `topK` candidates, relevance unknown. */
 function identity(candidates: RerankCandidate[], topK: number): RankedHit[] {
   return candidates.slice(0, topK).map((candidate) => ({ index: candidate.index, relevance: 1 }));
 }

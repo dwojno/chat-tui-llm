@@ -4,13 +4,6 @@ import TurndownService from "turndown";
 import { extractText, getDocumentProxy } from "unpdf";
 import * as XLSX from "xlsx";
 
-/**
- * Converts a source file (by extension) into Markdown for chunking + indexing.
- * Internal to the `sources` domain. Supported: md, html, docx, pdf, xlsx/xls,
- * csv, and UTF-8 text/source-code (fenced with a language hint). Binary files
- * of unknown type throw.
- */
-
 const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" });
 
 const CODE_LANGS: Record<string, string> = {

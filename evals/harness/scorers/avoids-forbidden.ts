@@ -1,6 +1,5 @@
 import { containsTerm, defineScorer, isAbsent, notApplicable } from "./common";
 
-/** Fraction of forbidden substrings correctly absent (catches leaked facts). */
 export const avoidsForbidden = defineScorer(
   "avoids-forbidden",
   "answer omits every forbidden substring (no leaked facts)",

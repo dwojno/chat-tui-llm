@@ -18,7 +18,6 @@ export type Source = {
   createdAt: number;
 };
 
-/** Fields updated once a source has been (re)indexed. */
 export type SourceIndexPatch = {
   status: SourceStatus;
   s3Key?: string | null;

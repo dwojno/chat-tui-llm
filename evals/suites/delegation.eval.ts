@@ -9,19 +9,10 @@ import {
   type ProbeSpec,
 } from "../harness";
 
-/** When delegating, the `title` must be a short label, not a copy of the prompt. */
 const CONCISE_TITLE = { key: "title", maxWords: 10 } as const;
 
-/**
- * Delegation routing (see the <delegation> block of SYSTEM_INSTRUCTIONS).
- * The prompt's contract: multi-step research / comparison / exploratory work
- * → delegate_task; simple one-shot questions → answer directly. Both directions
- * are pinned so a prompt edit that makes the model over- or under-delegate is
- * caught.
- */
 evalite<ProbeSpec, ProbeResult, Expected>("delegation routing", {
   data: () => [
-    // ── Should delegate: genuinely multi-step ────────────────────────────
     {
       input: {
         prompt:
@@ -47,7 +38,6 @@ evalite<ProbeSpec, ProbeResult, Expected>("delegation routing", {
       },
       expected: { route: DELEGATE_TASK_NAME, conciseArg: CONCISE_TITLE },
     },
-    // ── Should be direct: simple, despite comparison/research-sounding words
     {
       input: { prompt: "What is the capital of France?" },
       expected: { route: "direct" },
@@ -60,22 +50,18 @@ evalite<ProbeSpec, ProbeResult, Expected>("delegation routing", {
       input: { prompt: "In one sentence, what is a closure in JavaScript?" },
       expected: { route: "direct" },
     },
-    // EDGE: "compare" keyword but a trivial one-shot — must NOT delegate.
     {
       input: { prompt: "Which is bigger, the Sun or the Moon?" },
       expected: { route: "direct" },
     },
-    // EDGE: "explain the difference" reads like research but is one-shot knowledge.
     {
       input: { prompt: "Explain the difference between TCP and UDP." },
       expected: { route: "direct" },
     },
-    // EDGE: creative single-shot task — no sub-agent needed.
     {
       input: { prompt: "Write a short haiku about autumn." },
       expected: { route: "direct" },
     },
-    // EDGE: verbose padding around plain trivia — the wrapper must not trigger a fork.
     {
       input: {
         prompt:

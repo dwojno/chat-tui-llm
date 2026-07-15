@@ -23,7 +23,6 @@ class HttpError extends Error {
   }
 }
 
-/** Result cap, from WEB_SEARCH_MAX_RESULTS, defaulting to 5. */
 function maxResults(env: Record<string, string | undefined> = process.env): number {
   const raw = Number(env.WEB_SEARCH_MAX_RESULTS);
   return Number.isInteger(raw) && raw > 0 ? raw : DEFAULT_MAX_RESULTS;
@@ -34,10 +33,6 @@ type TavilyResponse = { answer?: string | null; results?: TavilyResult[] };
 
 const SNIPPET_MAX_CHARS = 600;
 
-// Tavily's `content` can carry page cruft — markdown links, citation-ref
-// arrows, image embeds, even URL-encoded SVG. Flatten to plain on-topic text
-// and cap length so the fork gets a compact passage, not the page's reference
-// list.
 function cleanSnippet(content: string): string {
   return content
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ") // image embeds ![alt](url)
@@ -50,8 +45,6 @@ function cleanSnippet(content: string): string {
     .slice(0, SNIPPET_MAX_CHARS);
 }
 
-// Throws on a non-ok response so the resilience policy can retry transient
-// failures (429/5xx); `execute` turns a final failure into a recoverable string.
 async function tavilySearch(query: string, apiKey: string, limit: number): Promise<string> {
   const response = await fetch("https://api.tavily.com/search", {
     method: "POST",
