@@ -191,12 +191,12 @@ from `process.env` so tests pass an explicit env map.
 
 ## Running it
 
-RAG needs only Qdrant; blobs default to local disk. `pnpm infra:start`
+RAG needs only Qdrant; blobs default to local disk. `just infra`
 ([docker-compose.yml](../docker-compose.yml)) brings up Qdrant (`:6333`) alongside
 the Langfuse observability stack:
 
 ```bash
-pnpm infra:start              # Qdrant (:6333) + Langfuse stack (:3000)
+just infra                    # Qdrant (:6333) + Langfuse stack (:3000)
 # in the CLI:
 /learn @docs/architecture.md  # convert → chunk → embed → index
 /sources                      # list indexed files

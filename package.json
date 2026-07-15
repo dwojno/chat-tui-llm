@@ -8,23 +8,7 @@
   "type": "module",
   "main": "src/cli.ts",
   "scripts": {
-    "start": "tsx src/cli.ts",
-    "dev": "tsx watch src/cli.ts",
-    "typecheck": "tsc --noEmit",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
-    "format": "oxfmt .",
-    "format:check": "oxfmt --check .",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "eval": "evalite run",
-    "eval:watch": "evalite watch",
-    "eval:rag": "evalite run evals/suites/rag-eval.eval.ts",
-    "db:generate": "drizzle-kit generate",
-    "db:studio": "drizzle-kit studio",
-    "infra:start": "docker compose up -d",
-    "infra:stop": "docker compose down",
-    "infra:clear": "docker compose down -v"
+    "start": "tsx src/cli.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1083.0",

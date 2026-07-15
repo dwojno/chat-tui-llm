@@ -132,7 +132,7 @@ All via env (see [.env.example](../.env.example)); parsed by
 
 ## Running Langfuse locally
 
-1. `pnpm infra:start` — brings up Langfuse (`:3000`) plus Postgres, ClickHouse,
+1. `just infra` — brings up Langfuse (`:3000`) plus Postgres, ClickHouse,
    Redis, and a dedicated MinIO alongside the RAG infra.
 2. Open <http://localhost:3000>, create an account + project, and copy the project's
    **public** and **secret** keys.
@@ -140,7 +140,7 @@ All via env (see [.env.example](../.env.example)); parsed by
    ```sh
    echo -n "pk-lf-...:sk-lf-..." | base64
    # OTEL_ENABLED=true
-   # OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <that base64>
+   # OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic <that base64>"  # quote it — the space trips just's dotenv-load
    ```
 4. `pnpm start`, run a turn (bonus: one that delegates and searches the knowledge
    base), then watch the trace tree appear in Langfuse.

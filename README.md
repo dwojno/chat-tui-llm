@@ -50,11 +50,12 @@ SSE. See [docs/agent-loop.md](docs/agent-loop.md) for the full mechanics.
 
 ```bash
 pnpm install
+brew install just     # task runner; every task other than `start` is a just recipe
 echo "OPENAI_API_KEY=sk-..." > .env
 pnpm start
 ```
 
-- `pnpm dev` — file-watch reload · `pnpm typecheck` · `pnpm test` (offline, no key) · `pnpm eval` (live model)
+- `just dev` — file-watch reload · `just typecheck` · `just test` (offline, no key) · `just eval` (live model) · `just --list` for all recipes
 
 ### Knowledge base (RAG) services
 
@@ -63,15 +64,16 @@ disk (`.chat-state/sources/`), so nothing else is required. Start the infra and 
 the RAG env:
 
 ```bash
-pnpm infra:start       # Qdrant :6333 + Langfuse stack (:3000, observability)
+just infra             # Qdrant :6333 + Langfuse stack (:3000, observability), waits for health
 cp .env.example .env   # then set OPENAI_API_KEY; defaults point at localhost
 ```
 
-`pnpm infra:stop` keeps data; `pnpm infra:clear` wipes volumes. Defaults (endpoints,
+`just infra-down` keeps data; `just infra-clear` wipes volumes. Defaults (endpoints,
 models, chunk sizes) live in [`.env.example`](.env.example); each profile gets its own
 blob namespace and Qdrant collection (`kb_<profile>`). Set `RAG_BLOB_BACKEND=s3` to
-store blobs in MinIO/S3 (per-profile bucket `chat-cli-<profile>`) instead. The test
-suite fakes these; to hit the real ones: `RAG_INTEGRATION=1 pnpm test tests/store/rag/live.integration.test.ts`.
+store blobs in MinIO/S3 (per-profile bucket `chat-cli-<profile>`) instead. The unit
+suite fakes these; to exercise the real ones, `just integration` starts Qdrant and runs
+the opt-in RAG integration tests (`tests/store/rag/`, `tests/app/tools/rag-tools.integration.test.ts`).
 
 ## Usage
 

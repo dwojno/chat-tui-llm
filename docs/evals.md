@@ -8,8 +8,8 @@ quiet about stored facts until asked, keep summaries short? Built on
 against the live model and scores what comes back.
 
 ```bash
-pnpm eval          # run once (evalite run)
-pnpm eval:watch    # watch + UI at http://localhost:3006
+just eval          # run once (evalite run)
+just eval-watch    # watch + UI at http://localhost:3006
 ```
 
 Requires a real `OPENAI_API_KEY` — loaded from `.env` via `setupFiles` in
@@ -58,7 +58,7 @@ machinery in [`harness/`](../evals/harness/) (`rag.ts`, `scorers/rag-scorers.ts`
 
 ```bash
 cp .env.example .env      # set OPENAI_API_KEY (defaults point at localhost)
-pnpm eval:rag             # auto-starts Qdrant+MinIO, ingests, runs the suite
+just eval-rag             # starts Qdrant, then ingests + runs the suite
 ```
 
 Everything is automatic and fully programmatic — there are no CLIs to run. The

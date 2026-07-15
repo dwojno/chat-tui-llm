@@ -15,26 +15,33 @@ keep source comment-light.
 TypeScript (ESM, run via `tsx`) · `openai` SDK (the sole LLM dependency) ·
 Ink + React 19 (TUI) · Zod (tool/output schemas) · drizzle-orm + better-sqlite3
 (persistence) · vitest (tests) · evalite (live-model prompt evals) ·
-oxlint + oxfmt · pnpm.
+oxlint + oxfmt · pnpm · `just` (task runner — `brew install just`).
 
 ## Commands
 
+`package.json` holds only `start` + deps; every other task is a `just` recipe
+(`just --list`). Recipes call local bins via `pnpm exec`; the multi-step ones
+(`integration`, `eval-rag`) stand up infra first.
+
 ```bash
 pnpm start          # run the TUI (entry: src/cli.ts → loads .env → src/main.ts run())
-pnpm dev            # file-watch reload
-pnpm typecheck      # tsc --noEmit (full strict set; must stay green)
-pnpm lint           # oxlint  (pnpm lint:fix to autofix)
-pnpm format         # oxfmt .  (format:check for CI, no writes)
-pnpm test           # unit + e2e (vitest, model mocked — no API key needed)
-pnpm eval           # prompt evals (needs a real OPENAI_API_KEY)
-pnpm db:generate    # regenerate drizzle migrations after editing src/store/db/schema.ts
-pnpm db:studio      # open drizzle-kit studio against the SQLite db
+just dev            # file-watch reload
+just typecheck      # tsc --noEmit (full strict set; must stay green)
+just lint           # oxlint  (just lint-fix to autofix)
+just format         # oxfmt .  (just format-check for a no-write check)
+just test           # unit + e2e (vitest, model mocked — no API key needed)
+just check          # typecheck + lint + format-check + test (pre-commit gate)
+just eval           # prompt evals (needs a real OPENAI_API_KEY)
+just integration    # RAG-tools integration vs real Qdrant + OpenAI (starts Qdrant first)
+just db-generate    # regenerate drizzle migrations after editing src/store/db/schema.ts
+just db-studio      # open drizzle-kit studio against the SQLite db
+just infra          # docker compose up -d --wait (Qdrant + Langfuse stack)
 ```
 
 ```bash
-pnpm test tests/app/runner/runner.test.ts   # a single file
-pnpm test -t "delegation"               # filter by test-name pattern
-pnpm test:watch                         # watch mode
+just test tests/app/runner/runner.test.ts   # a single file
+just test -t "delegation"               # filter by test-name pattern
+just test-watch                         # watch mode
 ```
 
 ## Architecture
@@ -241,7 +248,7 @@ the module it exercises. Conventions:
   [tests/helpers/mock-openai.ts](tests/helpers/mock-openai.ts) — the suite is
   offline, deterministic, and fast (full run ~1.2s; a subdir subset <1s), so no
   test is flaky and none needs quarantining. Live-model checks belong in `evals/`
-  (`pnpm eval`), never here.
+  (`just eval`), never here.
 - **Name tests by observable behaviour** ("blocks cwd traversal"), not by method
   name, and follow Arrange–Act–Assert. Keep sample data in `tests/fixtures/`.
 
