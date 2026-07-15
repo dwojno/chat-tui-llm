@@ -2,16 +2,16 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { OpenAI } from "openai";
-import { Agent } from "../../src/agent/agent";
-import { EventBus } from "../../src/agent/events/bus";
-import { SYSTEM_INSTRUCTIONS } from "../../src/prompts";
-import { processLine } from "../../src/input/repl";
-import type { CommandContext } from "../../src/commands/types";
-import { createAgentTools } from "../../src/tools";
-import { Session } from "../../src/integration/session";
-import { LocalStore, type Store } from "../../src/store";
-import { renderChat, type ChatHandle, type Message } from "../../src/ui/chat";
-import { createMockOpenAI, createMemoryStore, type MockTurn } from "../helpers/mock-openai";
+import { Agent } from "@/agent/agent";
+import { EventBus } from "@/agent/events/bus";
+import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
+import { processLine } from "@/app/input/repl";
+import type { CommandContext } from "@/app/commands/types";
+import { createAgentTools } from "@/app/tools";
+import { Session } from "@/app/session/session";
+import { LocalStore, type Store } from "@/store";
+import { renderChat, type ChatHandle, type Message } from "@/ui/chat";
+import { createMockOpenAI, createMemoryStore, type MockTurn } from "@tests/helpers/mock-openai";
 
 export interface E2EHarness {
   chat: ChatHandle;

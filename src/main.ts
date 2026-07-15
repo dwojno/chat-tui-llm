@@ -1,18 +1,23 @@
 import { OpenAI } from "openai";
-import { parseCliArgs } from "./cli/args";
-import { runRepl } from "./input/repl";
-import { buildChatContext } from "./integration/switch";
-import { approvalsEnabled } from "./cli/env";
-import { DB_PATH, KEEP_LAST_TURNS, OPENAI_MAX_RETRIES, OPENAI_TIMEOUT_MS } from "./cli/config";
-import { Agent } from "./agent/agent";
-import { EventBus } from "./agent/events/bus";
-import { TEMPERATURE } from "./config";
-import { SYSTEM_INSTRUCTIONS } from "./prompts";
-import { createAgentTools } from "./tools";
-import { Session } from "./integration/session";
-import { createRagDeps, loadRagConfig, LocalStore, type OpenStoreOptions } from "./store";
-import { renderChat } from "./ui/chat";
-import { messagesFromTranscript } from "./ui/history";
+import { parseCliArgs } from "@/platform/cli/args";
+import { runRepl } from "@/app/input/repl";
+import { buildChatContext } from "@/app/session/switch";
+import { approvalsEnabled } from "@/platform/cli/env";
+import {
+  DB_PATH,
+  KEEP_LAST_TURNS,
+  OPENAI_MAX_RETRIES,
+  OPENAI_TIMEOUT_MS,
+} from "@/platform/cli/config";
+import { Agent } from "@/agent/agent";
+import { EventBus } from "@/agent/events/bus";
+import { TEMPERATURE } from "@/app/config";
+import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
+import { createAgentTools } from "@/app/tools";
+import { Session } from "@/app/session/session";
+import { createRagDeps, loadRagConfig, LocalStore, type OpenStoreOptions } from "@/store";
+import { renderChat } from "@/ui/chat";
+import { messagesFromTranscript } from "@/ui/history";
 
 export async function run(): Promise<void> {
   const interactive = process.stdin.isTTY === true;

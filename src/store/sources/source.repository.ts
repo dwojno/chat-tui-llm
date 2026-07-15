@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { and, eq, inArray } from "drizzle-orm";
-import type { SqliteDb } from "../../db/db";
-import { source } from "../../db/schema";
+import type { SqliteDb } from "@/store/db/db";
+import { source } from "@/store/db/schema";
 import { asArray, type OneOrMany } from "../helpers";
 
 export type SourceStatus = "pending" | "indexed" | "error";

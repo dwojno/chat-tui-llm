@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { openDatabase, type SqliteDb } from "../db/db";
+import { openDatabase, type SqliteDb } from "@/store/db/db";
 import { ConversationFacade, SqliteConversationFacade } from "./conversation";
 import { ConversationRepository } from "./conversation/conversation.repository";
 import { MemoryFacade, SqliteMemoryFacade } from "./memory";

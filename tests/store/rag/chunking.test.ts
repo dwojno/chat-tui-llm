@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chunkMarkdown, embedText } from "../../../src/store/sources/rag/chunking";
+import { chunkMarkdown, embedText } from "@/store/sources/rag/chunking";
 
 const DOC = [
   "# Title", // 1

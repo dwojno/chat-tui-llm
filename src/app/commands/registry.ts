@@ -1,0 +1,59 @@
+import { DEFAULT_TURN_OPTIONS } from "@/agent/conversation/options";
+import { exitCommand } from "./exit";
+import { conversationCommand } from "./conversation";
+import { jsonCommand } from "./json";
+import { learnCommand } from "./learn";
+import { profileCommand } from "./profile";
+import { reindexCommand } from "./reindex";
+import { rememberCommand } from "./remember";
+import { sourcesCommand } from "./sources";
+import { structuredCommand } from "./structured";
+import type { Command, CommandAction, CommandContext } from "./types";
+
+const COMMANDS: Command[] = [
+  exitCommand,
+  rememberCommand,
+  learnCommand,
+  reindexCommand,
+  sourcesCommand,
+  profileCommand,
+  conversationCommand,
+  structuredCommand,
+  jsonCommand,
+];
+
+const chatCommand: Command = {
+  name: "chat",
+  matches: () => true,
+  run: async (input) => ({
+    kind: "turn",
+    content: input,
+    options: DEFAULT_TURN_OPTIONS,
+  }),
+};
+
+export interface SlashCommandInfo {
+  completion: string;
+  hint: string;
+}
+
+export function slashCommandCatalog(): SlashCommandInfo[] {
+  return COMMANDS.filter(
+    (command): command is Command & { completion: string } =>
+      command.completion?.startsWith("/") ?? false,
+  ).map((command) => ({
+    completion: command.completion,
+    hint: command.hint ?? "",
+  }));
+}
+
+export function resolveCommand(input: string): Command {
+  return COMMANDS.find((command) => command.matches(input)) ?? chatCommand;
+}
+
+export function runCommand(
+  input: string,
+  ctx: CommandContext,
+): CommandAction | Promise<CommandAction> {
+  return resolveCommand(input).run(input, ctx);
+}

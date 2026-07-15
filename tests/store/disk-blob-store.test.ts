@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { DiskBlobStore } from "../../src/store/sources/rag/disk-blob-store";
-import { loadRagConfig } from "../../src/store/sources/rag/config";
+import { DiskBlobStore } from "@/store/sources/rag/disk-blob-store";
+import { loadRagConfig } from "@/store/sources/rag/config";
 
 let dir: string;
 let store: DiskBlobStore;

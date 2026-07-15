@@ -1,8 +1,8 @@
 import type { OpenAI } from "openai";
-import { Agent, type AgentDeps } from "../../src/agent/agent";
-import { EventBus } from "../../src/agent/events/bus";
-import { Session } from "../../src/integration/session";
-import type { Store } from "../../src/store";
+import { Agent, type AgentDeps } from "@/agent/agent";
+import { EventBus } from "@/agent/events/bus";
+import { Session } from "@/app/session/session";
+import type { Store } from "@/store";
 
 export function testAgent(openai: OpenAI, extra: Partial<AgentDeps> = {}): Agent {
   return new Agent({

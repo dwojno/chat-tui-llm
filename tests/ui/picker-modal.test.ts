@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { handlePickerKey, pickerRowCount } from "../../src/ui/input/picker-keys";
+import { handlePickerKey, pickerRowCount } from "@/ui/input/picker-keys";
 
 describe("handlePickerKey", () => {
   const items = 3;

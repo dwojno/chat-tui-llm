@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { QdrantClient } from "@qdrant/js-client-rest";
-import { createResiliencePolicy, type ResiliencePolicy } from "../../../utils/resilience";
+import { createResiliencePolicy, type ResiliencePolicy } from "@/platform/utils/resilience";
 import { DENSE_VECTOR_SIZE, type RagConfig } from "./config";
 
 /**

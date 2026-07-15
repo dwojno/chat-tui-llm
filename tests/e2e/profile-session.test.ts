@@ -14,8 +14,8 @@ vi.mock("ink", () => ({
   useInput: () => {},
 }));
 
-import { DEFAULT_PROFILE_ID } from "../../src/store/profile/profile.repository";
-import { LocalStore } from "../../src/store";
+import { DEFAULT_PROFILE_ID } from "@/store/profile/profile.repository";
+import { LocalStore } from "@/store";
 import { createE2EHarness, createTempDbDir, openFileStore, tempDbPath } from "./helpers";
 
 let dir: string;

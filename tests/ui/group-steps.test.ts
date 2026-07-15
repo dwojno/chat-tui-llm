@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildStepDisplay, summarizeSteps } from "../../src/ui/group-steps";
-import type { Step } from "../../src/ui/types";
+import { buildStepDisplay, summarizeSteps } from "@/ui/group-steps";
+import type { Step } from "@/ui/types";
 
 describe("buildStepDisplay", () => {
   it("nests fork-tagged steps under their matching delegation", () => {

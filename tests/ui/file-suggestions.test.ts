@@ -7,7 +7,7 @@ import {
   matchFileMentionToken,
   resetFileIndexCache,
   searchFiles,
-} from "../../src/ui/file-suggestions";
+} from "@/ui/file-suggestions";
 
 let dir: string;
 

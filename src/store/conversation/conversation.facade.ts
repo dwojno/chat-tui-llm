@@ -1,5 +1,5 @@
-import type { AgentEvent } from "../../runner/thread/events";
-import type { UsageTotals } from "../../integration/usage";
+import type { AgentEvent } from "@/app/runner/thread/events";
+import type { UsageTotals } from "@/app/session/usage";
 import type { StoreContext } from "../context";
 import { asArray, type OneOrMany } from "../helpers";
 import {

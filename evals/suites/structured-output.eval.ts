@@ -1,6 +1,6 @@
 import { evalite } from "evalite";
 import { z } from "zod";
-import { ResponseSchema } from "../../src/tools/schemas";
+import { ResponseSchema } from "@/app/tools/schemas";
 import {
   judged,
   matchesSchema,

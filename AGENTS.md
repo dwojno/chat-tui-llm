@@ -27,12 +27,12 @@ pnpm lint           # oxlint  (pnpm lint:fix to autofix)
 pnpm format         # oxfmt .  (format:check for CI, no writes)
 pnpm test           # unit + e2e (vitest, model mocked — no API key needed)
 pnpm eval           # prompt evals (needs a real OPENAI_API_KEY)
-pnpm db:generate    # regenerate drizzle migrations after editing src/db/schema.ts
+pnpm db:generate    # regenerate drizzle migrations after editing src/store/db/schema.ts
 pnpm db:studio      # open drizzle-kit studio against the SQLite db
 ```
 
 ```bash
-pnpm test tests/runner/runner.test.ts   # a single file
+pnpm test tests/app/runner/runner.test.ts   # a single file
 pnpm test -t "delegation"               # filter by test-name pattern
 pnpm test:watch                         # watch mode
 ```
@@ -41,41 +41,57 @@ pnpm test:watch                         # watch mode
 
 Focused layers plus a thin composition root ([src/main.ts](src/main.ts));
 dependencies point **one way** — everything depends inward on `agent/` (and on the
-leaf infra `telemetry/`/`tokens/`), never the reverse.
+leaf infra in `platform/`), never the reverse.
+
+Imports use the `@/*` alias (→ `src/*`), so the import path mirrors this tree —
+`@/agent/agent`, `@/app/tools/weather`, `@/store/conversation`. Three core PILLARS
+(`agent`, `store`, `ui`), one MIDDLE integrator/configurator (`app/`), and leaf
+INFRA (`platform/`).
 
 ```
 src/
-  agent/         # pure core — no loop, no fs, no Ink, no persistence. All deps injected.
+  agent/         # PILLAR — pure core; no loop, no fs, no Ink, no persistence. All deps injected.
     agent.ts       # Agent: step() (ONE model call, streams delta to the bus) + executeTool()
     events/        # TurnEvent (UI-only union) + bus.ts (EventBus: subscribe/emit/scoped)
-    humanLayer/    # approval + clarification gate CONTRACT types (policy lives in runner/)
+    humanLayer/    # approval + clarification gate CONTRACT types (policy lives in app/runner/)
     conversation/  # TurnOptions, TurnContext/TurnProfile/ToolRunContext, item helpers
-    tools/         # tool CONTRACT only: ToolDefinition + registry helpers (impls in src/tools/)
-  config.ts      # app constants: model / temperature / cache-key / MAX_TOOL_STEPS / MAX_CONSECUTIVE_ERRORS
-  prompts.ts     # orchestrator system prompt (fork prompts live in src/tools/prompts/)
-  runner/        # runAgentLoop (runner.ts) + thread/ — reducer, AgentEvent log, windowing, SDK⇄event convert
-  tools/         # tool IMPLEMENTATIONS: weather, web-search, disk, rag, ask-user, control-intents,
-                 #   delegation/ (delegate_task[s] + handoff + fork-result), prompts/, format.ts
-  commands/      # user-intent handlers (/learn, /conversation, /structured, …)
-  telemetry/     # OTel spans + pricing + OTLP setup (leaf infra; used by agent, integration, store)
-  tokens/        # rolling-summary summarizer + token estimation (leaf infra)
-  input/         # repl.ts (REPL input loop, subscribes to the bus) + file-mentions.ts
-  cli/           # args, config, env, shutdown (CLI boot/teardown)
-  integration/   # thin wiring: session.ts (state + persistence), switch.ts, usage.ts
-  ui/            # Ink TUI — driven by an EventBus subscription
-  store/         # Store facade → domain facades (profile/conversation/memory/sources)
-  db/            # SQLite connection, schema, migrations
+    tools/         # tool CONTRACT only: ToolDefinition + registry helpers (impls in app/tools/)
+  store/         # PILLAR — Store facade → domain facades (profile/conversation/memory/sources)
+    db/            # SQLite connection, schema, migrations (only store imports it)
+  ui/            # PILLAR — Ink TUI — driven by an EventBus subscription
+  app/           # MIDDLE — integrator + configurator (wires the pillars into a working agent)
+    runner/        # runAgentLoop (runner.ts) + thread/ — reducer, AgentEvent log, windowing, SDK⇄event convert
+    session/       # thin wiring: session.ts (state + persistence), switch.ts, usage.ts
+    tools/         # tool IMPLEMENTATIONS: weather, web-search, disk, rag, ask-user, control-intents,
+                   #   delegation/ (delegate_task[s] + handoff + fork-result), prompts/, format.ts
+    commands/      # user-intent handlers (/learn, /conversation, /structured, …)
+    input/         # repl.ts (REPL input loop, subscribes to the bus) + file-mentions.ts
+    context/       # <user_known_memories> block assembly
+    tokens/        # rolling-summary summarizer + token estimation
+    config.ts      # app constants: model / temperature / cache-key / MAX_TOOL_STEPS / MAX_CONSECUTIVE_ERRORS
+    prompts.ts     # orchestrator system prompt (fork prompts live in app/tools/prompts/)
+  platform/      # INFRA — leaf, used everywhere
+    telemetry/     # OTel spans + pricing + OTLP setup
+    utils/         # shared helpers
+    cli/           # args, config, env, shutdown (CLI boot/teardown)
+  main.ts cli.ts # composition root + entry
 docs/            # architecture, agent-loop, database, rag, evals, observability — the "why"
 tests/           # mirrors src/; e2e/ drives the real REPL. Model mocked (offline)
 evals/           # behavioural prompt tests against the live model (evalite)
 ```
 
-**Data flow:** input → `processLine` ([input/repl.ts](src/input/repl.ts), which
+RAG spans two layers by design: the engine/persistence lives in `store/sources/rag/`
+(it IS a data source), the agent-facing tools in `app/tools/` (`rag.ts`, `read-source.ts`,
+`list-sources.ts`, `search-knowledge-base.ts`). Known layering smell (deferred):
+`store/` and `app/tokens/` still import `AgentEvent`/`usage` from `app/runner`/`app/session`
+— a pillar→middle inversion; the fix is to extract those into a neutral shared contract.
+
+**Data flow:** input → `processLine` ([app/input/repl.ts](src/app/input/repl.ts), which
 subscribes to the injected `EventBus`) → `Session.runTurn`
-([integration/session.ts](src/integration/session.ts)) → `runAgentLoop`
-([runner/runner.ts](src/runner/runner.ts)). The runner owns the loop: it folds the
+([app/session/session.ts](src/app/session/session.ts)) → `runAgentLoop`
+([app/runner/runner.ts](src/app/runner/runner.ts)). The runner owns the loop: it folds the
 owned `AgentEvent[]` log into one packed `<user>` message via the reducer
-([runner/thread/](src/runner/thread/)), calls the pure primitives `Agent.step()`
+([app/runner/thread/](src/app/runner/thread/)), calls the pure primitives `Agent.step()`
 (one model call) and `Agent.executeTool()` (dispatch one tool, fanned out with
 `Promise.all`) — interpreting the reserved control intents `done_for_now` /
 `request_more_information` by name — runs the approval gate at the
@@ -91,7 +107,7 @@ fold into a rolling summary — the reducer orders the packed prompt summary →
 memories, so a `/remember` changes only the tail and never invalidates the cached
 prefix above it. The agent is context-free: the reducer folds the event log, summary,
 and the `<user_known_memories>` block (numbered via `keyMemories`,
-[context/context.ts](src/context/context.ts)) into that one message — `step()` just
+[app/context/context.ts](src/app/context/context.ts)) into that one message — `step()` just
 takes the input.
 
 **Models are role-routed** (config constants): the orchestrator turn runs
@@ -110,7 +126,7 @@ models.
 `/remember` pins them. When delegating, the orchestrator passes only the
 `relevantMemoryKeys` a sub-task needs — the fork sees that subset, not the whole set.
 
-**Delegation** ([src/tools/delegation/](src/tools/delegation/)) is one generic
+**Delegation** ([src/app/tools/delegation/](src/app/tools/delegation/)) is one generic
 mechanism (`delegate_task` for a single sub-task, `delegate_tasks` for up to
 `MAX_PARALLEL_TASKS` (6) independent forks fanned out via `Promise.all`). Both share
 `runFork`, which calls `ctx.runTurn` (the runner's `runAgentLoop`) for a fresh
@@ -128,14 +144,14 @@ digest re-enters context.
 ## Design: SRP and domain boundaries
 
 Layer responsibilities stay narrow — **domain rules live in `store/`, user intent in
-`commands/`, lifecycle in `integration/`**:
+`app/commands/`, lifecycle in `app/session/`**:
 
-| Layer                    | Owns                                                          | Example                                                                                                      |
-| ------------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `store/<domain>/`        | Persistence + domain invariants                               | `ConversationFacade.pruneEmpty()` — a conversation with no assistant reply has no value and may be discarded |
-| `commands/`              | Parse user input, call facades, update UI                     | `/conversation` switches context; it does **not** prune or title                                             |
-| `integration/session.ts` | Turn orchestration (model input, windowing, profile settings) | `runTurn` resolves the orchestrator model once per turn                                                      |
-| `cli/shutdown.ts`        | Exit housekeeping                                             | `buildExitMessage` prunes empty conversations, then prints report + resume hint                              |
+| Layer                      | Owns                                                          | Example                                                                                                      |
+| -------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `store/<domain>/`          | Persistence + domain invariants                               | `ConversationFacade.pruneEmpty()` — a conversation with no assistant reply has no value and may be discarded |
+| `app/commands/`            | Parse user input, call facades, update UI                     | `/conversation` switches context; it does **not** prune or title                                             |
+| `app/session/session.ts`   | Turn orchestration (model input, windowing, profile settings) | `runTurn` resolves the orchestrator model once per turn                                                      |
+| `platform/cli/shutdown.ts` | Exit housekeeping                                             | `buildExitMessage` prunes empty conversations, then prints report + resume hint                              |
 
 **One place per concern.** The orchestrator `model` resolves in `Session.runTurn`;
 empty-conversation cleanup runs in `buildExitMessage` on exit — never in command
@@ -211,8 +227,11 @@ or roll back atomically. Do not expose raw SQL or the Drizzle handle outside
 
 ## Testing
 
-`tests/` mirrors `src/` (`agent/`, `integration/`, `ui/`), plus `e2e/` (drives the
-real REPL flow) and `helpers/` + `fixtures/`. Conventions:
+`tests/` mirrors `src/` — the pillars (`agent/`, `store/`, `ui/`), the middle
+(`app/`: `runner/`, `session/`, `tools/`, …), and infra (`platform/`) — plus `e2e/`
+(drives the real REPL flow) and `helpers/` + `fixtures/`. Test files import
+production code via `@/…` and shared helpers via `@tests/…`, so a test sits next to
+the module it exercises. Conventions:
 
 - **No live LLM/API calls, ever.** The model is always mocked via
   [tests/helpers/mock-openai.ts](tests/helpers/mock-openai.ts) — the suite is
@@ -332,20 +351,20 @@ import { renderChat } from "../ui/chat";
 
 ## Boundaries
 
-**Always OK** — add a tool implementation under [src/tools/](src/tools/) (register it
+**Always OK** — add a tool implementation under [src/app/tools/](src/app/tools/) (register it
 in `createAgentTools`'s `tools` or a `forkProfiles` entry); edit the system prompt in
-[src/prompts.ts](src/prompts.ts) or fork prompts in
-[src/tools/prompts/](src/tools/prompts/) alongside an eval; add/extend tests; run
+[src/app/prompts.ts](src/app/prompts.ts) or fork prompts in
+[src/app/tools/prompts/](src/app/tools/prompts/) alongside an eval; add/extend tests; run
 `typecheck`/`lint`/`format`/`test` freely.
 
 **Ask first** — adding any npm dependency (especially an LLM/agent library — it
 threatens the frameworkless claim); changing the model, `KEEP_LAST_TURNS`, or
-`MAX_TOOL_STEPS`; editing [src/db/schema.ts](src/db/schema.ts) or the
+`MAX_TOOL_STEPS`; editing [src/store/db/schema.ts](src/store/db/schema.ts) or the
 `Store` interface (then run `db:generate`); reshaping the `TurnEvent` contract or the
 `Agent` step/executeTool signatures.
 
-**Never** — import `ui/`, `integration/`, `runner/`, `commands/`, or `tools/` from
-`agent/` (the core imports nothing outward); route storable data through the
+**Never** — import `ui/`, `store/`, or anything under `app/` (`session/`, `runner/`,
+`commands/`, `tools/`, …) from `agent/` (the core imports nothing outward); route storable data through the
 `EventBus` (it is UI-only, never persisted); introduce an agent framework or SDK
 abstraction over `openai`; give `delegate_task`/`delegate_tasks` to forks (infinite
 recursion); re-introduce heavy inline rationale comments.

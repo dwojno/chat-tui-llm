@@ -30,7 +30,7 @@ import {
   setSpanIO,
   startSpan,
   withSpan,
-} from "../telemetry";
+} from "@/platform/telemetry";
 
 const EMPTY_FORK_PROFILE: ForkProfile = { instructions: "", tools: [], model: "" };
 const EMPTY_FORK_PROFILES = Object.fromEntries(

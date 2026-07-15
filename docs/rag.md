@@ -47,7 +47,7 @@ knowledge bases.
 
 ## Ingest (`/learn @file`)
 
-`/learn @file` ([commands/learn.ts](../src/commands/learn.ts)) resolves
+`/learn @file` ([app/commands/learn.ts](../src/app/commands/learn.ts)) resolves
 the mention, then streams `session.indexSource(path)` →
 `facade.add` → `engine.indexDocument`
 ([engine.ts](../src/store/sources/rag/engine.ts)). One document flows through:
@@ -138,7 +138,7 @@ to raw RRF scores, since they have no absolute scale).
 ## The tools
 
 Composed in `createRagTools(store)`
-([src/tools/rag.ts](../src/tools/rag.ts)) and injected into
+([src/app/tools/rag.ts](../src/app/tools/rag.ts)) and injected into
 the agent; each closes over the live `Store` and calls `store.sources.*` for the
 **active profile**.
 
@@ -159,7 +159,7 @@ One-shot lookups call these tools directly from the main orchestrator turn.
 **Multi-hop** retrieval — chained searches where a fact from one passage guides
 the next lookup — is delegated to the **`rag_research` fork profile**, which
 carries exactly this tool set and the `RAG_FORK_INSTRUCTIONS` prompt
-([prompts/rag-fork.ts](../src/tools/prompts/rag-fork.ts)). The fork works
+([app/tools/prompts/rag-fork.ts](../src/app/tools/prompts/rag-fork.ts)). The fork works
 iteratively (refine query → grep → read slice → repeat), then its transcript is
 compressed into a structured `ForkResult` so exact values (numbers, paths, ids)
 survive the handoff verbatim. See

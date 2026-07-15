@@ -2,8 +2,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { readActiveState, writeActiveState } from "../../src/store/active-state";
-import { DEFAULT_PROFILE_ID } from "../../src/store/profile/profile.repository";
+import { readActiveState, writeActiveState } from "@/store/active-state";
+import { DEFAULT_PROFILE_ID } from "@/store/profile/profile.repository";
 
 let dir: string;
 let dbPath: string;

@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { formatUsageBar, type UsageSnapshot } from "../../integration/usage";
+import { formatUsageBar, type UsageSnapshot } from "@/app/session/usage";
 
 export interface ChatContextBar {
   profileLabel: string;

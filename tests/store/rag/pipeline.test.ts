@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { LocalStore, type Store } from "../../../src/store";
-import { createFakeRag, type FakeRag } from "../../helpers/fake-rag";
-import { collect, drain } from "../../../src/utils/async-gen";
+import { LocalStore, type Store } from "@/store";
+import { createFakeRag, type FakeRag } from "@tests/helpers/fake-rag";
+import { collect, drain } from "@/platform/utils/async-gen";
 
 /**
  * End-to-end RAG integration test: exercises the real pipeline (markdown

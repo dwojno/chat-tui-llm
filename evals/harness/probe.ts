@@ -1,12 +1,12 @@
 import { zodTextFormat } from "openai/helpers/zod";
 import type { ResponseInputItem, ResponseUsage } from "openai/resources/responses/responses.mjs";
 import type { ZodType } from "zod";
-import { MODEL } from "../../src/config";
-import { SYSTEM_INSTRUCTIONS } from "../../src/prompts";
-import { buildContextBlock } from "../../src/context/context";
-import { getFunctionCalls } from "../../src/agent/conversation/items";
-import type { OpenAITool } from "../../src/agent/tools/types";
-import { mainToolSchemas } from "../../src/tools";
+import { MODEL } from "@/app/config";
+import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
+import { buildContextBlock } from "@/app/context/context";
+import { getFunctionCalls } from "@/agent/conversation/items";
+import type { OpenAITool } from "@/agent/tools/types";
+import { mainToolSchemas } from "@/app/tools";
 import { openai } from "./client";
 
 /** A tool call the model emitted, with arguments parsed for convenience. */
