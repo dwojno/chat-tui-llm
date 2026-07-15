@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-
-
 vi.mock("@/agent/tools", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/agent/tools")>();
   return {
@@ -97,7 +95,7 @@ describe("runAgentLoop", () => {
     const { agent } = makeAgent([{ text: "first" }, { text: "second" }]);
 
     const first = await run(agent, [userMessage("one")]);
-    
+
     expect(first.result.events.some((e) => e.type === "user_message")).toBe(false);
     expect(first.result.events.at(-1)).toMatchObject({
       type: "assistant_answer",
@@ -202,6 +200,48 @@ describe("runAgentLoop", () => {
     await run(agent, [userMessage("hi")], { ...DEFAULT_TURN_OPTIONS, model: "gpt-5.6-luna" });
     const params = mock.calls.stream[0] as { temperature?: number };
     expect(params.temperature).toBeUndefined();
+  });
+
+  it("requests encrypted reasoning for a reasoning model but not a classic one", async () => {
+    const reasoning = makeAgent([{ text: "ok" }]);
+    await run(reasoning.agent, [userMessage("hi")], {
+      ...DEFAULT_TURN_OPTIONS,
+      model: "gpt-5.6-luna",
+    });
+    expect((reasoning.mock.calls.stream[0] as { include?: string[] }).include).toContain(
+      "reasoning.encrypted_content",
+    );
+
+    const classic = makeAgent([{ text: "ok" }]);
+    await run(classic.agent, [userMessage("hi")], {
+      ...DEFAULT_TURN_OPTIONS,
+      model: "gpt-4o-mini",
+    });
+    expect((classic.mock.calls.stream[0] as { include?: string[] }).include).toBeUndefined();
+  });
+
+  it("threads the previous step's tool call and result back as real items", async () => {
+    exec.mockImplementationOnce(toolReturning("The weather in Paris is sunny"));
+    const { agent, mock } = makeAgent([
+      { calls: [{ name: "get_weather_data", arguments: { city: "Paris" } }] },
+      { text: "done" },
+    ]);
+
+    await run(agent, [userMessage("weather?")]);
+
+    const secondInput = (mock.calls.stream[1] as { input: Record<string, unknown>[] }).input;
+    const call = secondInput.find(
+      (item) => item.type === "function_call" && item.name === "get_weather_data",
+    );
+    assert(call);
+    const output = secondInput.find((item) => item.type === "function_call_output");
+    assert(output);
+    expect(String(output.output)).toContain("The weather in Paris is sunny");
+
+    expect(call).not.toHaveProperty("parsed_arguments");
+
+    const seed = secondInput[0] as { content?: string };
+    expect(seed.content).not.toContain("The weather in Paris is sunny");
   });
 
   it("forbids tools on the final round to stop an infinite tool loop", async () => {
@@ -365,7 +405,7 @@ describe("runAgentLoop control intents", () => {
     expect(result.answer).toBe("Thanks — Paris it is.");
   });
 
-  it("folds a scratchpad-only step and shows it back on the next step without finishing", async () => {
+  it("threads a scratchpad-only step back to the next step without finishing", async () => {
     const { agent, mock } = makeAgent([
       {
         calls: [
@@ -385,11 +425,15 @@ describe("runAgentLoop control intents", () => {
     expect(result.events.some((e) => e.type === "scratchpad")).toBe(true);
     expect(mock.calls.stream).toHaveLength(2);
 
-    const secondInput = (mock.calls.stream[1] as { input: { content: string }[] }).input;
-    assert(secondInput[0]);
-    const content = secondInput[0].content;
-    expect(content).toContain("<scratchpad>");
-    expect(content).toContain("1. check weather");
+    const secondInput = (mock.calls.stream[1] as { input: Record<string, unknown>[] }).input;
+    const call = secondInput.find(
+      (item) => item.type === "function_call" && item.name === "update_scratchpad",
+    );
+    assert(call);
+    expect(String(call.arguments)).toContain("1. check weather");
+    const output = secondInput.find((item) => item.type === "function_call_output");
+    assert(output);
+    expect(String(output.output)).toContain("Scratchpad updated.");
   });
 
   it("records a malformed update_scratchpad as an error and continues", async () => {

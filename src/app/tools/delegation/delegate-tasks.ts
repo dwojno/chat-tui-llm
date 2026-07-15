@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { ToolRunContext } from "@/agent/conversation/turn";
-import { FORK_PROFILE_NAMES, type ToolDefinition } from "@/agent/tools/types";
+import type { ToolDefinition } from "@/agent/tools/types";
 import { runFork } from "./delegate-task";
+import { profileArg } from "./profiles";
 
 export const DELEGATE_TASKS_NAME = "delegate_tasks" as const;
 
@@ -26,14 +27,7 @@ const parameters = z.object({
             "Keys (M1, M2, …) from <user_known_memories> this sub-task needs, or " +
               "null/[] for none.",
           ),
-        profile: z
-          .enum(FORK_PROFILE_NAMES)
-          .nullable()
-          .describe(
-            'Fork profile for this sub-task: "general" (web_search + weather) for open ' +
-              'research, or "rag_research" (knowledge-base tools) for indexed sources. ' +
-              'null defaults to "general".',
-          ),
+        profile: profileArg,
       }),
     )
     .min(1)
@@ -73,8 +67,8 @@ export const delegateTasksTool: ToolDefinition<typeof parameters> = {
     "Fan out several INDEPENDENT sub-tasks to parallel sub-agents in one call. " +
     `Provide a \`tasks\` array (1–${MAX_PARALLEL_TASKS}), each with a short ` +
     "`title`, a self-contained `task` brief, the `relevantMemoryKeys` it needs " +
-    '(or null), and an optional `profile` ("general" or "rag_research"). Returns ' +
-    "a JSON array of fork_result digests in task order. " +
+    "(or null), and an optional `profile` selecting the specialist for that " +
+    "sub-task. Returns a JSON array of fork_result digests in task order. " +
     "Use for parallel research/comparison; use delegate_task for a single " +
     "sub-task and answer simple lookups directly.",
   parameters,

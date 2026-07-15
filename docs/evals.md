@@ -34,6 +34,7 @@ evals/
 | Suite                               | Prompt under test                               | Scores                                                                                                        |
 | ----------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `suites/delegation.eval.ts`         | `<delegation>` in `SYSTEM_INSTRUCTIONS`         | multi-step work → `delegate_task` with a concise `title`; simple asks → direct                                |
+| `suites/profile-routing.eval.ts`    | `<delegation>` + the `profile` menu             | KB asks → `delegate_task` `profile: rag_research`; open-web asks → `web_research`; trivia → direct            |
 | `suites/fork-tools.eval.ts`         | `FORK_INSTRUCTIONS` + `forkTools`               | a sub-agent uses `web_search` for research, `get_weather_data` for weather, and forces neither when none fits |
 | `suites/weather-routing.eval.ts`    | `<tool_use>`                                    | single-city asks call `get_weather_data` with the right city                                                  |
 | `suites/scratchpad.eval.ts`         | `<scratchpad>` in `SYSTEM_INSTRUCTIONS`         | multi-step tasks plan first (`update_scratchpad` before the work tools); single/trivial asks don't over-plan  |
@@ -55,6 +56,12 @@ outputs, so the RAGAS-style scorers (from
 [autoevals](https://github.com/braintrustdata/autoevals)) grade what the system
 actually retrieved and generated. The harness lives alongside the other eval
 machinery in [`harness/`](../evals/harness/) (`rag.ts`, `scorers/rag-scorers.ts`, `infra.ts`).
+
+`suites/redundancy.eval.ts` reuses the same harness under the real `RAG_FORK_INSTRUCTIONS`
+prompt: it runs the full loop over the real index and the `No redundant calls` scorer fails
+if the run issues the same `(tool, args)` twice — the redundant re-reading the demo trace
+showed. Redundancy is a whole-run property, so unlike the single-turn probe suites it needs
+the real loop and services.
 
 ```bash
 cp .env.example .env      # set OPENAI_API_KEY (defaults point at localhost)

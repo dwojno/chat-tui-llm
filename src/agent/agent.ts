@@ -5,6 +5,7 @@ import type {
   ParsedResponse,
   ResponseFunctionToolCall,
   ResponseInputItem,
+  ResponseOutputItem,
   ResponseUsage,
 } from "openai/resources/responses/responses.mjs";
 import type { z } from "zod";
@@ -13,13 +14,7 @@ import type { TurnOptions } from "./conversation/options";
 import { describeToolCall, executeToolCall, toolLabel } from "./tools";
 import { evaluateApproval, type ApprovalGate, type ApprovalNeed } from "./humanLayer/approval";
 import type { ClarificationGate } from "./humanLayer/clarification";
-import {
-  FORK_PROFILE_NAMES,
-  toOpenAITool,
-  type ForkProfile,
-  type ForkProfiles,
-  type ToolDefinition,
-} from "./tools/types";
+import { toOpenAITool, type ForkProfiles, type ToolDefinition } from "./tools/types";
 import { getFunctionCalls } from "./conversation/items";
 import type { RunTurn, ToolRunContext, TurnContext, TurnProfile } from "./conversation/turn";
 import {
@@ -32,20 +27,9 @@ import {
   withSpan,
 } from "@/platform/telemetry";
 
-/**
- * Reasoning models (the o-series and the gpt-5 family, excluding their -chat
- * variants) reject a `temperature` param; sampling is fixed. Callers still carry
- * a temperature for the classic chat models, so the request builder drops it for
- * these rather than 400ing every turn.
- */
 function isReasoningModel(model: string): boolean {
   return (/^o\d/.test(model) || model.startsWith("gpt-5")) && !model.includes("chat");
 }
-
-const EMPTY_FORK_PROFILE: ForkProfile = { instructions: "", tools: [], model: "" };
-const EMPTY_FORK_PROFILES = Object.fromEntries(
-  FORK_PROFILE_NAMES.map((name) => [name, EMPTY_FORK_PROFILE]),
-) as ForkProfiles;
 
 export type { TurnContext } from "./conversation/turn";
 
@@ -70,6 +54,7 @@ export interface StepResult {
   outputText: string;
   outputParsed: unknown;
   toolCalls: ResponseFunctionToolCall[];
+  outputItems: ResponseOutputItem[];
   usage: ResponseUsage | undefined;
 }
 
@@ -93,7 +78,7 @@ export class Agent {
     const tools = deps.tools ?? [];
     this.openai = deps.openai;
     this.temperature = deps.temperature;
-    this.forkProfiles = deps.forkProfiles ?? EMPTY_FORK_PROFILES;
+    this.forkProfiles = deps.forkProfiles ?? {};
     const forkTools = Object.values(this.forkProfiles).flatMap((profile) => profile.tools);
     this.registry = dedupeByName([...tools, ...forkTools]);
     this.defaultProfile = {
@@ -122,6 +107,7 @@ export class Agent {
       outputText: output_text,
       outputParsed: output_parsed,
       toolCalls,
+      outputItems: output,
       usage,
     };
   }
@@ -215,7 +201,9 @@ export class Agent {
       input: [...input],
       instructions: profile.instructions,
       ...(text ? { text } : {}),
-      ...(isReasoningModel(model) ? {} : { temperature: this.temperature }),
+      ...(isReasoningModel(model)
+        ? { include: ["reasoning.encrypted_content" as const] }
+        : { temperature: this.temperature }),
       ...(profile.reasoningEffort ? { reasoning: { effort: profile.reasoningEffort } } : {}),
       ...(options.max_output_tokens !== undefined
         ? { max_output_tokens: options.max_output_tokens }
@@ -249,7 +237,7 @@ export class Agent {
         model: params.model,
         operation: "chat",
         usage: response.usage,
-        temperature: params.temperature,
+        temperature: "temperature" in params ? params.temperature : undefined,
         finishReasons: response.status ? [response.status] : undefined,
         durationSeconds: (performance.now() - startedAt) / 1000,
         input: isContentCaptureEnabled() ? JSON.stringify(params.input) : undefined,

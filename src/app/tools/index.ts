@@ -7,10 +7,8 @@ import { askUserTool } from "./ask-user";
 import { controlIntentTools } from "./control-intents";
 import { delegateTaskTool } from "./delegation/delegate-task";
 import { delegateTasksTool } from "./delegation/delegate-tasks";
-import { FORK_INSTRUCTIONS } from "./prompts/fork";
-import { RAG_FORK_INSTRUCTIONS } from "./prompts/rag-fork";
+import { FORK_PROFILE_META, FORK_PROFILE_NAMES } from "./delegation/profiles";
 import { editFileTool } from "./edit-file";
-import { createRagTools } from "./rag";
 import { readFileTool } from "./read-file";
 import { requestApprovalTool } from "./request-approval";
 import { updateScratchpadTool } from "./scratchpad";
@@ -43,9 +41,6 @@ export interface AgentTools {
   forkProfiles: ForkProfiles;
 }
 
-// Disk tools are main-only; knowledge-base tools are fork-only. The main agent
-// reaches the knowledge base by delegating to the rag_research fork — keeping raw
-// chunks out of the orchestrator's context.
 const mainTools: ToolDefinition<z.ZodType>[] = [
   weatherTool,
   delegateTaskTool,
@@ -60,28 +55,22 @@ const mainTools: ToolDefinition<z.ZodType>[] = [
 ];
 
 export function createAgentTools(store: Store): AgentTools {
-  return {
-    tools: mainTools,
-    forkProfiles: {
-      general: {
-        instructions: FORK_INSTRUCTIONS,
-        tools: [weatherTool, webSearchTool],
+  const forkProfiles = Object.fromEntries(
+    FORK_PROFILE_NAMES.map((name) => [
+      name,
+      {
+        instructions: FORK_PROFILE_META[name].instructions,
+        tools: FORK_PROFILE_META[name].tools(store),
         model: FORK_MODEL,
       },
-      rag_research: {
-        instructions: RAG_FORK_INSTRUCTIONS,
-        tools: createRagTools(store),
-        model: FORK_MODEL,
-      },
-    },
-  };
+    ]),
+  ) as ForkProfiles;
+  return { tools: mainTools, forkProfiles };
 }
 
-/** General-fork tool schemas without a store — for evals/tests that probe fork behaviour. */
 export const forkToolSchemas: OpenAITool[] = (
   [weatherTool, webSearchTool] as ToolDefinition<z.ZodType>[]
 ).map(toOpenAITool);
-/** Main tool schemas (generic subset, no store) — for evals/tests. */
 export const mainToolSchemas: OpenAITool[] = (
   [
     weatherTool,

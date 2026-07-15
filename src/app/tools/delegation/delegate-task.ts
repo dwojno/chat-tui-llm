@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { randomUUID } from "node:crypto";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { z } from "zod";
@@ -8,12 +9,8 @@ import { compressHandoff } from "./handoff";
 import type { ForkResult } from "./fork-result";
 import { DEFAULT_TURN_OPTIONS } from "@/agent/conversation/options";
 import type { ToolRunContext, TurnProfile } from "@/agent/conversation/turn";
-import {
-  FORK_PROFILE_NAMES,
-  toOpenAITool,
-  type ForkProfileName,
-  type ToolDefinition,
-} from "@/agent/tools/types";
+import { toOpenAITool, type ToolDefinition } from "@/agent/tools/types";
+import { profileArg, type ForkProfileName } from "./profiles";
 
 export const DELEGATE_TASK_NAME = "delegate_task" as const;
 
@@ -34,14 +31,7 @@ const parameters = z.object({
         "sub-task needs. The fork only sees the memories you list here — pass the " +
         "few that matter, or null/[] to pass none.",
     ),
-  profile: z
-    .enum(FORK_PROFILE_NAMES)
-    .nullable()
-    .describe(
-      'Which fork profile to run. "general" (web_search + weather) for open research; ' +
-        '"rag_research" (knowledge-base tools) for multi-hop retrieval over indexed ' +
-        'sources. null defaults to "general".',
-    ),
+  profile: profileArg,
 });
 
 export type DelegateTaskArgs = z.infer<typeof parameters>;
@@ -86,6 +76,7 @@ export async function runFork(
   } satisfies ResponseInputItem;
 
   const forkProfile = ctx.forkProfiles[profile ?? "general"];
+  assert(forkProfile !== undefined, `Unknown fork profile: ${profile ?? "general"}`);
   const turnProfile: TurnProfile = {
     instructions: forkProfile.instructions,
     tools: forkProfile.tools.map(toOpenAITool),

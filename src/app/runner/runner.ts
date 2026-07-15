@@ -1,6 +1,8 @@
 import assert from "node:assert";
 import type {
   ResponseFunctionToolCall,
+  ResponseInputItem,
+  ResponseOutputItem,
   ResponseUsage,
 } from "openai/resources/responses/responses.mjs";
 import type { Agent } from "@/agent/agent";
@@ -27,11 +29,16 @@ import { parseScratchpadArgs, UPDATE_SCRATCHPAD_NAME } from "@/app/tools/scratch
 import type { AgentEvent } from "./thread/events";
 import { buildMessage, deriveControl } from "./thread/reducer";
 import {
+  canonicalizeArgs,
   eventsToInputItems,
   inputItemsToEvents,
   TOOL_ERROR_PREFIX,
   toolCallToEvent,
 } from "./thread/convert";
+
+const MAX_CALL_RETRIES = 2;
+const SCRATCHPAD_SAVED_OUTPUT = "Scratchpad updated.";
+const SKIPPED_OUTPUT = "Skipped — not executed this step.";
 
 export interface RunAgentLoopArgs {
   agent: Agent;
@@ -57,6 +64,9 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<LoopResult> 
   const usages: (ResponseUsage | undefined)[] = [];
   const recordUsage = (usage: ResponseUsage | undefined): void => void usages.push(usage);
 
+  const toolMemo = new Map<string, string>();
+  const toolErrors = new Map<string, number>();
+
   const runTurn: RunTurn = (a) => forkTurn({ agent, maxToolSteps, maxConsecutiveErrors, args: a });
 
   const stepArgs = { options, bus, ...(args.profile ? { profile: args.profile } : {}) };
@@ -67,16 +77,38 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<LoopResult> 
   });
 
   let steps = 0;
+  const liveItems: ResponseInputItem[] = [];
+  const seed = buildMessage({ events: args.events, memories: context.memories });
+  const threadOutputs = (
+    calls: readonly ResponseFunctionToolCall[],
+    outputs: Map<string, string>,
+  ): void => {
+    for (const call of calls) {
+      liveItems.push({
+        type: "function_call_output",
+        call_id: call.call_id,
+        output: outputs.get(call.call_id) ?? SKIPPED_OUTPUT,
+      });
+    }
+  };
+
   for (;;) {
-    const input = buildMessage({ events, memories: context.memories });
     const step = await agent.step({
-      messages: input,
+      messages: [...seed, ...liveItems],
       ...stepArgs,
       forbidTools: steps >= maxToolSteps,
     });
     recordUsage(step.usage);
+    liveItems.push(...toInputItems(step.outputItems));
 
-    const done = step.toolCalls.find((call) => call.name === DONE_FOR_NOW_NAME);
+    const calls = step.toolCalls;
+    if (!calls.length) {
+      const content = formatResponse(step, options);
+      events.push({ type: "assistant_answer", content });
+      return finish(content);
+    }
+
+    const done = calls.find((call) => call.name === DONE_FOR_NOW_NAME);
     if (done) {
       const parsed = tryParse(() => parseDoneForNowArgs(done.arguments));
       if (parsed) {
@@ -88,16 +120,20 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<LoopResult> 
         });
         return finish(content);
       }
-      events.push(malformedIntent(done, "Reply with a plain-text answer instead."));
+      const hint = "Reply with a plain-text answer instead.";
+      events.push(malformedIntent(done, hint));
+      threadOutputs(calls, new Map([[done.call_id, malformedOutput(done.name, hint)]]));
       steps += 1;
       continue;
     }
 
-    const clarify = step.toolCalls.find((call) => call.name === REQUEST_MORE_INFORMATION_NAME);
+    const clarify = calls.find((call) => call.name === REQUEST_MORE_INFORMATION_NAME);
     if (clarify) {
       const parsed = tryParse(() => parseRequestMoreInformationArgs(clarify.arguments));
       if (!parsed) {
-        events.push(malformedIntent(clarify, "Ask your question in a well-formed call."));
+        const hint = "Ask your question in a well-formed call.";
+        events.push(malformedIntent(clarify, hint));
+        threadOutputs(calls, new Map([[clarify.call_id, malformedOutput(clarify.name, hint)]]));
         steps += 1;
         continue;
       }
@@ -115,50 +151,53 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<LoopResult> 
         options: choices,
       });
       events.push({ type: "human_response", content: answer });
+      threadOutputs(calls, new Map([[clarify.call_id, answer]]));
       steps += 1;
       continue;
     }
 
-    const padCalls = step.toolCalls.filter((call) => call.name === UPDATE_SCRATCHPAD_NAME);
+    const outputs = new Map<string, string>();
+    const padCalls = calls.filter((call) => call.name === UPDATE_SCRATCHPAD_NAME);
     for (const call of padCalls) {
       const parsed = tryParse(() => parseScratchpadArgs(call.arguments));
       if (!parsed) {
-        events.push(malformedIntent(call, "Provide well-formed scratchpad sections."));
+        const hint = "Provide well-formed scratchpad sections.";
+        events.push(malformedIntent(call, hint));
+        outputs.set(call.call_id, malformedOutput(call.name, hint));
         continue;
       }
       events.push({ type: "scratchpad", ops: parsed.sections });
       bus.emit({ type: "status", text: "Updated scratchpad" });
+      outputs.set(call.call_id, SCRATCHPAD_SAVED_OUTPUT);
     }
 
-    const work = step.toolCalls.filter(
+    const work = calls.filter(
       (call) => !isControlIntent(call.name) && call.name !== UPDATE_SCRATCHPAD_NAME,
     );
     if (!work.length) {
-      if (padCalls.length) {
-        steps += 1;
-        continue;
-      }
-      const content = formatResponse(step, options);
-      events.push({ type: "assistant_answer", content });
-      return finish(content);
+      threadOutputs(calls, outputs);
+      steps += 1;
+      continue;
     }
 
     for (const call of work) events.push(toolCallToEvent(call));
     emitToolCalls(agent, work, bus);
     const denied = await runApprovalGate({ agent, calls: work, context, bus, events });
-    const outputs = await Promise.all(
-      work.map((call, index) => {
-        const declined = denied.get(index);
-        return declined !== undefined
-          ? Promise.resolve(declined)
-          : agent.executeTool(call, { context, runTurn, bus, recordUsage, ...gates(context) });
-      }),
-    );
+    const workOutputs = await dispatchWork({
+      work,
+      denied,
+      memo: toolMemo,
+      errors: toolErrors,
+      execute: (call) =>
+        agent.executeTool(call, { context, runTurn, bus, recordUsage, ...gates(context) }),
+    });
     work.forEach((call, index) => {
-      const output = outputs[index];
+      const output = workOutputs[index];
       assert(output !== undefined);
       events.push(resultEvent(call, output));
+      outputs.set(call.call_id, output);
     });
+    threadOutputs(calls, outputs);
 
     if (
       context.requestClarification &&
@@ -175,6 +214,7 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<LoopResult> 
         options: null,
       });
       events.push({ type: "human_response", content: answer });
+      liveItems.push({ role: "user", content: answer });
     }
 
     steps += 1;
@@ -212,13 +252,76 @@ function tryParse<T>(fn: () => T): T | null {
   }
 }
 
+function toInputItems(items: readonly ResponseOutputItem[]): ResponseInputItem[] {
+  return items.map(
+    (item): ResponseInputItem =>
+      item.type === "function_call"
+        ? {
+            type: "function_call",
+            call_id: item.call_id,
+            name: item.name,
+            arguments: item.arguments,
+          }
+        : (item as ResponseInputItem),
+  );
+}
+
+function malformedMessage(name: string, hint: string): string {
+  return `The ${name} arguments were invalid or incomplete. ${hint}`;
+}
+
 function malformedIntent(call: ResponseFunctionToolCall, hint: string): AgentEvent {
   return {
     type: "error",
     id: call.call_id,
     name: call.name,
-    message: `The ${call.name} arguments were invalid or incomplete. ${hint}`,
+    message: malformedMessage(call.name, hint),
   };
+}
+
+function malformedOutput(name: string, hint: string): string {
+  return `${TOOL_ERROR_PREFIX}${malformedMessage(name, hint)}`;
+}
+
+async function dispatchWork(args: {
+  work: ResponseFunctionToolCall[];
+  denied: Map<number, string>;
+  execute: (call: ResponseFunctionToolCall) => Promise<string>;
+  memo: Map<string, string>;
+  errors: Map<string, number>;
+}): Promise<string[]> {
+  const { work, denied, execute, memo, errors } = args;
+  const inFlight = new Map<string, Promise<string>>();
+
+  return Promise.all(
+    work.map(async (call, index) => {
+      const declined = denied.get(index);
+      if (declined !== undefined) return declined;
+
+      const key = `${call.name}:${canonicalizeArgs(call.arguments)}`;
+      const cached = memo.get(key);
+      if (cached !== undefined) return cached;
+      if ((errors.get(key) ?? 0) >= MAX_CALL_RETRIES) return circuitBreakOutput(call.name);
+
+      const pending = inFlight.get(key);
+      if (pending) return pending;
+
+      const promise = execute(call).then((output) => {
+        if (output.startsWith(TOOL_ERROR_PREFIX)) {
+          errors.set(key, (errors.get(key) ?? 0) + 1);
+        } else {
+          memo.set(key, output);
+        }
+        return output;
+      });
+      inFlight.set(key, promise);
+      return promise;
+    }),
+  );
+}
+
+function circuitBreakOutput(name: string): string {
+  return `${TOOL_ERROR_PREFIX}${name} keeps failing with the same arguments — don't retry it; take a different approach or tool.`;
 }
 
 function resultEvent(call: ResponseFunctionToolCall, output: string): AgentEvent {
@@ -318,8 +421,8 @@ async function runApprovalGate(args: {
   return denied;
 }
 
-function sumUsage(usages: (ResponseUsage | undefined)[]): ResponseUsage | undefined {
-  const present = usages.filter((usage): usage is ResponseUsage => usage !== undefined);
+function sumUsage(usages: (ResponseUsage | null | undefined)[]): ResponseUsage | undefined {
+  const present = usages.filter((usage): usage is ResponseUsage => usage != null);
   if (!present.length) return undefined;
 
   let input = 0;

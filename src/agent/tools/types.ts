@@ -28,11 +28,7 @@ export interface ForkProfile {
   model: string;
 }
 
-export const FORK_PROFILE_NAMES = ["general", "rag_research"] as const;
-
-export type ForkProfileName = (typeof FORK_PROFILE_NAMES)[number];
-
-export type ForkProfiles = Record<ForkProfileName, ForkProfile>;
+export type ForkProfiles = Record<string, ForkProfile>;
 
 export function toOpenAITool<TArgs extends z.ZodType>(tool: ToolDefinition<TArgs>): OpenAITool {
   return {

@@ -46,13 +46,15 @@ export function functionCall(
   args: string | Record<string, unknown> = {},
   callId = nextId("call"),
 ) {
+  const serialized = typeof args === "string" ? args : JSON.stringify(args);
   return {
     type: "function_call",
     id: nextId("fc"),
     call_id: callId,
     name,
-    arguments: typeof args === "string" ? args : JSON.stringify(args),
+    arguments: serialized,
     status: "completed",
+    parsed_arguments: typeof args === "string" ? null : args,
   };
 }
 

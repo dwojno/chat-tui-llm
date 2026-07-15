@@ -103,7 +103,24 @@ render is deterministic — no ids or timestamps leak into the text — so the l
 token run is byte-stable step to step and `prompt_cache_key` keeps paying off.
 
 The agent's `step()` still **accepts a `ResponseInputItem[]`** and responds with native
-SDK output items; the array simply now holds that one reduced message.
+SDK output items. `buildMessage` produces that one reduced message once per turn — the
+**frozen seed** (cross-turn history + summary + memories). The runner then sends
+`[seed, ...liveItems]`, where `liveItems` accumulates the **raw SDK output items**
+(reasoning + function_call) of each step plus a `function_call_output` for every call.
+
+**Why raw items, not more packed text — reasoning continuity.** The orchestrator is a
+reasoning model, and the Responses API only lets a reasoning model resume its
+chain-of-thought across a tool round-trip if its `reasoning` items are passed back
+verbatim (paired with their `function_call`, followed by the call's output — a dangling
+reasoning item is a 400). With `store: false` we opt in via
+`include: ["reasoning.encrypted_content"]` and thread the returned items forward. Without
+this a reasoning model loses its thread between steps and can loop — re-issuing the same
+(idempotent) tool call until the step cap forces a degraded answer. The seed stays frozen
+and `liveItems` is append-only, so the whole prefix is byte-stable and the prompt cache
+keeps paying off. Every `function_call` is answered — real tools return their output,
+`update_scratchpad` and control intents get a synthesized one — so nothing dangles. The
+durable `AgentEvent` log is still written in parallel; `liveItems` is ephemeral, never
+persisted, and rebuilt from the seed each turn.
 
 ## Windowing
 
@@ -229,6 +246,24 @@ deriveControl(events) -> { consecutiveErrors }   // trailing errors since the la
   the runner appends a `clarification_request` and asks how to proceed; unattended, it
   simply runs to the `maxToolSteps` cap. Either way it can't loop forever.
 
+### Deterministic guardrails
+
+Prompts _steer_ the model; guardrails _enforce_. At the work-call dispatch seam
+(`dispatchWork`) the runner applies two turn-scoped, deterministic rules — each fork's own
+loop gets its own state, so a fork can't spin either:
+
+- **Duplicate-call suppression** — a call keyed by `name` + `canonicalizeArgs(args)` that
+  already succeeded this turn reuses the memoised output instead of re-executing (identical
+  calls in one round collapse to a single execution too). This is what would have killed the
+  demo's triple `read_source`. The `tool_call` event is still recorded, so the model's
+  behaviour stays observable (and measurable in evals); only re-execution is skipped.
+- **Per-call error circuit-break** — the same call may error `MAX_CALL_RETRIES` (2) times
+  before it's cut off with a terminal note, rather than being retried to the step cap.
+
+Only exact, provable-bad cases are enforced (errors are never memoised, so a genuine
+retry-after-failure still runs); fuzzy cases — near-duplicate but non-identical work — stay
+the prompt's job so a guardrail never misfires.
+
 ## Streaming vs. durable — the bus is UI-only
 
 Progress rides the injected **`EventBus`** ([events/bus.ts](../src/agent/events/bus.ts));
@@ -300,17 +335,28 @@ events internally.
 
 ### Fork profiles
 
-A fork runs under a named profile; `FORK_PROFILE_NAMES`
-([agent/tools/types.ts](../src/agent/tools/types.ts)) is the single source of truth from which
-the type, the map, and the `delegate_task` `profile` enum all derive.
+A fork runs under a named **specialist** profile. Profiles are **app configuration**, not
+agent core: the agent takes an opaque `ForkProfiles = Record<string, ForkProfile>` and knows
+none of the concrete names. The registry `FORK_PROFILE_META`
+([app/tools/delegation/profiles.ts](../src/app/tools/delegation/profiles.ts)) is the single
+source of truth — each entry carries the specialist's menu `description`, `instructions`, and
+`tools(store)` factory. Both `createAgentTools` (the wiring) and the shared `profileArg` (the
+`delegate_task`/`delegate_tasks` `profile` menu the model sees) derive from it, so adding a
+specialist is one entry there.
 
-| Profile        | Instructions            | Tools                                                              |
-| -------------- | ----------------------- | ------------------------------------------------------------------ |
-| `general`      | `FORK_INSTRUCTIONS`     | `web_search`, `get_weather_data`                                   |
-| `rag_research` | `RAG_FORK_INSTRUCTIONS` | `search_knowledge_base`, `list_files`, `grep_files`, `read_source` |
+| Profile        | Instructions                 | Tools                                                              |
+| -------------- | ---------------------------- | ------------------------------------------------------------------ |
+| `general`      | `FORK_INSTRUCTIONS`          | `web_search`, `get_weather_data` — the simple-one-off fallback     |
+| `rag_research` | `RAG_FORK_INSTRUCTIONS`      | `search_knowledge_base`, `list_files`, `grep_files`, `read_source` |
+| `web_research` | `WEB_FORK_INSTRUCTIONS`      | `web_search` — thorough, cross-checked, cited                      |
+| `codebase`     | `CODEBASE_FORK_INSTRUCTIONS` | `read_file` — reads working-dir files at paths named in the brief  |
 
-`Agent` flattens every profile's tools into its dispatch registry, so it can execute any
-call a fork makes. Adding a profile is two compiler-enforced edits (name + map entry).
+The orchestrator prompt's principle is **prefer the specialist whose focus matches the
+sub-task; fall back to `general` only for a simple one-off** — the prompt never enumerates the
+profiles, it points at the `profile` menu. `Agent` flattens every profile's tools into its
+dispatch registry, so it can execute any call a fork makes. Each specialist prompt carries a
+stop-condition ("never re-read what you've already read; stop once the brief is answerable")
+so a fork doesn't loop on redundant retrieval.
 
 ### Structured handoff (`ForkResult`)
 

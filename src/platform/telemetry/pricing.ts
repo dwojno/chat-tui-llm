@@ -1,13 +1,21 @@
+import { Model } from "@/app/config";
+
 export interface TokenCounts {
   input: number;
   output: number;
   cached: number;
 }
 
-const PRICES: Record<string, { input: number; cached: number; output: number }> = {
-  "gpt-4o": { input: 2.5, cached: 1.25, output: 10 },
+interface Price {
+  input: number;
+  cached: number;
+  output: number;
+}
+
+const PRICES: Record<Model | string, Price | undefined> = {
+  "gpt-5.6-luna": { input: 1.0, cached: 0.1, output: 6.0 },
+  "gpt-4.1-nano": { input: 0.1, cached: 0.025, output: 0.4 },
   "gpt-4o-mini": { input: 0.15, cached: 0.075, output: 0.6 },
-  "text-embedding-3-small": { input: 0.02, cached: 0.02, output: 0 },
 };
 
 export function estimateCost(model: string, tokens: TokenCounts): number | undefined {
