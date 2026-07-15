@@ -17,20 +17,20 @@ vi.mock("ink", () => ({
   useInput: () => {},
 }));
 
-import { processLine } from "../../src/input/repl";
-import type { CommandContext } from "../../src/commands/types";
-import { Agent } from "../../src/agent/agent";
-import { EventBus } from "../../src/agent/events/bus";
-import { SYSTEM_INSTRUCTIONS } from "../../src/prompts";
-import { createAgentTools } from "../../src/tools";
-import { Session } from "../../src/integration/session";
-import { renderChat, type ChatHandle, type Message } from "../../src/ui/chat";
+import { processLine } from "@/app/input/repl";
+import type { CommandContext } from "@/app/commands/types";
+import { Agent } from "@/agent/agent";
+import { EventBus } from "@/agent/events/bus";
+import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
+import { createAgentTools } from "@/app/tools";
+import { Session } from "@/app/session/session";
+import { renderChat, type ChatHandle, type Message } from "@/ui/chat";
 import {
   createMemoryStore,
   createMockOpenAI,
   createThrowingOpenAI,
   type MockTurn,
-} from "../helpers/mock-openai";
+} from "@tests/helpers/mock-openai";
 import type { OpenAI } from "openai";
 
 /**

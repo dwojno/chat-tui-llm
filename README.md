@@ -28,10 +28,10 @@ decision, append the result, repeat.
 ```
 
 - **Pure-function agent** — `Agent.step()` is _one_ model call, `executeTool()` is _one_ dispatch. No loop, no retained state, no config/prompt imports — the whole core is a pure function of its injected deps. [`agent/agent.ts`](src/agent/agent.ts)
-- **Own the context window** — a reducer folds the event log into a single XML-tagged, YAML-bodied `<user>` message instead of a raw role array. Every token is deliberate; ordering keeps the prompt cache warm. [`runner/thread/reducer.ts`](src/runner/thread/reducer.ts)
-- **The log is the state** — the append-only `AgentEvent` log _is_ the entire turn state. The core keeps nothing between turns, so a run is resumable by construction (pause/resume + trigger-anywhere are clean seams). [`runner/thread/events.ts`](src/runner/thread/events.ts)
-- **Compact errors → self-heal** — a tool failure becomes a compact `error` event fed back to the model; resolved errors are pruned from the window, and repeated failures escalate to a human instead of spinning. [`runner/runner.ts`](src/runner/runner.ts)
-- **Own the control flow** — `runAgentLoop` is a plain async function you can read top to bottom. It keeps **native** tool-calling (several tools per turn, in parallel; token-streamed answers) and layers in reserved control intents (`done_for_now`, `request_more_information`) it interprets by name. [`runner/runner.ts`](src/runner/runner.ts)
+- **Own the context window** — a reducer folds the event log into a single XML-tagged, YAML-bodied `<user>` message instead of a raw role array. Every token is deliberate; ordering keeps the prompt cache warm. [`app/runner/thread/reducer.ts`](src/app/runner/thread/reducer.ts)
+- **The log is the state** — the append-only `AgentEvent` log _is_ the entire turn state. The core keeps nothing between turns, so a run is resumable by construction (pause/resume + trigger-anywhere are clean seams). [`app/runner/thread/events.ts`](src/app/runner/thread/events.ts)
+- **Compact errors → self-heal** — a tool failure becomes a compact `error` event fed back to the model; resolved errors are pruned from the window, and repeated failures escalate to a human instead of spinning. [`app/runner/runner.ts`](src/app/runner/runner.ts)
+- **Own the control flow** — `runAgentLoop` is a plain async function you can read top to bottom. It keeps **native** tool-calling (several tools per turn, in parallel; token-streamed answers) and layers in reserved control intents (`done_for_now`, `request_more_information`) it interprets by name. [`app/runner/runner.ts`](src/app/runner/runner.ts)
 
 The EventBus that streams a turn to the UI is **never persisted** — durable state is the
 returned event log. A web server could drive the same `Agent` and forward the bus over
@@ -39,9 +39,9 @@ SSE. See [docs/agent-loop.md](docs/agent-loop.md) for the full mechanics.
 
 ## Also
 
-- **Context-window management** — last 4 turns kept verbatim; older turns fold into a rolling summary and drop out, preserving a stable, cacheable prompt prefix. Owned by the session, not the agent. [`tokens/summarizer.ts`](src/tokens/summarizer.ts)
-- **Sub-agent delegation** — the model spins up ephemeral child agents (several in parallel), each with its own context, tools, and model, handing back a compressed structured digest. Their tool activity streams back live under a model-chosen label. [`tools/delegation/`](src/tools/delegation/)
-- **Injected tools** — the core ships _zero_ tools; the host composes a main set + fork sets as one `ToolDefinition` type. Built-ins: weather + a web search; compose your own in [`src/tools/`](src/tools/).
+- **Context-window management** — last 4 turns kept verbatim; older turns fold into a rolling summary and drop out, preserving a stable, cacheable prompt prefix. Owned by the session, not the agent. [`app/tokens/summarizer.ts`](src/app/tokens/summarizer.ts)
+- **Sub-agent delegation** — the model spins up ephemeral child agents (several in parallel), each with its own context, tools, and model, handing back a compressed structured digest. Their tool activity streams back live under a model-chosen label. [`app/tools/delegation/`](src/app/tools/delegation/)
+- **Injected tools** — the core ships _zero_ tools; the host composes a main set + fork sets as one `ToolDefinition` type. Built-ins: weather + a web search; compose your own in [`src/app/tools/`](src/app/tools/).
 - **Knowledge base (RAG)** — `/learn @file` converts a source (md/txt/code, PDF, DOCX, HTML, XLSX, CSV) → a per-profile blob store (local disk by default, MinIO/S3 optional) → heading-aware chunks → per-profile Qdrant collection, indexed with **hybrid dense+sparse search fused via RRF**, then an **LLM reranker** keeps only on-topic passages (returned whole, with `path:line` cites). Lives entirely in the `sources` store domain; the core stays RAG-agnostic. [`store/sources/`](src/store/sources/)
 - **Observability** — OpenTelemetry (GenAI semantic conventions) → OTLP; the full turn → LLM-call → tool → fork span tree with token/cost. Off by default, vendor-neutral. [docs/observability.md](docs/observability.md)
 - **Structured output**, **prompt evals** against the live model ([evals/](evals/)), and a fast **offline test suite** (model mocked; unit + e2e) covering the loop, tool failures, delegation, and the reducer. [tests/](tests/)
@@ -99,16 +99,22 @@ context management above.
 
 ## Structure
 
+Imports use the `@/*` alias (→ `src/*`), so an import path mirrors this tree.
+Three core PILLARS + a MIDDLE integrator (`app/`) + leaf INFRA (`platform/`):
+
 ```
 src/
-  agent/       PURE core — Agent.step()/executeTool() + tool/event contracts. No loop, no state.
-  runner/      the caller-owned loop (runner.ts) + the reducer (thread/: events, reducer, window, convert)
-  tools/       tool implementations — weather, web-search, disk, rag, delegation, control intents
-  integration/ Session (state + persistence), context switch, usage
-  store/        store facade → profile / conversation / memory / sources; sources/ owns the RAG pipeline
-  tokens/       rolling summarizer + token estimation
-  ui/  input/  cli/   Ink TUI · REPL loop · CLI boot
-  db/           SQLite connection, schema, migrations
+  agent/       PILLAR — PURE core: Agent.step()/executeTool() + tool/event contracts. No loop, no state.
+  store/       PILLAR — store facade → profile / conversation / memory / sources (RAG); db/ backs it.
+  ui/          PILLAR — Ink TUI, driven by an EventBus subscription.
+  app/         MIDDLE — integrator + configurator that wires the pillars into a working agent:
+    runner/      the caller-owned loop (runner.ts) + reducer (thread/: events, reducer, window, convert)
+    session/     Session (state + persistence), context switch, usage
+    tools/       tool implementations — weather, web-search, disk, rag, delegation, control intents
+    commands/    user-intent handlers · input/ REPL loop · context/ memory block · tokens/ summarizer
+    config.ts prompts.ts   app constants + orchestrator system prompt
+  platform/    INFRA — telemetry · utils · cli boot (leaf, used everywhere)
+  main.ts cli.ts   composition root + entry
 tests/   evals/   docs/
 ```
 

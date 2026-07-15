@@ -4,22 +4,16 @@ import { basename, join } from "node:path";
 import { OpenAI } from "openai";
 import { ensureInfra } from "./infra";
 import { EVAL_MAX_RETRIES } from "./client";
-import { Agent } from "../../src/agent/agent";
-import { EventBus } from "../../src/agent/events/bus";
-import { SYSTEM_INSTRUCTIONS } from "../../src/prompts";
-import { MODEL, MAX_TOOL_STEPS, MAX_CONSECUTIVE_ERRORS } from "../../src/config";
-import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "../../src/agent/conversation/options";
-import { runAgentLoop } from "../../src/runner/runner";
-import { eventsToInputItems } from "../../src/runner/thread/convert";
-import { createAgentTools } from "../../src/tools";
-import { createRagTools } from "../../src/tools/rag";
-import {
-  createRagDeps,
-  loadRagConfig,
-  LocalStore,
-  type IndexResult,
-  type Store,
-} from "../../src/store";
+import { Agent } from "@/agent/agent";
+import { EventBus } from "@/agent/events/bus";
+import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
+import { MODEL, MAX_TOOL_STEPS, MAX_CONSECUTIVE_ERRORS } from "@/app/config";
+import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "@/agent/conversation/options";
+import { runAgentLoop } from "@/app/runner/runner";
+import { eventsToInputItems } from "@/app/runner/thread/convert";
+import { createAgentTools } from "@/app/tools";
+import { createRagTools } from "@/app/tools/rag";
+import { createRagDeps, loadRagConfig, LocalStore, type IndexResult, type Store } from "@/store";
 
 /**
  * A real, non-mocked RAG pipeline wired for evaluation as a true end-to-end

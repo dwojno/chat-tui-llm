@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Store } from "../../src/store";
+import type { Store } from "@/store";
 import { openMemoryStore } from "./helpers";
 
 /**

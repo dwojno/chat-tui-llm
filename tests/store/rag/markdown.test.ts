@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
-import { toMarkdown } from "../../../src/store/sources/rag/markdown";
+import { toMarkdown } from "@/store/sources/rag/markdown";
 
 const buf = (s: string): Buffer => Buffer.from(s, "utf8");
 

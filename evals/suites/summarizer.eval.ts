@@ -1,6 +1,6 @@
 import { evalite } from "evalite";
-import { summarize } from "../../src/tokens/summarizer";
-import type { AgentEvent } from "../../src/runner/thread/events";
+import { summarize } from "@/app/tokens/summarizer";
+import type { AgentEvent } from "@/app/runner/thread/events";
 import {
   judged,
   mentionsRequired,

@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OpenAI } from "openai";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createRagDeps, loadRagConfig, LocalStore, type Store } from "../../../src/store";
-import { drain } from "../../../src/utils/async-gen";
+import { createRagDeps, loadRagConfig, LocalStore, type Store } from "@/store";
+import { drain } from "@/platform/utils/async-gen";
 
 /**
  * Live RAG integration against real MinIO + Qdrant + OpenAI.

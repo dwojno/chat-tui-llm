@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import assert from "node:assert";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
-import { getFunctionCalls, renderItemsText } from "../../src/agent/conversation/items";
-import { assistantMessage, functionCall } from "../helpers/mock-openai";
+import { getFunctionCalls, renderItemsText } from "@/agent/conversation/items";
+import { assistantMessage, functionCall } from "@tests/helpers/mock-openai";
 
 const user = (content: string): ResponseInputItem => ({
   role: "user",

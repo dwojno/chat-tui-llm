@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { eq, inArray } from "drizzle-orm";
-import type { SqliteDb } from "../../db/db";
-import { memory } from "../../db/schema";
+import type { SqliteDb } from "@/store/db/db";
+import { memory } from "@/store/db/schema";
 import { asArray, type OneOrMany } from "../helpers";
 
 export type Memory = {

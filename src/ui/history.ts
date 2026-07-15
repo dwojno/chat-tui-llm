@@ -1,4 +1,4 @@
-import type { AgentEvent } from "../runner/thread/events";
+import type { AgentEvent } from "@/app/runner/thread/events";
 import { toolStepLabel } from "./labels";
 import type { Message, Step } from "./types";
 

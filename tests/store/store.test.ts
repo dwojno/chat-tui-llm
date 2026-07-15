@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LocalStore } from "../../src/store";
+import { LocalStore } from "@/store";
 import { openMemoryStore } from "./helpers";
 
 describe("LocalStore edge cases", () => {

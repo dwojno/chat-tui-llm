@@ -10,31 +10,39 @@ itself is kept comment-light.
 The codebase is split into focused layers plus a thin composition root. Everything
 depends inward on `agent/`; the core imports nothing outward.
 
+Imports use the `@/*` alias (→ `src/*`), so an import path mirrors this tree. Three
+core PILLARS (`agent`, `store`, `ui`), one MIDDLE integrator (`app/`), leaf INFRA
+(`platform/`):
+
 ```
 src/
-  agent/         PURE core — the Agent's step()/executeTool() primitives + the
+  agent/         PILLAR / PURE core — the Agent's step()/executeTool() primitives + the
                  tool/event/HITL contracts. No loop, no filesystem, no Ink, no
                  persistence, no config globals (all injected).
-  runner/        runAgentLoop — the caller-owned model→tool→result loop.
-  tools/         Tool IMPLEMENTATIONS (weather, web-search, disk, rag, ask-user),
-                 delegation/, fork prompts/, and response formatting.
-  commands/      User-intent handlers that bridge input to the agent/session.
-  telemetry/     OTel spans + pricing + OTLP setup (leaf infra).
-  tokens/        Rolling-summary summarizer + token estimation (leaf infra).
-  input/         The REPL input loop (subscribes to the EventBus) + file mentions.
-  cli/           CLI boot/teardown: args, config, env, shutdown.
-  integration/   Thin wiring: Session (state + persistence), context switch, usage.
-  ui/            The Ink TUI. Driven by an EventBus subscription; knows nothing
-                 about the agent's internals or storage.
-  store/         Store facade → domain facades (profile, conversation, memory,
+  store/         PILLAR — Store facade → domain facades (profile, conversation, memory,
                  sources) backed by SQLite via drizzle-orm.
-  db/            Schema, migrations, and the SQLite connection.
+    db/            Schema, migrations, and the SQLite connection (only store imports it).
+  ui/            PILLAR — the Ink TUI. Driven by an EventBus subscription; knows nothing
+                 about the agent's internals or storage.
+  app/           MIDDLE — integrator + configurator that wires the pillars together:
+    runner/        runAgentLoop — the caller-owned model→tool→result loop + reducer.
+    session/       Thin wiring: Session (state + persistence), context switch, usage.
+    tools/         Tool IMPLEMENTATIONS (weather, web-search, disk, rag, ask-user),
+                   delegation/, fork prompts/, and response formatting.
+    commands/      User-intent handlers that bridge input to the agent/session.
+    input/         The REPL input loop (subscribes to the EventBus) + file mentions.
+    context/       Assembles the <user_known_memories> block.
+    tokens/        Rolling-summary summarizer + token estimation.
+    config.ts      App constants (models, temperature, limits). prompts.ts — system prompt.
+  platform/      INFRA (leaf, used everywhere): telemetry/ (OTel spans + pricing),
+                 utils/, cli/ (CLI boot/teardown: args, config, env, shutdown).
   main.ts        Composition root: builds every dependency once (incl. the EventBus)
                  and hands them to the REPL, so each layer can be driven with doubles.
 ```
 
-Dependency direction is one-way: everything (`ui`, `integration`, `runner`,
-`commands`, `tools`) depends inward on `agent`; `agent` depends on nothing above it.
+Dependency direction is one-way: everything (`ui`, `store`, and the `app/` layer —
+`session`, `runner`, `commands`, `tools`) depends inward on `agent`; `agent` depends
+on nothing above it.
 This is what makes the agent reusable outside the CLI — a web server could construct
 the same `Agent`, drive it with its own loop (or reuse `runAgentLoop`), and forward
 the same `EventBus` stream over SSE.
@@ -65,8 +73,8 @@ injected — the agent imports no config, prompt, or event type, and never touch
 `Store`.
 
 The **loop** lives in the caller: `runAgentLoop`
-([src/runner/runner.ts](../src/runner/runner.ts)) folds an owned `AgentEvent[]` log
-into one custom-format prompt (the **reducer**, [src/runner/thread/](../src/runner/thread/)),
+([src/app/runner/runner.ts](../src/app/runner/runner.ts)) folds an owned `AgentEvent[]` log
+into one custom-format prompt (the **reducer**, [src/app/runner/thread/](../src/app/runner/thread/)),
 calls `step`, runs the approval gate, executes tools with `Promise.all`, appends the
 resulting events, and **returns** `{ answer, events, usage }`. The **`EventBus` is
 UI-only and never persisted**; the durable state is the event log. A few design
@@ -85,9 +93,9 @@ handoff) — live in **[agent-loop.md](./agent-loop.md)**. The rest of this docu
 covers everything the agent deliberately does _not_ own: state, persistence,
 retrieval infrastructure, and the UI.
 
-## The Session (integration owns state)
+## The Session (app/session owns state)
 
-`Session` ([src/integration/session.ts](../src/integration/session.ts)) owns
+`Session` ([src/app/session/session.ts](../src/app/session/session.ts)) owns
 everything the agent does not: pinned memories, indexed sources, token
 accounting, the context window, and persistence. It reads all transcript state
 from the `Store` on each turn — no in-memory `log`. `runTurn`:
@@ -134,7 +142,7 @@ and resumes a prior thread directly.
 
 When the un-summarized tail exceeds `KEEP_LAST_TURNS` (4) user turns, `maintainWindow`
 folds the **whole tail** into one `summary` segment via the pure `summarize` helper
-([src/tokens/summarizer.ts](../src/tokens/summarizer.ts)) and **appends** it as a new
+([src/app/tokens/summarizer.ts](../src/app/tokens/summarizer.ts)) and **appends** it as a new
 `kind = 'summary'` event. Segments are never rewritten; `queryHistory().forModel()`
 returns every segment plus the messages after the last one, so evicted turns are
 represented (never dropped) — see [agent-loop.md](./agent-loop.md#windowing). Windowing
@@ -142,7 +150,7 @@ lives in the Session, not the agent.
 
 ### Prompt caching
 
-The reducer ([src/runner/thread/reducer.ts](../src/runner/thread/reducer.ts)) packs
+The reducer ([src/app/runner/thread/reducer.ts](../src/app/runner/thread/reducer.ts)) packs
 one `user` message ordered **events → memories → next-step framing**, where the event
 list itself leads with the `summary` segments. Segments change only when a new one is
 minted, messages are append-only, and pinned memories go **last** so a `/remember`
@@ -155,7 +163,7 @@ delegation can pass a subset — see [agent-loop.md](./agent-loop.md#memories-in
 
 ### Token accounting
 
-`usage.ts` ([src/integration/usage.ts](../src/integration/usage.ts)) tracks real
+`usage.ts` ([src/app/session/usage.ts](../src/app/session/usage.ts)) tracks real
 API usage (from the model's `usage` field — never estimated) and a naive
 append-everything baseline (estimated via `estimateTokens`, chars/4). The exit
 report contrasts the two to show the savings from windowing + caching, charging
@@ -183,7 +191,7 @@ lives in **[rag.md](./rag.md)**. Multi-hop retrieval is delegated to the
 ## The UI
 
 The Ink TUI ([src/ui/](../src/ui/)) is a thin adapter over the event stream. The
-REPL ([src/input/repl.ts](../src/input/repl.ts)) subscribes to the `EventBus` and
+REPL ([src/app/input/repl.ts](../src/app/input/repl.ts)) subscribes to the `EventBus` and
 maps each event (`delta`/`tool`/`status`/`approval_*`) to a `ChatHandle` call, then
 commits the answer returned by `Session.runTurn`.
 `chat.tsx` holds the root `Chat` component and the imperative `renderChat`

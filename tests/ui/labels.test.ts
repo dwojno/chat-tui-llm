@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toolStepLabel } from "../../src/ui/labels";
+import { toolStepLabel } from "@/ui/labels";
 
 describe("toolStepLabel", () => {
   it("maps known tool names to their friendly labels (main + fork tools)", () => {

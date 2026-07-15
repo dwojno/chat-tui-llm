@@ -16,7 +16,7 @@ vi.mock("ink", () => ({
   useInput: () => {},
 }));
 
-import { renderChat } from "../../src/ui/chat";
+import { renderChat } from "@/ui/chat";
 
 describe("renderChat handle", () => {
   it("appends completed messages", () => {

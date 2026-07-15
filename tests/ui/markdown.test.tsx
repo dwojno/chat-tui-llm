@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render } from "ink-testing-library";
-import Markdown from "../../src/ui/markdown";
+import Markdown from "@/ui/markdown";
 
 /** Ink emits ANSI styling; assert on the visible text with those stripped. */
 // eslint-disable-next-line no-control-regex

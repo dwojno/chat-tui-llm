@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PROFILE_ID } from "../../src/store/profile/profile.repository";
+import { DEFAULT_PROFILE_ID } from "@/store/profile/profile.repository";
 import { openMemoryStore } from "./helpers";
 
 describe("Profile domain", () => {

@@ -29,16 +29,16 @@ history you own into an input, ask for one decision, append the result, repeat:
 
 Three parts, each with one job:
 
-| Part                          | Owns                                | Doesn't own                        |
-| ----------------------------- | ----------------------------------- | ---------------------------------- |
-| **`AgentEvent[]`** (the log)  | the entire turn state, serialized   | —                                  |
-| **reducer** (`runner/thread`) | `events → prompt`, error compaction | I/O, the model, windowing          |
-| **`Agent`** (`agent/`)        | one model call, one tool dispatch   | the loop, the log, context, config |
+| Part                              | Owns                                | Doesn't own                        |
+| --------------------------------- | ----------------------------------- | ---------------------------------- |
+| **`AgentEvent[]`** (the log)      | the entire turn state, serialized   | —                                  |
+| **reducer** (`app/runner/thread`) | `events → prompt`, error compaction | I/O, the model, windowing          |
+| **`Agent`** (`agent/`)            | one model call, one tool dispatch   | the loop, the log, context, config |
 
 ## The event log is the state
 
 Everything durable is an `AgentEvent` in one append-only log
-([runner/thread/events.ts](../src/runner/thread/events.ts)). The SDK's
+([app/runner/thread/events.ts](../src/app/runner/thread/events.ts)). The SDK's
 `ResponseInputItem` is no longer the domain type — it survives only at the model
 boundary.
 
@@ -63,7 +63,7 @@ requests/responses are events too, so the transcript is complete and auditable.
 
 ## Own your context window
 
-The reducer ([runner/thread/reducer.ts](../src/runner/thread/reducer.ts)) folds the
+The reducer ([app/runner/thread/reducer.ts](../src/app/runner/thread/reducer.ts)) folds the
 log into **one packed `<user>` message** — a custom, token-efficient format, not a raw
 role array. Each event renders as an XML-tagged block; a tool call is `<{intent}>`, its
 result `<{intent}_result>`:
@@ -92,7 +92,7 @@ buildMessage({ events, memories }) -> ResponseInputItem[]   // length-1: one use
 Summaries are just `summary` events in the log (see [Windowing](#windowing)), so the
 reducer takes only `events` + `memories` — there's no separate summary channel. Data
 renders as YAML via a tiny dependency-free serializer
-([yaml.ts](../src/runner/thread/yaml.ts)), keeping the "frameworkless" claim intact.
+([yaml.ts](../src/app/runner/thread/yaml.ts)), keeping the "frameworkless" claim intact.
 
 **Ordering is deliberate — it protects the prompt cache.** Summary segments lead (they
 only change when a new one is minted), messages append-only, memories **last** (so a
@@ -108,7 +108,7 @@ SDK output items; the array simply now holds that one reduced message.
 The log can't grow forever, so it's bounded by **summary segments**. After each turn, if
 the un-summarized tail (messages since the last summary) exceeds `KEEP_LAST_TURNS` (4),
 the whole tail is folded into a single new `summary` event and appended — a checkpoint,
-not a rewrite (`maintainWindow`, [session.ts](../src/integration/session.ts)).
+not a rewrite (`maintainWindow`, [session.ts](../src/app/session/session.ts)).
 
 `forModel()` then returns **every summary segment, then the messages after the last
 one** — so nothing is dropped as the window slides: evicted turns are represented by
@@ -137,7 +137,7 @@ executeTool(call, deps): Promise<string>
 ```
 
 The **loop** is a plain async function the caller owns
-([runner.ts](../src/runner/runner.ts)):
+([runner.ts](../src/app/runner/runner.ts)):
 
 ```ts
 runAgentLoop({ agent, events, options, context, bus,
@@ -170,7 +170,7 @@ fire several tools in one turn (executed in parallel via `Promise.all`), the fin
 answer still streams token-by-token, and delegation/approval are untouched.
 
 "Intents" enter the loop as two **reserved control tools**
-([tools/control-intents.ts](../src/tools/control-intents.ts)) the runner _interprets_
+([app/tools/control-intents.ts](../src/app/tools/control-intents.ts)) the runner _interprets_
 by name instead of dispatching:
 
 | Intent                     | Carries                | Effect                                     |
@@ -224,7 +224,7 @@ subscribes to the bus; a web server could forward the same stream over SSE.
 
 ## Model routing
 
-Role-routed via constants ([config.ts](../src/config.ts)):
+Role-routed via constants ([config.ts](../src/app/config.ts)):
 
 | Constant                                    | Value         | Used by                                    |
 | ------------------------------------------- | ------------- | ------------------------------------------ |
@@ -254,10 +254,10 @@ loop with a different `TurnProfile`. The recursion seam is `ToolRunContext.runTu
 ([conversation/turn.ts](../src/agent/conversation/turn.ts)), which stays **SDK-typed**
 (`messages` in, `items` out) so `agent/` never imports the event type and there's no
 import cycle. The runner **bridges** at that boundary via
-[convert.ts](../src/runner/thread/convert.ts) — SDK items ⇄ events — while working in
+[convert.ts](../src/app/runner/thread/convert.ts) — SDK items ⇄ events — while working in
 events internally.
 
-`runFork` ([delegate-task.ts](../src/tools/delegation/delegate-task.ts)):
+`runFork` ([delegate-task.ts](../src/app/tools/delegation/delegate-task.ts)):
 
 1. builds a self-contained brief from the selected memories (`relevantMemoryKeys`) + the `task`;
 2. resolves the fork profile into a `TurnProfile` (instructions, tool schemas,
@@ -274,7 +274,7 @@ events internally.
 ### Fork profiles
 
 A fork runs under a named profile; `FORK_PROFILE_NAMES`
-([tools/types.ts](../src/agent/tools/types.ts)) is the single source of truth from which
+([agent/tools/types.ts](../src/agent/tools/types.ts)) is the single source of truth from which
 the type, the map, and the `delegate_task` `profile` enum all derive.
 
 | Profile        | Instructions            | Tools                                                              |
@@ -288,7 +288,7 @@ call a fork makes. Adding a profile is two compiler-enforced edits (name + map e
 ### Structured handoff (`ForkResult`)
 
 A fork's whole transcript is compressed into a strict schema
-([fork-result.ts](../src/tools/delegation/fork-result.ts)) rather than prose, so exact
+([fork-result.ts](../src/app/tools/delegation/fork-result.ts)) rather than prose, so exact
 values survive:
 
 ```ts

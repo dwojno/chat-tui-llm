@@ -1,11 +1,11 @@
 import { Readable } from "node:stream";
-import type { BlobStore } from "../../src/store/sources/rag/blob-store";
-import { loadRagConfig, type RagConfig } from "../../src/store/sources/rag/config";
-import { encodeSparse, type DenseEmbedder } from "../../src/store/sources/rag/embeddings";
-import { RagEngine } from "../../src/store/sources/rag/engine";
-import type { SearchResult, VectorIndex, VectorPoint } from "../../src/store/sources/rag/qdrant";
-import type { RagDeps } from "../../src/store/sources/rag/deps";
-import type { RankedHit, RerankCandidate, Reranker } from "../../src/store/sources/rag/reranker";
+import type { BlobStore } from "@/store/sources/rag/blob-store";
+import { loadRagConfig, type RagConfig } from "@/store/sources/rag/config";
+import { encodeSparse, type DenseEmbedder } from "@/store/sources/rag/embeddings";
+import { RagEngine } from "@/store/sources/rag/engine";
+import type { SearchResult, VectorIndex, VectorPoint } from "@/store/sources/rag/qdrant";
+import type { RagDeps } from "@/store/sources/rag/deps";
+import type { RankedHit, RerankCandidate, Reranker } from "@/store/sources/rag/reranker";
 
 const EMBED_DIM = 64;
 

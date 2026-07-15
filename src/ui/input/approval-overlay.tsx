@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
-import type { ApprovalRequest } from "../../agent/humanLayer/approval";
+import type { ApprovalRequest } from "@/agent/humanLayer/approval";
 
 const ALL_OPTIONS = [
   { id: "approve", label: "Approve", key: "a" },

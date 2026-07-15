@@ -1,4 +1,4 @@
-import { LocalStore } from "../../src/store";
+import { LocalStore } from "@/store";
 
 export function openMemoryStore() {
   return LocalStore.open(":memory:");

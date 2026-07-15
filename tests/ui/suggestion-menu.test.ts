@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isExactSlashCommand } from "../../src/ui/components/suggestion-menu";
+import { isExactSlashCommand } from "@/ui/components/suggestion-menu";
 
 describe("isExactSlashCommand", () => {
   it("matches complete slash commands", () => {

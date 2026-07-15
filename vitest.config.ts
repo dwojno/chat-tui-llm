@@ -1,3 +1,4 @@
+import path from "node:path";
 import { defineConfig } from "vitest/config";
 
 /**
@@ -6,6 +7,12 @@ import { defineConfig } from "vitest/config";
  * model. Vitest's oxc transform handles the `.tsx` UI tests' JSX automatically.
  */
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@tests": path.resolve(__dirname, "tests"),
+      "@": path.resolve(__dirname, "src"),
+    },
+  },
   test: {
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
     environment: "node",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { asArray } from "../../src/store/helpers";
+import { asArray } from "@/store/helpers";
 
 describe("asArray", () => {
   it("wraps a single value", () => {

@@ -3,6 +3,10 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@tests/*": ["./tests/*"]
+    },
     "jsx": "react-jsx",
     "lib": ["es2023"],
     "esModuleInterop": true,

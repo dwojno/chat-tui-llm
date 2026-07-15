@@ -1,6 +1,6 @@
 import React from "react";
 import { render, Box, Static } from "ink";
-import type { UsageSnapshot } from "../integration/usage";
+import type { UsageSnapshot } from "@/app/session/usage";
 import type { LiveTurn, Message, Step } from "./types";
 import { ChatMessage } from "./components/message";
 import { StreamingMessage } from "./components/streaming-message";
@@ -10,11 +10,8 @@ import { PromptInput } from "./input/prompt-input";
 import { PickerOverlay, PromptOverlay } from "./input/picker-overlay";
 import { ApprovalOverlay } from "./input/approval-overlay";
 import type { PickerItem } from "./input/picker-keys";
-import type { ApprovalDecision, ApprovalRequest } from "../agent/humanLayer/approval";
-import type {
-  ClarificationRequest,
-  ClarificationResponse,
-} from "../agent/humanLayer/clarification";
+import type { ApprovalDecision, ApprovalRequest } from "@/agent/humanLayer/approval";
+import type { ClarificationRequest, ClarificationResponse } from "@/agent/humanLayer/clarification";
 
 export type { Message, Step, Role } from "./types";
 export type { ChatContextBar } from "./components/usage-bar";

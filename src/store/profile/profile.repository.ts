@@ -1,6 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
-import type { SqliteDb } from "../../db/db";
-import { profile } from "../../db/schema";
+import type { SqliteDb } from "@/store/db/db";
+import { profile } from "@/store/db/schema";
 import { asArray, type OneOrMany } from "../helpers";
 
 export const DEFAULT_PROFILE_ID = "personal";
