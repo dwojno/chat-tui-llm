@@ -1,11 +1,11 @@
 import { zodTextFormat } from "openai/helpers/zod";
 import type { ResponseInputItem, ResponseUsage } from "openai/resources/responses/responses.mjs";
 import type { ZodType } from "zod";
-import { MODEL } from "../../src/agent/config";
-import { SYSTEM_INSTRUCTIONS } from "../../src/agent/prompts";
+import { MODEL } from "../../src/config";
+import { SYSTEM_INSTRUCTIONS } from "../../src/prompts";
 import { buildContextBlock } from "../../src/context/context";
 import { getFunctionCalls } from "../../src/agent/conversation/items";
-import type { OpenAITool } from "../../src/agent/conversation/turn";
+import type { OpenAITool } from "../../src/agent/tools/types";
 import { mainToolSchemas } from "../../src/tools";
 import { openai } from "./client";
 

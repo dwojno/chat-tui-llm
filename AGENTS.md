@@ -51,8 +51,8 @@ src/
     humanLayer/    # approval + clarification gate CONTRACT types (policy lives in runner/)
     conversation/  # TurnOptions, TurnContext/TurnProfile/ToolRunContext, item helpers
     tools/         # tool CONTRACT only: ToolDefinition + registry helpers (impls in src/tools/)
-    prompts/       # orchestrator system prompt (fork prompts live in src/tools/prompts/)
-    config/        # model / temperature / cache-key / MAX_TOOL_STEPS / MAX_CONSECUTIVE_ERRORS
+  config.ts      # app constants: model / temperature / cache-key / MAX_TOOL_STEPS / MAX_CONSECUTIVE_ERRORS
+  prompts.ts     # orchestrator system prompt (fork prompts live in src/tools/prompts/)
   runner/        # runAgentLoop (runner.ts) + thread/ — reducer, AgentEvent log, windowing, SDK⇄event convert
   tools/         # tool IMPLEMENTATIONS: weather, web-search, disk, rag, ask-user, control-intents,
                  #   delegation/ (delegate_task[s] + handoff + fork-result), prompts/, format.ts
@@ -334,7 +334,7 @@ import { renderChat } from "../ui/chat";
 
 **Always OK** — add a tool implementation under [src/tools/](src/tools/) (register it
 in `createAgentTools`'s `tools` or a `forkProfiles` entry); edit the system prompt in
-[src/agent/prompts/](src/agent/prompts/) or fork prompts in
+[src/prompts.ts](src/prompts.ts) or fork prompts in
 [src/tools/prompts/](src/tools/prompts/) alongside an eval; add/extend tests; run
 `typecheck`/`lint`/`format`/`test` freely.
 

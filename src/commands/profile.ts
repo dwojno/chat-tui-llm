@@ -1,4 +1,4 @@
-import { ORCHESTRATOR_MODEL } from "../agent/config";
+import { ORCHESTRATOR_MODEL } from "../config";
 import type { Command } from "./types";
 import { applyContextSwitch } from "../integration/switch";
 import type { PickerItem } from "../ui/input/picker-keys";

@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import { toOpenAITool, type ForkProfiles, type ToolDefinition } from "../agent/tools/types";
-import type { OpenAITool } from "../agent/conversation/turn";
-import { FORK_MODEL } from "../agent/config";
+import type { OpenAITool } from "../agent/tools/types";
+import { FORK_MODEL } from "../config";
 import type { Store } from "../store";
 import { askUserTool } from "./ask-user";
 import { controlIntentTools } from "./control-intents";

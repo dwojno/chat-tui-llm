@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { toOpenAITool, type ForkProfiles } from "../../../src/agent/tools/types";
 import type { ToolRunContext } from "../../../src/agent/conversation/turn";
 import { EventBus } from "../../../src/agent/events/bus";
-import { FORK_MODEL } from "../../../src/agent/config";
+import { FORK_MODEL } from "../../../src/config";
 import { FORK_INSTRUCTIONS } from "../../../src/tools/prompts/fork";
 import {
   DELEGATE_TASKS_NAME,

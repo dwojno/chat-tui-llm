@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { z } from "zod";
-import { CHEAP_MODEL } from "../../agent/config";
+import { CHEAP_MODEL } from "../../config";
 import { endSpan, recordLlmSpan, setSpanIO, startSpan, withSpan } from "../../telemetry";
 import { keyMemories } from "../../context/context";
 import { compressHandoff } from "./handoff";

@@ -14,11 +14,6 @@ export {
   type ApprovalRisk,
 } from "../humanLayer/approval";
 
-/**
- * Tool-registry helpers. The agent core ships with no tools of its own — the
- * host composes `ToolDefinition`s (see `src/integration/tools/`) and injects
- * them via `AgentConfig`. These helpers resolve a call against a given list.
- */
 export function describeToolCall(
   tools: ToolDefinition<z.ZodType>[],
   name: string,

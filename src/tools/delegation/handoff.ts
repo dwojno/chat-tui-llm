@@ -1,7 +1,7 @@
 import type { OpenAI } from "openai";
 import type { ResponseInputItem, ResponseUsage } from "openai/resources/responses/responses.mjs";
 import { zodTextFormat } from "openai/helpers/zod";
-import { CHEAP_MODEL } from "../../agent/config";
+import { CHEAP_MODEL } from "../../config";
 import { renderItemsText } from "../../agent/conversation/items";
 import { ForkResultSchema, type ForkResult } from "./fork-result";
 

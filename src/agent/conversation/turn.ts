@@ -1,7 +1,7 @@
 import type { OpenAI } from "openai";
 import type { ResponseInputItem, ResponseUsage } from "openai/resources/responses/responses.mjs";
 import type { EventBus } from "../events/bus";
-import type { ForkProfiles } from "../tools/types";
+import type { ForkProfiles, OpenAITool } from "../tools/types";
 import type { ApprovalGate } from "../humanLayer/approval";
 import type { ClarificationGate } from "../humanLayer/clarification";
 import type { TurnOptions } from "./options";
@@ -10,15 +10,6 @@ export type TurnContext = {
   memories: readonly string[];
   requestApproval?: ApprovalGate;
   requestClarification?: ClarificationGate;
-};
-
-export type OpenAITool = {
-  type: "function";
-  name: string;
-  label: string;
-  parameters: Record<string, unknown>;
-  strict: boolean;
-  description: string;
 };
 
 export type TurnProfile = {

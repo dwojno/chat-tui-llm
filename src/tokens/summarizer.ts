@@ -1,6 +1,6 @@
 import type { OpenAI } from "openai";
 import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
-import { CHEAP_MODEL } from "../agent/config";
+import { CHEAP_MODEL } from "../config";
 import type { AgentEvent } from "../runner/thread/events";
 import { threadToPrompt } from "../runner/thread/reducer";
 
