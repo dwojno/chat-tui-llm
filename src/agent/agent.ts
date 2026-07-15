@@ -32,6 +32,16 @@ import {
   withSpan,
 } from "@/platform/telemetry";
 
+/**
+ * Reasoning models (the o-series and the gpt-5 family, excluding their -chat
+ * variants) reject a `temperature` param; sampling is fixed. Callers still carry
+ * a temperature for the classic chat models, so the request builder drops it for
+ * these rather than 400ing every turn.
+ */
+function isReasoningModel(model: string): boolean {
+  return (/^o\d/.test(model) || model.startsWith("gpt-5")) && !model.includes("chat");
+}
+
 const EMPTY_FORK_PROFILE: ForkProfile = { instructions: "", tools: [], model: "" };
 const EMPTY_FORK_PROFILES = Object.fromEntries(
   FORK_PROFILE_NAMES.map((name) => [name, EMPTY_FORK_PROFILE]),
@@ -198,12 +208,14 @@ export class Agent {
         ? { format: { type: "json_object" as const } }
         : undefined;
 
+    const model = profile.model ?? options.model;
+
     return {
-      model: profile.model ?? options.model,
+      model,
       input: [...input],
       instructions: profile.instructions,
       ...(text ? { text } : {}),
-      temperature: this.temperature,
+      ...(isReasoningModel(model) ? {} : { temperature: this.temperature }),
       ...(profile.reasoningEffort ? { reasoning: { effort: profile.reasoningEffort } } : {}),
       ...(options.max_output_tokens !== undefined
         ? { max_output_tokens: options.max_output_tokens }

@@ -76,13 +76,6 @@ describe("Session.runTurn", () => {
     expect(row?.title).toBe("My first question he");
   });
 
-  it("sends the code-defined temperature constant regardless of profile", async () => {
-    const { session, mock } = await makeSession([{ text: "hello" }]);
-    await session.runTurn("hi", DEFAULT_TURN_OPTIONS);
-    const params = mock.calls.stream[0] as { temperature?: number };
-    expect(params.temperature).toBe(TEMPERATURE);
-  });
-
   it("defaults the orchestrator model to ORCHESTRATOR_MODEL", async () => {
     const { session, mock } = await makeSession([{ text: "hi" }]);
     await session.runTurn("hi", DEFAULT_TURN_OPTIONS);

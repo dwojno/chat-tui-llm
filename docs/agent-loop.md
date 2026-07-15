@@ -53,7 +53,8 @@ type AgentEvent =
   | { type: "clarification_request"; question; options? }
   | { type: "human_response"; content }
   | { type: "assistant_answer"; content; sources? } // the terminal answer
-  | { type: "summary"; content }; // a rolling-summary segment (see Windowing)
+  | { type: "summary"; content } // a rolling-summary segment (see Windowing)
+  | { type: "scratchpad"; ops }; // a working-memory mutation (see Scratchpad)
 ```
 
 Because the log **is** the state, there is no separate snapshot format: persist the
@@ -86,6 +87,7 @@ buildMessage({ events, memories }) -> ResponseInputItem[]   // length-1: one use
     </get_weather_data_result>
   </events>
   <context> …<user_known_memories> M1: … </user_known_memories>… </context>   ← appended LAST
+  <scratchpad> <todo> - [x] check Paris … </todo> </scratchpad>   ← derived working state
   <next_step>Choose the next step: call tools, ask, or answer.</next_step>
 ```
 
@@ -183,6 +185,29 @@ fast path; `done_for_now` is for answers that need explicit sources. Malformed/t
 intent arguments don't crash the turn: the runner records a compact `error` event and
 lets the model self-heal (below).
 
+## Scratchpad: a derived-state action
+
+The `update_scratchpad` tool ([app/tools/scratchpad.ts](../src/app/tools/scratchpad.ts)) is
+the agent's private working memory across steps — a todo list, a discovery plan, interim
+findings. Like the control intents it is **interpreted by name, never dispatched**: the
+runner pulls scratchpad calls out of the work set, folds each into a `scratchpad` event,
+and — because updating the plan is progress, not an answer — a scratchpad-only step
+`continue`s the loop rather than terminating.
+
+It is a second reducer over the same log. Ops are generic named sections
+(`{ section, content }`, `content: null` clears one), and `deriveScratchpad(events)` folds
+them last-write-wins per section into the current state the reducer renders as
+`<scratchpad>` — placed after `<context>`, before `<next_step>`, so the agent sees its
+plan right as it chooses the next step. The raw `scratchpad` events are **suppressed from
+the transcript** (`eventToPrompt` returns `null`, exactly like approval bookkeeping) — only
+the folded state is shown, so a growing stream of "I edited the todo" calls never clutters
+context. To mark a todo done the model rewrites the whole section with the item checked;
+there is no per-item op, keeping the fold trivial and desync-free.
+
+State is folded only from the windowed events (`forModel()`), so the scratchpad reliably
+persists within `KEEP_LAST_TURNS` — deliberately temporary working memory, not durable
+storage. It rides the orchestrator only; forks stay lean.
+
 ## Compact errors → self-healing
 
 A tool that throws is caught by `executeTool` and returned as a compact `"Error: …"`
@@ -226,18 +251,20 @@ subscribes to the bus; a web server could forward the same stream over SSE.
 
 Role-routed via constants ([config.ts](../src/app/config.ts)):
 
-| Constant                                    | Value         | Used by                                    |
-| ------------------------------------------- | ------------- | ------------------------------------------ |
-| `ORCHESTRATOR_MODEL`                        | `gpt-4o`      | the top-level turn                         |
-| `FORK_MODEL`                                | `gpt-4o-mini` | delegated sub-agents                       |
-| `CHEAP_MODEL`                               | `gpt-4o-mini` | handoff compression + rolling summarizer   |
-| `TEMPERATURE`                               | `0.7`         | injected into the `Agent`, sent every turn |
-| `MAX_TOOL_STEPS` / `MAX_CONSECUTIVE_ERRORS` | `8` / `3`     | loop bounds, injected into `runAgentLoop`  |
+| Constant                                    | Value          | Used by                                       |
+| ------------------------------------------- | -------------- | --------------------------------------------- |
+| `ORCHESTRATOR_MODEL`                        | `gpt-5.6-luna` | the top-level turn (a reasoning model)        |
+| `FORK_MODEL`                                | `gpt-4.1-nano` | delegated sub-agents                          |
+| `SUMMARIZER_MODEL`                          | `gpt-4.1-nano` | rolling summarizer                            |
+| `HANDOFF_MODEL`                             | `gpt-4.1-nano` | fork-result (handoff) compression             |
+| `TEMPERATURE`                               | `0.7`          | injected into the `Agent`; non-reasoning only |
+| `MAX_TOOL_STEPS` / `MAX_CONSECUTIVE_ERRORS` | `8` / `3`      | loop bounds, injected into `runAgentLoop`     |
 
 `buildRequestParams` resolves the model by `profile.model ?? options.model`: the
 orchestrator leaves `profile.model` unset so the `/profile` override (or
 `ORCHESTRATOR_MODEL`) wins; a fork sets `profile.model = FORK_MODEL`. **Temperature is
-code-defined only** — not on `TurnOptions` or the user profile.
+code-defined only** — not on `TurnOptions` or the user profile — and `buildRequestParams`
+omits it for reasoning models (`gpt-5` family, `o`-series), which reject the param.
 
 ## Memories in context
 
@@ -301,7 +328,7 @@ ForkResultSchema = z.object({
 });
 ```
 
-`compressHandoff` makes one `responses.parse` call (`CHEAP_MODEL`) over the full child
+`compressHandoff` makes one `responses.parse` call (`HANDOFF_MODEL`) over the full child
 transcript; a truncated/unparseable response falls back to a low-confidence result. Only
 this digest re-enters the parent's context.
 

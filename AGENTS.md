@@ -63,7 +63,7 @@ src/
     runner/        # runAgentLoop (runner.ts) + thread/ — reducer, AgentEvent log, windowing, SDK⇄event convert
     session/       # thin wiring: session.ts (state + persistence), switch.ts, usage.ts
     tools/         # tool IMPLEMENTATIONS: weather, web-search, disk, rag, ask-user, control-intents,
-                   #   delegation/ (delegate_task[s] + handoff + fork-result), prompts/, format.ts
+                   #   scratchpad, delegation/ (delegate_task[s] + handoff + fork-result), prompts/, format.ts
     commands/      # user-intent handlers (/learn, /conversation, /structured, …)
     input/         # repl.ts (REPL input loop, subscribes to the bus) + file-mentions.ts
     context/       # <user_known_memories> block assembly
@@ -94,7 +94,8 @@ owned `AgentEvent[]` log into one packed `<user>` message via the reducer
 ([app/runner/thread/](src/app/runner/thread/)), calls the pure primitives `Agent.step()`
 (one model call) and `Agent.executeTool()` (dispatch one tool, fanned out with
 `Promise.all`) — interpreting the reserved control intents `done_for_now` /
-`request_more_information` by name — runs the approval gate at the
+`request_more_information` (and folding `update_scratchpad` into working-memory state)
+by name — runs the approval gate at the
 tool-selection→invocation seam, caps at `MAX_TOOL_STEPS` (8) and
 `MAX_CONSECUTIVE_ERRORS` (3), and **returns** `{ answer, events, usage }`. The
 **`EventBus` is UI-only and never persisted** — it carries
@@ -104,22 +105,25 @@ transcript event log, token `usage`) rides in the return value. `step()` streams
 `Session` owns all state, persists the returned events/usage via the `Store`, and the
 agent **retains nothing**. Last `KEEP_LAST_TURNS` (4) turns stay verbatim; older ones
 fold into a rolling summary — the reducer orders the packed prompt summary → events →
-memories, so a `/remember` changes only the tail and never invalidates the cached
-prefix above it. The agent is context-free: the reducer folds the event log, summary,
+memories → scratchpad, so a `/remember` changes only the tail and never invalidates the
+cached prefix above it. The `<scratchpad>` block is a second fold (`deriveScratchpad`)
+over the same log — the agent's private, temporary working memory (todo/plan/findings),
+rendered from `update_scratchpad` ops but suppressed from the transcript itself. The agent is context-free: the reducer folds the event log, summary,
 and the `<user_known_memories>` block (numbered via `keyMemories`,
 [app/context/context.ts](src/app/context/context.ts)) into that one message — `step()` just
 takes the input.
 
 **Models are role-routed** (config constants): the orchestrator turn runs
-`ORCHESTRATOR_MODEL` (`gpt-4o`, overridable per user-profile via the `model`
-column); forks run `FORK_MODEL`; the handoff compressor and rolling summarizer
-run `CHEAP_MODEL`. Precedence is `turnProfile.model ?? options.model` in
-`buildRequestParams` — the orchestrator leaves `turnProfile.model` unset so the
-user-profile/`ORCHESTRATOR_MODEL` (via `options.model`) wins, while a fork sets
-`turnProfile.model = FORK_MODEL`. **Temperature is code-defined only** (`TEMPERATURE`
-constant, sent on every main turn) — not exposed on `TurnOptions` or the user
-profile. `reasoningEffort` is plumbed on `TurnProfile` but inert on non-reasoning
-models.
+`ORCHESTRATOR_MODEL` (`gpt-5.6-luna`, a reasoning model, overridable per user-profile
+via the `model` column); forks run `FORK_MODEL`; the handoff compressor runs
+`HANDOFF_MODEL` and the rolling summarizer `SUMMARIZER_MODEL`. Precedence is
+`turnProfile.model ?? options.model` in `buildRequestParams` — the orchestrator leaves
+`turnProfile.model` unset so the user-profile/`ORCHESTRATOR_MODEL` (via `options.model`)
+wins, while a fork sets `turnProfile.model = FORK_MODEL`. **Temperature is code-defined
+only** (`TEMPERATURE` constant) and sent on non-reasoning turns; `buildRequestParams`
+omits it for reasoning models (the `gpt-5` family and `o`-series), which reject the
+param. `reasoningEffort` is plumbed on `TurnProfile` — active on reasoning models,
+inert on the rest.
 
 **Memories** (persistent per-profile notes, formerly "facts") ride in
 `TurnContext.memories`, render as numbered `M1…Mn` in `<user_known_memories>`, and

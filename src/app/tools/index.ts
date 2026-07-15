@@ -13,6 +13,7 @@ import { editFileTool } from "./edit-file";
 import { createRagTools } from "./rag";
 import { readFileTool } from "./read-file";
 import { requestApprovalTool } from "./request-approval";
+import { updateScratchpadTool } from "./scratchpad";
 import { weatherTool } from "./weather";
 import { webSearchTool } from "./web-search";
 import { writeFileTool } from "./write-file";
@@ -26,6 +27,7 @@ export { askUserTool } from "./ask-user";
 export { readFileTool } from "./read-file";
 export { writeFileTool } from "./write-file";
 export { editFileTool } from "./edit-file";
+export { updateScratchpadTool, UPDATE_SCRATCHPAD_NAME } from "./scratchpad";
 export {
   controlIntentTools,
   doneForNowTool,
@@ -53,6 +55,7 @@ const mainTools: ToolDefinition<z.ZodType>[] = [
   readFileTool,
   writeFileTool,
   editFileTool,
+  updateScratchpadTool,
   ...controlIntentTools,
 ];
 

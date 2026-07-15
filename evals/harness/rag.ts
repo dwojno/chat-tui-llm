@@ -7,7 +7,7 @@ import { EVAL_MAX_RETRIES } from "./client";
 import { Agent } from "@/agent/agent";
 import { EventBus } from "@/agent/events/bus";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
-import { MODEL, MAX_TOOL_STEPS, MAX_CONSECUTIVE_ERRORS } from "@/app/config";
+import { EVAL_PROBE_MODEL, MAX_TOOL_STEPS, MAX_CONSECUTIVE_ERRORS } from "@/app/config";
 import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "@/agent/conversation/options";
 import { runAgentLoop } from "@/app/runner/runner";
 import { eventsToInputItems } from "@/app/runner/thread/convert";
@@ -118,7 +118,7 @@ export interface RagHarnessOptions {
   openai?: OpenAI;
 }
 
-const CHAT_MODEL = process.env.RAG_CHAT_MODEL ?? MODEL;
+const CHAT_MODEL = process.env.RAG_CHAT_MODEL ?? EVAL_PROBE_MODEL;
 
 interface Wired {
   store: Store;

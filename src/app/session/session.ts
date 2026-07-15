@@ -30,7 +30,7 @@ import {
   responseUsageToTokens,
 } from "@/store";
 import {
-  CHEAP_MODEL,
+  SUMMARIZER_MODEL,
   MAX_CONSECUTIVE_ERRORS,
   MAX_TOOL_STEPS,
   ORCHESTRATOR_MODEL,
@@ -293,7 +293,7 @@ export class Session {
     try {
       const { text, usage } = await summarize(this.openai, "", evicted);
       recordLlmSpan(span, {
-        model: CHEAP_MODEL,
+        model: SUMMARIZER_MODEL,
         operation: "summarize",
         usage,
         input: JSON.stringify({ evicted }),

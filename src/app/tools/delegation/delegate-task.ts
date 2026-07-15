@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { z } from "zod";
-import { CHEAP_MODEL } from "@/app/config";
+import { HANDOFF_MODEL } from "@/app/config";
 import { endSpan, recordLlmSpan, setSpanIO, startSpan, withSpan } from "@/platform/telemetry";
 import { keyMemories } from "@/app/context/context";
 import { compressHandoff } from "./handoff";
@@ -114,10 +114,10 @@ export async function runFork(
       ctx.recordUsage(child.usage);
 
       const childItems = [userMessage, ...child.items];
-      const handoffSpan = startSpan(`gen_ai.handoff ${CHEAP_MODEL}`, { parent: forkSpan });
+      const handoffSpan = startSpan(`gen_ai.handoff ${HANDOFF_MODEL}`, { parent: forkSpan });
       const { result, usage } = await compressHandoff(ctx.openai, childItems, "");
       recordLlmSpan(handoffSpan, {
-        model: CHEAP_MODEL,
+        model: HANDOFF_MODEL,
         operation: "handoff",
         usage,
         input: JSON.stringify(childItems),

@@ -21,6 +21,7 @@ import { Agent } from "@/agent/agent";
 import { runAgentLoop } from "@/app/runner/runner";
 import type { AgentEvent } from "@/app/runner/thread/events";
 import { createMockOpenAI, type MockTurn } from "@tests/helpers/mock-openai";
+import assert from "node:assert";
 
 const exec = vi.mocked(executeToolCall);
 
@@ -189,6 +190,20 @@ describe("runAgentLoop", () => {
     expect(params.model).toBe("gpt-4o-mini");
   });
 
+  it("sends the code-defined temperature for a classic (non-reasoning) model", async () => {
+    const { agent, mock } = makeAgent([{ text: "ok" }]);
+    await run(agent, [userMessage("hi")], { ...DEFAULT_TURN_OPTIONS, model: "gpt-4o-mini" });
+    const params = mock.calls.stream[0] as { temperature?: number };
+    expect(params.temperature).toBe(0.7);
+  });
+
+  it("omits temperature for a reasoning model that would reject it", async () => {
+    const { agent, mock } = makeAgent([{ text: "ok" }]);
+    await run(agent, [userMessage("hi")], { ...DEFAULT_TURN_OPTIONS, model: "gpt-5.6-luna" });
+    const params = mock.calls.stream[0] as { temperature?: number };
+    expect(params.temperature).toBeUndefined();
+  });
+
   it("forbids tools on the final round to stop an infinite tool loop", async () => {
     const turns: MockTurn[] = Array.from({ length: 8 }, () => ({
       calls: [{ name: "get_weather_data", arguments: { city: "Paris" } }],
@@ -280,6 +295,45 @@ describe("runAgentLoop control intents", () => {
     expect(asked).toEqual(["which city?"]);
     expect(result.events.some((e) => e.type === "human_response")).toBe(true);
     expect(result.answer).toBe("Thanks — Paris it is.");
+  });
+
+  it("folds a scratchpad-only step and shows it back on the next step without finishing", async () => {
+    const { agent, mock } = makeAgent([
+      {
+        calls: [
+          {
+            name: "update_scratchpad",
+            arguments: { sections: [{ section: "todo", content: "1. check weather" }] },
+          },
+        ],
+      },
+      { text: "all done" },
+    ]);
+
+    const { result } = await run(agent, [userMessage("plan it")]);
+
+    expect(result.answer).toBe("all done");
+    expect(exec).not.toHaveBeenCalled();
+    expect(result.events.some((e) => e.type === "scratchpad")).toBe(true);
+    expect(mock.calls.stream).toHaveLength(2);
+
+    const secondInput = (mock.calls.stream[1] as { input: { content: string }[] }).input;
+    assert(secondInput[0]);
+    const content = secondInput[0].content;
+    expect(content).toContain("<scratchpad>");
+    expect(content).toContain("1. check weather");
+  });
+
+  it("records a malformed update_scratchpad as an error and continues", async () => {
+    const { agent } = makeAgent([
+      { calls: [{ name: "update_scratchpad", arguments: '{"sections":[' }] },
+      { text: "recovered" },
+    ]);
+    const { result } = await run(agent, [userMessage("plan")]);
+    expect(result.events.some((e) => e.type === "error" && e.name === "update_scratchpad")).toBe(
+      true,
+    );
+    expect(result.answer).toBe("recovered");
   });
 
   it("self-heals a malformed done_for_now into an error and recovers", async () => {

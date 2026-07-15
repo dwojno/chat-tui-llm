@@ -42,6 +42,7 @@ export function eventToPrompt(event: AgentEvent): string | null {
   switch (event.type) {
     case "approval_request":
     case "approval_response":
+    case "scratchpad":
       return null;
     case "summary":
       return tagBlock("conversation_summary", event.content);
@@ -85,6 +86,24 @@ export function threadToPrompt(events: readonly AgentEvent[]): string {
     .join("\n\n");
 }
 
+export function deriveScratchpad(
+  events: readonly AgentEvent[],
+): { section: string; content: string }[] {
+  const sections = new Map<string, string>();
+  for (const event of events) {
+    if (event.type !== "scratchpad") continue;
+    for (const { section, content } of event.ops) {
+      if (content === null) sections.delete(section);
+      else sections.set(section, content);
+    }
+  }
+  return [...sections].map(([section, content]) => ({ section, content }));
+}
+
+function scratchpadBlock(sections: { section: string; content: string }[]): string {
+  return tagBlock("scratchpad", sections.map((s) => tagBlock(s.section, s.content)).join("\n"));
+}
+
 function memoriesBlock(memories: readonly string[]): string {
   const lines = keyMemories(memories).map((m) => `${m.key}: ${m.text}`);
   return [
@@ -95,9 +114,11 @@ function memoriesBlock(memories: readonly string[]): string {
 }
 
 export function buildMessage({ events, memories = [] }: ReduceInput): ResponseInputItem[] {
+  const scratchpad = deriveScratchpad(events);
   const parts = [
     `<events>\n${threadToPrompt(events)}\n</events>`,
     memories.length ? `<context>\n${memoriesBlock(memories)}\n</context>` : "",
+    scratchpad.length ? scratchpadBlock(scratchpad) : "",
     `<next_step>\n${NEXT_STEP}\n</next_step>`,
   ].filter(Boolean);
 

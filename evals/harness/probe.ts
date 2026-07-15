@@ -1,7 +1,7 @@
 import { zodTextFormat } from "openai/helpers/zod";
 import type { ResponseInputItem, ResponseUsage } from "openai/resources/responses/responses.mjs";
 import type { ZodType } from "zod";
-import { MODEL } from "@/app/config";
+import { EVAL_PROBE_MODEL } from "@/app/config";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
 import { buildContextBlock } from "@/app/context/context";
 import { getFunctionCalls } from "@/agent/conversation/items";
@@ -78,7 +78,7 @@ export async function probePrompt(spec: ProbeSpec): Promise<ProbeResult> {
     : undefined;
 
   const response = await openai().responses.parse({
-    model: MODEL,
+    model: EVAL_PROBE_MODEL,
     input: [...prefix, { role: "user", content: spec.prompt }, ...contextItems],
     instructions: spec.instructions ?? SYSTEM_INSTRUCTIONS,
     ...(text ? { text } : {}),

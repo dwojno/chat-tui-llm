@@ -1,7 +1,7 @@
 import type { OpenAI } from "openai";
 import type { ResponseInputItem, ResponseUsage } from "openai/resources/responses/responses.mjs";
 import { zodTextFormat } from "openai/helpers/zod";
-import { CHEAP_MODEL } from "@/app/config";
+import { HANDOFF_MODEL } from "@/app/config";
 import { renderItemsText } from "@/agent/conversation/items";
 import { ForkResultSchema, type ForkResult } from "./fork-result";
 
@@ -58,7 +58,7 @@ export async function compressHandoff(
     .join("\n");
 
   const response = await openai.responses.parse({
-    model: CHEAP_MODEL,
+    model: HANDOFF_MODEL,
     instructions: HANDOFF_INSTRUCTIONS,
     input,
     text: { format: zodTextFormat(ForkResultSchema, "fork_result") },

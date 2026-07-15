@@ -25,7 +25,7 @@ const schema = z.object({
   // only the best, so search returns fewer, on-topic passages instead of the
   // top-N regardless of relevance.
   rerankEnabled: z.boolean().default(true),
-  rerankModel: z.string().min(1).default("gpt-4o-mini"),
+  rerankModel: z.string().min(1).default("gpt-4.1-nano"),
   rerankCandidateMultiplier: z.coerce.number().int().positive().default(3),
   rerankMaxCandidates: z.coerce.number().int().positive().default(24),
   // Drop hits scoring below this fraction of the top hit (relative, since RRF

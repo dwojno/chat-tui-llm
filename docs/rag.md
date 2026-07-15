@@ -183,7 +183,7 @@ from `process.env` so tests pass an explicit env map.
 | `RAG_CHUNK_TOKENS`                               | `512`                           | Target chunk size.                                  |
 | `RAG_CHUNK_OVERLAP`                              | `64`                            | Token overlap between chunks (must be `<` tokens).  |
 | `RAG_RERANK_ENABLED`                             | `true`                          | `false` → pure-RRF baseline (skips stages 2–3).     |
-| `RAG_RERANK_MODEL`                               | `gpt-4o-mini`                   | Reranker LLM.                                       |
+| `RAG_RERANK_MODEL`                               | `gpt-4.1-nano`                  | Reranker LLM.                                       |
 | `RAG_RERANK_CANDIDATE_MULTIPLIER`                | `3`                             | Over-fetch `limit × this` candidates to rerank.     |
 | `RAG_RERANK_MAX_CANDIDATES`                      | `24`                            | Absolute cap on the candidate pool.                 |
 | `RAG_RELATIVE_CUTOFF`                            | `0.5`                           | Drop hits below this fraction of the top relevance. |

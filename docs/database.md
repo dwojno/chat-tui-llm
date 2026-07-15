@@ -264,14 +264,15 @@ Renamed from `fact` in migration `0003_rename_fact_to_memory`.
 Payload shapes per `kind` — the `kind` column is the `AgentEvent`'s `type`, and the
 payload is the event verbatim (see [agent-loop.md](./agent-loop.md)):
 
-| `kind`                                                 | `payload`                                             |
-| ------------------------------------------------------ | ----------------------------------------------------- |
-| `user_message` / `human_response` / `assistant_answer` | `{ type, content, sources? }`                         |
-| `tool_call`                                            | `{ type, id, name, args }`                            |
-| `tool_result`                                          | `{ type, id, name, output }`                          |
-| `error`                                                | `{ type, id, name, message }` — a compacted failure   |
-| `approval_request` / `approval_response`               | `{ type, id, … }`                                     |
-| `summary`                                              | `{ type: "summary", content }` — one segment's digest |
+| `kind`                                                 | `payload`                                                         |
+| ------------------------------------------------------ | ----------------------------------------------------------------- |
+| `user_message` / `human_response` / `assistant_answer` | `{ type, content, sources? }`                                     |
+| `tool_call`                                            | `{ type, id, name, args }`                                        |
+| `tool_result`                                          | `{ type, id, name, output }`                                      |
+| `error`                                                | `{ type, id, name, message }` — a compacted failure               |
+| `approval_request` / `approval_response`               | `{ type, id, … }`                                                 |
+| `summary`                                              | `{ type: "summary", content }` — one segment's digest             |
+| `scratchpad`                                           | `{ type, ops: [{ section, content }] }` — working-memory mutation |
 
 Indexes:
 

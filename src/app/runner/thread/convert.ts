@@ -67,6 +67,7 @@ export function eventsToInputItems(events: readonly AgentEvent[]): ResponseInput
         ];
       case "approval_request":
       case "approval_response":
+      case "scratchpad":
         return [];
     }
   });

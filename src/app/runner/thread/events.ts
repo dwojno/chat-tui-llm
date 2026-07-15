@@ -10,6 +10,7 @@ export type AgentEvent =
   | { type: "clarification_request"; question: string; options?: string[] }
   | { type: "human_response"; content: string }
   | { type: "assistant_answer"; content: string; sources?: string[] }
-  | { type: "summary"; content: string };
+  | { type: "summary"; content: string }
+  | { type: "scratchpad"; ops: { section: string; content: string | null }[] };
 
 export type AgentEventType = AgentEvent["type"];

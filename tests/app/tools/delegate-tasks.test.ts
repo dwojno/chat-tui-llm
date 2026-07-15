@@ -45,11 +45,18 @@ function makeCtx(turns: MockTurn[], handoffs: MockHandoff[]) {
 }
 
 describe("parseDelegateTasksArgs", () => {
-  const task = { title: "A", task: "do a", relevantMemoryKeys: null };
+  const task = { title: "A", task: "do a", relevantMemoryKeys: null, profile: null };
 
   it("parses a valid tasks array", () => {
     const args = parseDelegateTasksArgs(JSON.stringify({ tasks: [task] }));
     expect(args.tasks).toHaveLength(1);
+  });
+
+  it("keeps a per-task fork profile", () => {
+    const args = parseDelegateTasksArgs(
+      JSON.stringify({ tasks: [{ ...task, profile: "rag_research" }] }),
+    );
+    expect(args.tasks[0]?.profile).toBe("rag_research");
   });
 
   it("rejects an empty tasks array", () => {
@@ -72,8 +79,8 @@ describe("delegateTasksTool", () => {
     expect(
       delegateTasksTool.summarize?.({
         tasks: [
-          { title: "A", task: "a", relevantMemoryKeys: null },
-          { title: "B", task: "b", relevantMemoryKeys: null },
+          { title: "A", task: "a", relevantMemoryKeys: null, profile: null },
+          { title: "B", task: "b", relevantMemoryKeys: null, profile: null },
         ],
       }),
     ).toBe("A, B");
@@ -88,8 +95,8 @@ describe("delegateTasksTool", () => {
     const result = await delegateTasksTool.execute(
       {
         tasks: [
-          { title: "A", task: "do a", relevantMemoryKeys: null },
-          { title: "B", task: "do b", relevantMemoryKeys: null },
+          { title: "A", task: "do a", relevantMemoryKeys: null, profile: null },
+          { title: "B", task: "do b", relevantMemoryKeys: null, profile: null },
         ],
       },
       ctx,

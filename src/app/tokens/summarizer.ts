@@ -1,6 +1,6 @@
 import type { OpenAI } from "openai";
 import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
-import { CHEAP_MODEL } from "@/app/config";
+import { SUMMARIZER_MODEL } from "@/app/config";
 import type { AgentEvent } from "@/app/runner/thread/events";
 import { threadToPrompt } from "@/app/runner/thread/reducer";
 
@@ -30,7 +30,7 @@ export async function summarize(
     .join("\n\n");
 
   const response = await openai.responses.create({
-    model: CHEAP_MODEL,
+    model: SUMMARIZER_MODEL,
     instructions: SUMMARIZER_INSTRUCTIONS,
     input,
     temperature: 0.2,

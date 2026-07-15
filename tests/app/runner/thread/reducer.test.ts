@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildMessage,
   deriveControl,
+  deriveScratchpad,
   eventToPrompt,
   threadToPrompt,
 } from "@/app/runner/thread/reducer";
@@ -106,10 +107,49 @@ describe("buildMessage", () => {
     expect(content).toContain("never volunteer them");
   });
 
-  it("omits summary and memory blocks when absent", () => {
+  it("omits summary, memory, and scratchpad blocks when absent", () => {
     const content = contentOf(buildMessage({ events: [{ type: "user_message", content: "hi" }] }));
     expect(content).not.toContain("<conversation_summary>");
     expect(content).not.toContain("<user_known_memories>");
+    expect(content).not.toContain("<scratchpad>");
+  });
+
+  it("renders the folded scratchpad after events and before next_step", () => {
+    const content = contentOf(
+      buildMessage({
+        events: [
+          { type: "user_message", content: "plan it" },
+          { type: "scratchpad", ops: [{ section: "todo", content: "1. do it" }] },
+        ],
+      }),
+    );
+    expect(content).toContain("<scratchpad>");
+    expect(content).toContain("<todo>\n1. do it\n</todo>");
+    expect(content.indexOf("<events>")).toBeLessThan(content.indexOf("<scratchpad>"));
+    expect(content.indexOf("<scratchpad>")).toBeLessThan(content.indexOf("<next_step>"));
+  });
+});
+
+describe("deriveScratchpad", () => {
+  it("folds sections last-write-wins and drops a cleared one, keeping order", () => {
+    const events: AgentEvent[] = [
+      {
+        type: "scratchpad",
+        ops: [
+          { section: "todo", content: "a" },
+          { section: "plan", content: "p" },
+        ],
+      },
+      { type: "scratchpad", ops: [{ section: "todo", content: "b" }] },
+      { type: "scratchpad", ops: [{ section: "plan", content: null }] },
+    ];
+    expect(deriveScratchpad(events)).toEqual([{ section: "todo", content: "b" }]);
+  });
+
+  it("keeps scratchpad ops out of the rendered transcript", () => {
+    expect(
+      threadToPrompt([{ type: "scratchpad", ops: [{ section: "todo", content: "secret" }] }]),
+    ).toBe("");
   });
 });
 

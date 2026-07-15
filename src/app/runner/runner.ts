@@ -23,6 +23,7 @@ import {
   parseRequestMoreInformationArgs,
   REQUEST_MORE_INFORMATION_NAME,
 } from "@/app/tools/control-intents";
+import { parseScratchpadArgs, UPDATE_SCRATCHPAD_NAME } from "@/app/tools/scratchpad";
 import type { AgentEvent } from "./thread/events";
 import { buildMessage, deriveControl } from "./thread/reducer";
 import {
@@ -118,8 +119,25 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<LoopResult> 
       continue;
     }
 
-    const work = step.toolCalls.filter((call) => !isControlIntent(call.name));
+    const padCalls = step.toolCalls.filter((call) => call.name === UPDATE_SCRATCHPAD_NAME);
+    for (const call of padCalls) {
+      const parsed = tryParse(() => parseScratchpadArgs(call.arguments));
+      if (!parsed) {
+        events.push(malformedIntent(call, "Provide well-formed scratchpad sections."));
+        continue;
+      }
+      events.push({ type: "scratchpad", ops: parsed.sections });
+      bus.emit({ type: "status", text: "Updated scratchpad" });
+    }
+
+    const work = step.toolCalls.filter(
+      (call) => !isControlIntent(call.name) && call.name !== UPDATE_SCRATCHPAD_NAME,
+    );
     if (!work.length) {
+      if (padCalls.length) {
+        steps += 1;
+        continue;
+      }
       const content = formatResponse(step, options);
       events.push({ type: "assistant_answer", content });
       return finish(content);
