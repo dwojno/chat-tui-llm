@@ -1,0 +1,13 @@
+{
+  "turns": [
+    {
+      "calls": [
+        {
+          "name": "write_file",
+          "arguments": { "path": ".chat-state/e2e/approved.txt", "content": "approved-ok" }
+        }
+      ]
+    },
+    { "text": "Saved the file for you." }
+  ]
+}

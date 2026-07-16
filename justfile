@@ -60,3 +60,15 @@ eval-rag: qdrant
 # Real RAG tools against real Qdrant + OpenAI (reranker off for determinism).
 integration: qdrant
     RAG_INTEGRATION=1 RAG_RERANK_ENABLED=false pnpm exec vitest run tests/store/rag tests/app/tools/rag-tools.integration.test.ts
+
+# --- e2e (PTY-driven real TUI; streams the live frames to the console) ---
+# One config (vitest.e2e.config.ts); the recipes narrow it via a CLI filename
+# filter and override the timeout on the CLI — no per-suite config files.
+
+# Real TUI in a pseudo-terminal + real Qdrant, chat model mocked — deterministic.
+e2e *args: qdrant
+    RAG_RERANK_ENABLED=false pnpm exec vitest run --config vitest.e2e.config.ts --testTimeout 120000 e2e.ts {{ args }}
+
+# Same PTY harness with the real chat model — the full flow.
+e2e-full *args: qdrant
+    RAG_RERANK_ENABLED=false pnpm exec vitest run --config vitest.e2e.config.ts e2e-full.ts {{ args }}

@@ -244,13 +244,25 @@ or roll back atomically. Do not expose raw SQL or the Drizzle handle outside
 production code via `@/…` and shared helpers via `@tests/…`, so a test sits next to
 the module it exercises. Conventions:
 
-- **No live LLM/API calls, ever.** The model is always mocked via
-  [tests/helpers/mock-openai.ts](tests/helpers/mock-openai.ts) — the suite is
-  offline, deterministic, and fast (full run ~1.2s; a subdir subset <1s), so no
-  test is flaky and none needs quarantining. Live-model checks belong in `evals/`
-  (`just eval`), never here.
+- **No live LLM/API calls in the default suite, ever.** The model is always mocked
+  via [tests/helpers/mock-openai.ts](tests/helpers/mock-openai.ts) — the default
+  `just test` run is offline, deterministic, and fast (~1.2s), so no test is flaky
+  and none needs quarantining. Live-model checks belong in `evals/` (`just eval`),
+  never in the default suite.
 - **Name tests by observable behaviour** ("blocks cwd traversal"), not by method
   name, and follow Arrange–Act–Assert. Keep sample data in `tests/fixtures/`.
+- **PTY-driven TUI e2e** (`tests/e2e/full/`, opt-in) spawns the real `src/cli.ts` →
+  `run()` in a pseudo-terminal ([`@lydell/node-pty`]) via a tiny launcher, types
+  keystrokes, and asserts on rendered frames — the "Playwright for the terminal"
+  harness ([driver.ts](tests/e2e/full/driver.ts)), which streams the live frames to
+  the console as it drives. `run()` takes optional injected clients (`RunDeps`) so the
+  harness runs the exact production boot path. Files use `.e2e.ts` (chat model mocked
+  from a `turns/*.json` script — deterministic) and `.e2e-full.ts` (real chat model),
+  so the default `**/*.test.ts` glob ignores them — no `exclude` needed. One config
+  ([vitest.e2e.config.ts](vitest.e2e.config.ts)); the `just e2e` / `just e2e-full`
+  recipes narrow it with a CLI filename filter and set the timeout on the CLI. Both
+  need Docker Qdrant + a real `OPENAI_API_KEY` (embeddings stay real even when chat
+  is mocked).
 
 ## Code style
 

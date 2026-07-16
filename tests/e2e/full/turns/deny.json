@@ -1,0 +1,13 @@
+{
+  "turns": [
+    {
+      "calls": [
+        {
+          "name": "write_file",
+          "arguments": { "path": ".chat-state/e2e/denied.txt", "content": "should-not-exist" }
+        }
+      ]
+    },
+    { "text": "Understood, I will not write the file." }
+  ]
+}

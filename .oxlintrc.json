@@ -34,7 +34,9 @@
         "typescript/no-explicit-any": "off",
         "typescript/no-non-null-assertion": "off",
         "vitest/require-mock-type-parameters": "off",
-        "vitest/require-to-throw-message": "off"
+        "vitest/require-to-throw-message": "off",
+        "vitest/expect-expect": ["error", { "assertFunctionNames": ["expect", "*.waitFor"] }],
+        "no-control-regex": "off"
       }
     }
   ]

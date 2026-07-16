@@ -1,0 +1,21 @@
+{
+  "turns": [
+    {
+      "calls": [
+        {
+          "name": "delegate_task",
+          "arguments": {
+            "title": "Weather lookup",
+            "task": "find the weather in Paris",
+            "relevantMemoryKeys": null,
+            "profile": "general"
+          }
+        }
+      ]
+    },
+    { "calls": [{ "name": "get_weather_data", "arguments": { "city": "Paris" } }] },
+    { "text": "The fork found sunny weather." },
+    { "text": "Delegation complete: it is sunny in Paris." }
+  ],
+  "compressions": [{ "summary": "Paris weather is sunny." }]
+}

@@ -1,0 +1,4 @@
+[
+  { "calls": [{ "name": "get_weather_data", "arguments": { "city": "Paris" } }] },
+  { "text": "It is sunny in Paris right now." }
+]

@@ -20,20 +20,28 @@ import { redactPII } from "@/platform/utils/redact";
 import { renderChat } from "@/ui/chat";
 import { messagesFromTranscript } from "@/ui/history";
 
-export async function run(): Promise<void> {
+export interface RunDeps {
+  openai?: OpenAI;
+  ragOpenai?: OpenAI;
+  dbPath?: string;
+}
+
+export async function run(deps: RunDeps = {}): Promise<void> {
   const interactive = process.stdin.isTTY === true;
   const cli = parseCliArgs();
 
-  const openai = new OpenAI({
-    apiKey: envConfig.model.apiKey,
-    maxRetries: OPENAI_MAX_RETRIES,
-    timeout: OPENAI_TIMEOUT_MS,
-  });
+  const openai =
+    deps.openai ??
+    new OpenAI({
+      apiKey: envConfig.model.apiKey,
+      maxRetries: OPENAI_MAX_RETRIES,
+      timeout: OPENAI_TIMEOUT_MS,
+    });
   const openOpts: OpenStoreOptions = {
-    rag: createRagDeps(openai, envConfig.rag),
+    rag: createRagDeps(deps.ragOpenai ?? openai, envConfig.rag),
   };
   if (cli.conversationId !== undefined) openOpts.conversationId = cli.conversationId;
-  const store = await LocalStore.open(DB_PATH, openOpts);
+  const store = await LocalStore.open(deps.dbPath ?? DB_PATH, openOpts);
   const { tools, forkProfiles } = createAgentTools(store);
   const bus = new EventBus();
   const agent = new Agent({
