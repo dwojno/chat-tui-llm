@@ -3,8 +3,7 @@ import { render } from "ink-testing-library";
 import { PickerModal } from "@/ui/components/picker-modal";
 
 // eslint-disable-next-line no-control-regex
-const strip = (frame: string | undefined): string =>
-  (frame ?? "").replace(/\[[0-9;]*m/g, "");
+const strip = (frame: string | undefined): string => (frame ?? "").replace(/\[[0-9;]*m/g, "");
 
 const LONG_LABEL = "Compare Nirvana with Pearl Jam discographies";
 

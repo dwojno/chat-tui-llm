@@ -143,8 +143,6 @@ describe("E2E: conversations", () => {
     h.queuePicker(convA);
     await h.run("/conversation");
 
-    
-    
     expect(h.chat.messages).toEqual([
       { role: "assistant", content: expect.stringContaining("Switched to conversation") },
     ]);
@@ -195,7 +193,7 @@ describe("E2E: conversations", () => {
 
     const reopened = await LocalStore.open(tempDbPath(dir));
     expect(reopened.profileId).toBe(store.profileId);
-    
+
     expect(reopened.conversationId).not.toBe(firstConversationId);
     expect(await reopened.conversation.queryHistory(reopened.conversationId).execute()).toEqual([]);
   });

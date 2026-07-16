@@ -22,9 +22,7 @@ export function readActiveState(dbPath: string): ActiveState {
           : { profileId };
       }
     }
-  } catch {
-    
-  }
+  } catch {}
   return { profileId: DEFAULT_PROFILE_ID };
 }
 

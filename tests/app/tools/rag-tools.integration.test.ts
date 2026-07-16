@@ -9,7 +9,6 @@ import type { ToolRunContext } from "@/agent/conversation/turn";
 import { createRagDeps, loadRagConfig, LocalStore, type Store } from "@/store";
 import { drain } from "@/platform/utils/async-gen";
 
-
 const RUN = process.env.RAG_INTEGRATION === "1";
 const CORPUS = "tests/fixtures/rag-corpus";
 const TEST_TIMEOUT = 60_000;

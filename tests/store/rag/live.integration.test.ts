@@ -6,7 +6,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createRagDeps, loadRagConfig, LocalStore, type Store } from "@/store";
 import { drain } from "@/platform/utils/async-gen";
 
-
 const RUN = process.env.RAG_INTEGRATION === "1";
 
 describe.runIf(RUN)("live RAG (MinIO + Qdrant + OpenAI)", () => {

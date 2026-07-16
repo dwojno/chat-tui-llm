@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 
-
-
-
 vi.mock("ink", () => ({
   render: () => ({
     rerender: vi.fn(),
@@ -60,7 +57,7 @@ describe("renderChat handle", () => {
     const chat = renderChat();
     chat.setStreaming("");
     chat.addStep({ label: "stale step" });
-    chat.setStreaming(""); 
+    chat.setStreaming("");
     chat.commitStreaming("answer");
     expect(chat.messages.at(-1)).toEqual({
       role: "assistant",

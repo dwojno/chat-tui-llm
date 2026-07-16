@@ -291,7 +291,6 @@ export class ConversationRepository {
   async runHistoryQuery(conversationId: string, config: HistoryQueryConfig): Promise<AgentEvent[]> {
     const targetId = config.conversationId ?? conversationId;
 
-    
     if (config.forModel) {
       const boundary = await this.summaryBoundaryId(targetId);
       const rows = await this.items()

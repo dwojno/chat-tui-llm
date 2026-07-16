@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseCliArgs } from "@/platform/cli/args";
 
-
 const exit = vi.spyOn(process, "exit").mockImplementation(((code?: number) => {
   throw new Error(`exit:${code ?? 0}`);
 }) as never);

@@ -81,7 +81,6 @@ export class LocalStore implements Store {
     const ctx = new StoreContext(DEFAULT_PROFILE_ID, "", dbPath, inMemory);
     const facades = createFacades(db, ctx, opts.rag);
 
-    
     if (opts.conversationId) {
       const restored = await facades.conversation
         .query()

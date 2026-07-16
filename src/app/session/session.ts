@@ -209,8 +209,7 @@ export class Session {
         attributes: {
           "conversation.id": conversationId,
           "profile.id": this.store.profileId,
-          
-          
+
           "chat.model": turnSettings.model,
           "chat.turn.index": this.currentTurnIndex,
         },

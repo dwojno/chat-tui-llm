@@ -9,9 +9,7 @@ export async function applyContextSwitch(
   store: Store,
 ): Promise<void> {
   session.rebind(store);
-  
-  
-  
+
   chat.replaceMessages([]);
   chat.setUsage(await session.getUsageTotals());
   chat.setContext(await buildChatContext(store));

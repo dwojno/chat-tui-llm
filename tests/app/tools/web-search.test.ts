@@ -11,7 +11,6 @@ function mockFetch(impl: () => unknown) {
   return fetchMock;
 }
 
-
 let webSearchTool: WebSearchTool;
 beforeEach(async () => {
   vi.resetModules();

@@ -67,9 +67,8 @@ export async function resolveFileMentions(text: string, cwd = process.cwd()): Pr
 
   return text.replace(MENTION_RE, (match, mention: string) => {
     const full = resolved.get(mention);
-    if (!full) return match; 
-    
-    
+    if (!full) return match;
+
     const lead = match.slice(0, match.length - mention.length - 1);
     return `${lead}${full}`;
   });

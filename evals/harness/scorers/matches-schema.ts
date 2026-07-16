@@ -6,8 +6,7 @@ export const matchesSchema = defineScorer(
   ({ output, expected }) => {
     const schema = expected?.schema;
     if (isAbsent(schema)) return notApplicable;
-    
-    
+
     const refused = { score: 1, metadata: { note: "refusal accepted" } };
     let candidate: unknown = output.parsed;
     if (candidate == null) {
