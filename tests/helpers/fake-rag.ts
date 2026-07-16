@@ -1,6 +1,6 @@
 import { Readable } from "node:stream";
 import type { BlobStore } from "@/store/sources/rag/blob-store";
-import { loadRagConfig, type RagConfig } from "@/store/sources/rag/config";
+import { loadConfig, type RagConfig } from "@/platform/config";
 import { encodeSparse, type DenseEmbedder } from "@/store/sources/rag/embeddings";
 import { RagEngine } from "@/store/sources/rag/engine";
 import type { SearchResult, VectorIndex, VectorPoint } from "@/store/sources/rag/qdrant";
@@ -139,7 +139,8 @@ export interface FakeRag {
 }
 
 export function createFakeRag(overrides: Partial<RagConfig> = {}): FakeRag {
-  const config: RagConfig = { ...loadRagConfig({}), ...overrides };
+  const { rag } = loadConfig({ OPENAI_API_KEY: "sk-test" });
+  const config: RagConfig = { ...rag, ...overrides };
   const blob = new FakeObjectStore();
   const index = new FakeVectorIndex();
   const engine = new RagEngine(

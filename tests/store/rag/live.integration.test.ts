@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OpenAI } from "openai";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createRagDeps, loadRagConfig, LocalStore, type Store } from "@/store";
+import { createRagDeps, LocalStore, type Store } from "@/store";
+import { loadConfig } from "@/platform/config";
 import { drain } from "@/platform/utils/async-gen";
 
 const RUN = process.env.RAG_INTEGRATION === "1";
@@ -22,7 +23,8 @@ describe.runIf(RUN)("live RAG (MinIO + Qdrant + OpenAI)", () => {
       "# Deployment\n\n## Database\n\nConfigure the PostgreSQL connection string and run migrations.\n",
     );
     const openai = new OpenAI();
-    store = await LocalStore.open(":memory:", { rag: createRagDeps(openai, loadRagConfig()) });
+    const { rag } = loadConfig(process.env);
+    store = await LocalStore.open(":memory:", { rag: createRagDeps(openai, rag) });
   });
 
   afterAll(async () => {

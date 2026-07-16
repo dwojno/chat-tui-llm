@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { redactPII, redactPiiEnabled } from "@/platform/utils/redact";
+import { redactPII } from "@/platform/utils/redact";
 
 describe("redactPII", () => {
   it("scrubs each PII kind", () => {
@@ -94,16 +94,5 @@ describe("robustness: adversarial input does not hang or crash", () => {
   it("returns promptly on a long local-part with no @ (no ReDoS)", () => {
     const out = redactPII(`${"a".repeat(100_000)}!`);
     expect(out).toBe(`${"a".repeat(100_000)}!`);
-  });
-});
-
-describe("redactPiiEnabled", () => {
-  it("defaults to on when unset", () => {
-    expect(redactPiiEnabled({})).toBe(true);
-  });
-
-  it("turns off on a falsey flag", () => {
-    expect(redactPiiEnabled({ REDACT_PII: "0" })).toBe(false);
-    expect(redactPiiEnabled({ REDACT_PII: "false" })).toBe(false);
   });
 });

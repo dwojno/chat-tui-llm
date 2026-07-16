@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { createInterface } from "node:readline";
 import type { GrepMatch, GrepOptions, ReadRange, SearchHit, SourceProgress } from "../types";
 import { chunkMarkdown, embedText } from "./chunking";
-import type { RagConfig } from "./config";
+import type { RagConfig } from "@/platform/config";
 import type { DenseEmbedder } from "./embeddings";
 import type { BlobStore } from "./blob-store";
 import { toMarkdown } from "./markdown";

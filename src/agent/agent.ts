@@ -280,11 +280,28 @@ export class Agent {
   }
 }
 
-function redactInputItems(
+const REDACT_TEXT_KEYS = new Set(["text", "arguments", "output", "content"]);
+
+function redactValue(value: unknown, redact: (text: string) => string): unknown {
+  if (Array.isArray(value)) return value.map((entry) => redactValue(entry, redact));
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, val]) => [
+        key,
+        typeof val === "string" && REDACT_TEXT_KEYS.has(key)
+          ? redact(val)
+          : redactValue(val, redact),
+      ]),
+    );
+  }
+  return value;
+}
+
+export function redactInputItems(
   items: ResponseInputItem[],
   redact: (text: string) => string,
 ): ResponseInputItem[] {
-  return JSON.parse(redact(JSON.stringify(items))) as ResponseInputItem[];
+  return items.map((item) => redactValue(item, redact)) as ResponseInputItem[];
 }
 
 function dedupeByName(tools: ToolDefinition<z.ZodType>[]): ToolDefinition<z.ZodType>[] {

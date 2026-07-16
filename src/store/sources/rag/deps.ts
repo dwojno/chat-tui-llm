@@ -1,6 +1,6 @@
 import type { OpenAI } from "openai";
 import type { BlobStore } from "./blob-store";
-import type { RagConfig } from "./config";
+import type { RagConfig } from "@/platform/config";
 import { DiskBlobStore } from "./disk-blob-store";
 import { OpenAIDenseEmbedder } from "./embeddings";
 import { RagEngine } from "./engine";

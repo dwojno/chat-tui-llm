@@ -30,6 +30,49 @@ describe("Agent model-input redaction", () => {
     expect(sent).not.toContain("jane@example.com");
   });
 
+  it("redacts text fields but never corrupts structural ids the model must echo back", async () => {
+    const items = [
+      {
+        type: "reasoning",
+        id: "rs_1234567890abcdef",
+        summary: [],
+        encrypted_content: "enc-9998887777-blob",
+      },
+      {
+        type: "function_call",
+        id: "fc_5551234567",
+        call_id: "call_5551234567",
+        name: "get_weather_data",
+        arguments: JSON.stringify({ note: "reach me at 555-123-4567" }),
+      },
+      { role: "user", content: "email me at jane@example.com" },
+    ] as unknown as ResponseInputItem[];
+
+    const mock = createMockOpenAI([{ text: "ok" }]);
+    const agent = new Agent({
+      openai: mock.client,
+      temperature: 0.7,
+      cacheKey: "chat-cli:test",
+      instructions: "system",
+      redact: redactPII,
+    });
+
+    await agent.step({ messages: items, options: DEFAULT_TURN_OPTIONS, bus: new EventBus() });
+
+    const sent = inputOf(mock.calls.stream[0]);
+    // Structural fields (ids, call_id, name, encrypted reasoning) must round-trip intact —
+    // corrupting them makes the next turn fail with a 400 "Invalid input[n].id".
+    expect(sent).toContain("rs_1234567890abcdef");
+    expect(sent).toContain("fc_5551234567");
+    expect(sent).toContain("call_5551234567");
+    expect(sent).toContain("get_weather_data");
+    expect(sent).toContain("enc-9998887777-blob");
+    // ...while genuine PII in text-bearing fields is still scrubbed.
+    expect(sent).toContain("[REDACTED_EMAIL]");
+    expect(sent).not.toContain("jane@example.com");
+    expect(sent).not.toContain("555-123-4567");
+  });
+
   it("leaves the input untouched when no redactor is injected", async () => {
     const mock = createMockOpenAI([{ text: "ok" }]);
     const agent = new Agent({

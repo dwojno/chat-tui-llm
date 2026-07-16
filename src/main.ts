@@ -2,7 +2,7 @@ import { OpenAI } from "openai";
 import { parseCliArgs } from "@/platform/cli/args";
 import { runRepl } from "@/app/input/repl";
 import { buildChatContext } from "@/app/session/switch";
-import { approvalsEnabled } from "@/platform/cli/env";
+import { envConfig } from "@/platform/config";
 import {
   DB_PATH,
   KEEP_LAST_TURNS,
@@ -15,8 +15,8 @@ import { TEMPERATURE } from "@/app/config";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
 import { createAgentTools } from "@/app/tools";
 import { Session } from "@/app/session/session";
-import { createRagDeps, loadRagConfig, LocalStore, type OpenStoreOptions } from "@/store";
-import { redactPII, redactPiiEnabled } from "@/platform/utils/redact";
+import { createRagDeps, LocalStore, type OpenStoreOptions } from "@/store";
+import { redactPII } from "@/platform/utils/redact";
 import { renderChat } from "@/ui/chat";
 import { messagesFromTranscript } from "@/ui/history";
 
@@ -24,9 +24,13 @@ export async function run(): Promise<void> {
   const interactive = process.stdin.isTTY === true;
   const cli = parseCliArgs();
 
-  const openai = new OpenAI({ maxRetries: OPENAI_MAX_RETRIES, timeout: OPENAI_TIMEOUT_MS });
+  const openai = new OpenAI({
+    apiKey: envConfig.model.apiKey,
+    maxRetries: OPENAI_MAX_RETRIES,
+    timeout: OPENAI_TIMEOUT_MS,
+  });
   const openOpts: OpenStoreOptions = {
-    rag: createRagDeps(openai, loadRagConfig()),
+    rag: createRagDeps(openai, envConfig.rag),
   };
   if (cli.conversationId !== undefined) openOpts.conversationId = cli.conversationId;
   const store = await LocalStore.open(DB_PATH, openOpts);
@@ -39,7 +43,7 @@ export async function run(): Promise<void> {
     instructions: SYSTEM_INSTRUCTIONS,
     tools,
     forkProfiles,
-    ...(redactPiiEnabled() ? { redact: redactPII } : {}),
+    ...(envConfig.security.redactPii ? { redact: redactPII } : {}),
   });
   const session = await Session.create(agent, openai, store, KEEP_LAST_TURNS, bus);
 
@@ -50,7 +54,7 @@ export async function run(): Promise<void> {
     conversationId: store.conversationId,
   });
 
-  if (interactive && approvalsEnabled()) {
+  if (interactive && envConfig.security.approvalsEnabled) {
     session.setApprovalHandler((req) => chat.promptApproval(req));
     session.setClarificationHandler((req) => chat.promptClarification(req));
   }

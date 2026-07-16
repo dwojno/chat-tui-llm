@@ -10,7 +10,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import type { BlobStore } from "./blob-store";
-import type { RagConfig } from "./config";
+import type { RagConfig } from "@/platform/config";
 
 const S3_MAX_ATTEMPTS = 4;
 

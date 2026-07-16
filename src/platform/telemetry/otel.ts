@@ -6,7 +6,7 @@ import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";
 import { configureTelemetry } from "./trace";
-import type { TelemetryConfig } from "./config";
+import type { TelemetryConfig } from "@/platform/config";
 
 const require = createRequire(import.meta.url);
 const { version } = require("../../../package.json") as { version: string };

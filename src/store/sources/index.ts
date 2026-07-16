@@ -9,5 +9,5 @@ export type {
   SearchOptions,
   SourceProgress,
 } from "./types";
-export { loadRagConfig, type RagConfig } from "./rag/config";
+export type { RagConfig } from "@/platform/config";
 export { createRagDeps, type RagDeps } from "./rag/deps";

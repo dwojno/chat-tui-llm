@@ -6,7 +6,8 @@ import { OpenAI } from "openai";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createRagTools } from "@/app/tools/rag";
 import type { ToolRunContext } from "@/agent/conversation/turn";
-import { createRagDeps, loadRagConfig, LocalStore, type Store } from "@/store";
+import { createRagDeps, LocalStore, type Store } from "@/store";
+import { loadConfig } from "@/platform/config";
 import { drain } from "@/platform/utils/async-gen";
 
 const RUN = process.env.RAG_INTEGRATION === "1";
@@ -31,7 +32,7 @@ describe.runIf(RUN)("RAG tools (real Qdrant + OpenAI)", () => {
 
   beforeAll(async () => {
     blobDir = mkdtempSync(join(tmpdir(), "rag-it-"));
-    const config = loadRagConfig({
+    const { rag: config } = loadConfig({
       ...process.env,
       RAG_RERANK_ENABLED: "false",
       RAG_BLOB_BACKEND: "disk",

@@ -25,7 +25,7 @@ export type {
   SourceProgress,
   SourceStatus,
 } from "./sources";
-export { createRagDeps, loadRagConfig, type RagConfig, type RagDeps } from "./sources";
+export { createRagDeps, type RagConfig, type RagDeps } from "./sources";
 
 export type ConversationMeta = import("./conversation").Conversation;
 export type ProfileContext = {

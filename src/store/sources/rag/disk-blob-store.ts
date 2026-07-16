@@ -4,7 +4,7 @@ import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { Readable } from "node:stream";
 import type { BlobStore } from "./blob-store";
-import type { RagConfig } from "./config";
+import type { RagConfig } from "@/platform/config";
 
 function isWithin(root: string, target: string): boolean {
   const rel = relative(root, target);

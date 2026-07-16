@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import { QdrantClient } from "@qdrant/js-client-rest";
 import { createResiliencePolicy, type ResiliencePolicy } from "@/platform/utils/resilience";
-import { DENSE_VECTOR_SIZE, type RagConfig } from "./config";
+import type { RagConfig } from "@/platform/config";
+
+export const DENSE_VECTOR_SIZE = 1536;
 
 export interface ChunkPayload {
   path: string;

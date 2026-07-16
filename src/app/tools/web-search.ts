@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isBrokenCircuitError } from "cockatiel";
 import type { ToolDefinition } from "@/agent/tools/types";
 import { createResiliencePolicy } from "@/platform/utils/resilience";
+import { envConfig } from "@/platform/config";
 
 export const WEB_SEARCH_TOOL_NAME = "web_search" as const;
 
@@ -9,7 +10,6 @@ const parameters = z.object({
   query: z.string().min(1).describe("What to search for"),
 });
 
-const DEFAULT_MAX_RESULTS = 5;
 const WEB_SEARCH_MAX_RETRIES = 3;
 
 const policy = createResiliencePolicy({ maxRetries: WEB_SEARCH_MAX_RETRIES });
@@ -21,11 +21,6 @@ class HttpError extends Error {
   ) {
     super(`${status} ${statusText}`);
   }
-}
-
-function maxResults(env: Record<string, string | undefined> = process.env): number {
-  const raw = Number(env.WEB_SEARCH_MAX_RESULTS);
-  return Number.isInteger(raw) && raw > 0 ? raw : DEFAULT_MAX_RESULTS;
 }
 
 type TavilyResult = { title?: string; url?: string; content?: string };
@@ -87,11 +82,10 @@ function webSearchError(error: unknown): string {
 }
 
 async function execute({ query }: z.infer<typeof parameters>): Promise<string> {
-  const apiKey = process.env.TAVILY_API_KEY;
+  const { maxResults: limit, tavilyApiKey: apiKey } = envConfig.tools.webSearch;
   if (!apiKey) {
     return "web_search error: TAVILY_API_KEY is not set; cannot search the web.";
   }
-  const limit = maxResults();
   try {
     return await policy.execute(() => tavilySearch(query, apiKey, limit));
   } catch (error) {

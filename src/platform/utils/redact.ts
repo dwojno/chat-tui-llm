@@ -37,9 +37,3 @@ export function redactPII(text: string): string {
     .replace(IPV4, "[REDACTED_IP]")
     .replace(PHONE, "[REDACTED_PHONE]");
 }
-
-export function redactPiiEnabled(env: Record<string, string | undefined> = process.env): boolean {
-  const raw = env.REDACT_PII?.trim().toLowerCase();
-  if (raw === undefined || raw === "") return true;
-  return raw !== "0" && raw !== "false" && raw !== "no" && raw !== "off";
-}

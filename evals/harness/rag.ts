@@ -13,7 +13,8 @@ import { runAgentLoop } from "@/app/runner/runner";
 import { eventsToInputItems } from "@/app/runner/thread/convert";
 import { createAgentTools } from "@/app/tools";
 import { createRagTools } from "@/app/tools/rag";
-import { createRagDeps, loadRagConfig, LocalStore, type IndexResult, type Store } from "@/store";
+import { createRagDeps, LocalStore, type IndexResult, type Store } from "@/store";
+import { loadConfig } from "@/platform/config";
 
 const KB_TOOLS = new Set(["search_knowledge_base", "read_source", "grep_files"]);
 
@@ -70,8 +71,9 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
   const wire = (): Promise<Wired> =>
     (wiredPromise ??= (async () => {
       await ensureInfra();
+      const { rag } = loadConfig(process.env);
       const store = await LocalStore.open(":memory:", {
-        rag: createRagDeps(openai, loadRagConfig()),
+        rag: createRagDeps(openai, rag),
       });
       const profile = await store.profile.create(`eval-${opts.suiteId}`);
       await store.profile.switchTo(profile.id);

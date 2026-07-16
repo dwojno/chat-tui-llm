@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DiskBlobStore } from "@/store/sources/rag/disk-blob-store";
-import { loadRagConfig } from "@/store/sources/rag/config";
+import { loadConfig } from "@/platform/config";
 
 let dir: string;
 let store: DiskBlobStore;
@@ -19,7 +19,8 @@ function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "disk-blob-"));
-  store = new DiskBlobStore({ ...loadRagConfig({}), blobDir: dir });
+  const { rag } = loadConfig({ OPENAI_API_KEY: "sk-test" });
+  store = new DiskBlobStore({ ...rag, blobDir: dir });
 });
 
 afterEach(() => {
