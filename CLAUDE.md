@@ -82,7 +82,7 @@ src/
     utils/         # shared helpers
     cli/           # args, config, env, shutdown (CLI boot/teardown)
   main.ts cli.ts # composition root + entry
-docs/            # architecture, agent-loop, database, rag, evals, observability — the "why"
+docs/            # architecture, agent-loop, database, rag, evals, observability, security — the "why"
 tests/           # mirrors src/; e2e/ drives the real REPL. Model mocked (offline)
 evals/           # behavioural prompt tests against the live model (evalite)
 ```

@@ -1,9 +1,10 @@
-import { readFile } from "node:fs/promises";
+import { open } from "node:fs/promises";
 import { z } from "zod";
 import type { ToolDefinition } from "@/agent/tools/types";
 import { resolveWithinCwd } from "./utils/workspace";
 
 export const READ_FILE_NAME = "read_file" as const;
+const MAX_READ_BYTES = 256 * 1024;
 
 const parameters = z.object({
   path: z.string().min(1).describe("File path relative to the working directory"),
@@ -31,15 +32,31 @@ function sliceLines(content: string, startLine: number | null, endLine: number |
   return lines.slice(start - 1, end).join("\n");
 }
 
+async function readCapped(absolute: string): Promise<{ text: string; truncated: boolean }> {
+  const handle = await open(absolute, "r");
+  try {
+    const buffer = Buffer.alloc(MAX_READ_BYTES);
+    const { bytesRead } = await handle.read(buffer, 0, MAX_READ_BYTES, 0);
+    const { size } = await handle.stat();
+    return {
+      text: buffer.subarray(0, bytesRead).toString("utf8"),
+      truncated: size > MAX_READ_BYTES,
+    };
+  } finally {
+    await handle.close();
+  }
+}
+
 async function execute({ path, startLine, endLine }: ReadFileArgs): Promise<string> {
   const absolute = resolveWithinCwd(path);
-  let content: string;
+  let read: { text: string; truncated: boolean };
   try {
-    content = await readFile(absolute, "utf8");
+    read = await readCapped(absolute);
   } catch (error) {
     return `Could not read ${path}: ${error instanceof Error ? error.message : String(error)}`;
   }
-  return sliceLines(content, startLine, endLine) || "(empty range)";
+  const sliced = sliceLines(read.text, startLine, endLine) || "(empty range)";
+  return read.truncated ? `${sliced}\n\n[truncated: file exceeds ${MAX_READ_BYTES} bytes]` : sliced;
 }
 
 export const readFileTool: ToolDefinition<typeof parameters> = {

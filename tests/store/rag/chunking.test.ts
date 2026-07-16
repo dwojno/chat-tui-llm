@@ -2,16 +2,16 @@ import { describe, expect, it } from "vitest";
 import { chunkMarkdown, embedText } from "@/store/sources/rag/chunking";
 
 const DOC = [
-  "# Title", 
-  "", 
-  "## Section A", 
-  "", 
-  "Alpha one.", 
-  "Alpha two.", 
-  "", 
-  "## Section B", 
-  "", 
-  "Beta content.", 
+  "# Title",
+  "",
+  "## Section A",
+  "",
+  "Alpha one.",
+  "Alpha two.",
+  "",
+  "## Section B",
+  "",
+  "Beta content.",
 ].join("\n");
 
 describe("chunkMarkdown", () => {

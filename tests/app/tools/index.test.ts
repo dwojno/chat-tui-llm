@@ -16,7 +16,7 @@ describe("createAgentTools", () => {
     expect(names).toContain(DELEGATE_TASK_NAME);
     expect(names).toContain(DELEGATE_TASKS_NAME);
     expect(names).toEqual(expect.arrayContaining(["read_file", "write_file", "edit_file"]));
-    
+
     expect(names).not.toContain("search_knowledge_base");
     expect(names).not.toContain("read_source");
   });

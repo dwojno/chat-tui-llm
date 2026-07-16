@@ -9,6 +9,7 @@ import {
   type SpanKind,
 } from "@opentelemetry/api";
 import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
+import { redactPII } from "@/platform/utils/redact";
 import { estimateCost } from "./pricing";
 
 export const TELEMETRY_SCOPE = "chat-cli";
@@ -29,9 +30,11 @@ export const GEN_AI = {
 const CONTENT_MAX_CHARS = 8000;
 
 let captureContent = true;
+let redactEnabled = true;
 
-export function configureTelemetry(opts: { captureContent?: boolean }): void {
+export function configureTelemetry(opts: { captureContent?: boolean; redactPii?: boolean }): void {
   if (opts.captureContent !== undefined) captureContent = opts.captureContent;
+  if (opts.redactPii !== undefined) redactEnabled = opts.redactPii;
 }
 
 export function isContentCaptureEnabled(): boolean {
@@ -140,12 +143,17 @@ function toJson(value: unknown): string {
   return JSON.stringify(value) ?? "";
 }
 
+function formatIO(value: unknown): string {
+  const json = toJson(value);
+  return truncate(redactEnabled ? redactPII(json) : json);
+}
+
 export function setSpanIO(span: Span, io: { input?: unknown; output?: unknown }): void {
   if (!captureContent) return;
   if (io.input !== undefined && io.input !== null)
-    span.setAttribute(LANGFUSE_INPUT, truncate(toJson(io.input)));
+    span.setAttribute(LANGFUSE_INPUT, formatIO(io.input));
   if (io.output !== undefined && io.output !== null)
-    span.setAttribute(LANGFUSE_OUTPUT, truncate(toJson(io.output)));
+    span.setAttribute(LANGFUSE_OUTPUT, formatIO(io.output));
 }
 
 export async function withLlmSpan<T>(

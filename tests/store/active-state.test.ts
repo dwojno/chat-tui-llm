@@ -21,7 +21,7 @@ describe("active-state", () => {
   it("round-trips profile + conversation as one JSON file", () => {
     writeActiveState(dbPath, { profileId: "work", conversationId: "conv-1" });
     expect(readActiveState(dbPath)).toEqual({ profileId: "work", conversationId: "conv-1" });
-    
+
     expect(JSON.parse(readFileSync(join(dir, "active.json"), "utf8"))).toEqual({
       profileId: "work",
       conversationId: "conv-1",

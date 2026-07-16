@@ -251,3 +251,4 @@ Dig deeper:
 - [docs/database.md](docs/database.md) — persistence, schema, migrations
 - [docs/evals.md](docs/evals.md) — live-model prompt evals
 - [docs/observability.md](docs/observability.md) — the OpenTelemetry span tree
+- [docs/security.md](docs/security.md) - security of the cli

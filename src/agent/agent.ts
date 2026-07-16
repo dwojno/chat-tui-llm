@@ -40,6 +40,7 @@ export interface AgentDeps {
   instructions: string;
   tools?: ToolDefinition<z.ZodType>[];
   forkProfiles?: ForkProfiles;
+  redact?: (text: string) => string;
 }
 
 export interface StepArgs {
@@ -73,11 +74,13 @@ export class Agent {
   private readonly registry: ToolDefinition<z.ZodType>[];
   private readonly forkProfiles: ForkProfiles;
   private readonly defaultProfile: TurnProfile;
+  private readonly redact?: (text: string) => string;
 
   constructor(deps: AgentDeps) {
     const tools = deps.tools ?? [];
     this.openai = deps.openai;
     this.temperature = deps.temperature;
+    if (deps.redact) this.redact = deps.redact;
     this.forkProfiles = deps.forkProfiles ?? {};
     const forkTools = Object.values(this.forkProfiles).flatMap((profile) => profile.tools);
     this.registry = dedupeByName([...tools, ...forkTools]);
@@ -160,7 +163,7 @@ export class Agent {
     try {
       return evaluateApproval(tool, tool.parameters.parse(JSON.parse(callArgs)));
     } catch {
-      return { required: tool.requiresApproval === true };
+      return { required: tool.requiresApproval === true || tool.approvalPolicy !== undefined };
     }
   }
 
@@ -195,10 +198,11 @@ export class Agent {
         : undefined;
 
     const model = profile.model ?? options.model;
+    const items = [...input];
 
     return {
       model,
-      input: [...input],
+      input: this.redact ? redactInputItems(items, this.redact) : items,
       instructions: profile.instructions,
       ...(text ? { text } : {}),
       ...(isReasoningModel(model)
@@ -274,6 +278,13 @@ export class Agent {
     }
     return source.finalResponse();
   }
+}
+
+function redactInputItems(
+  items: ResponseInputItem[],
+  redact: (text: string) => string,
+): ResponseInputItem[] {
+  return JSON.parse(redact(JSON.stringify(items))) as ResponseInputItem[];
 }
 
 function dedupeByName(tools: ToolDefinition<z.ZodType>[]): ToolDefinition<z.ZodType>[] {

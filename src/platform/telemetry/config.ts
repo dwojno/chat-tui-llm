@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { redactPiiEnabled } from "@/platform/utils/redact";
 
 const schema = z.object({
   OTEL_ENABLED: z.string().optional(),
@@ -14,6 +15,7 @@ export interface TelemetryConfig {
   headers: Record<string, string>;
   serviceName: string;
   captureContent: boolean;
+  redactPii: boolean;
 }
 
 function parseBool(value: string | undefined, fallback: boolean): boolean {
@@ -42,5 +44,6 @@ export function loadTelemetryConfig(env: NodeJS.ProcessEnv = process.env): Telem
     headers: parseHeaders(parsed.OTEL_EXPORTER_OTLP_HEADERS),
     serviceName: parsed.OTEL_SERVICE_NAME ?? "chat-cli",
     captureContent: parseBool(parsed.OTEL_CAPTURE_CONTENT, true),
+    redactPii: redactPiiEnabled(env),
   };
 }

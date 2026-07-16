@@ -79,7 +79,7 @@ describe("runCommand", () => {
     const action = await runCommand("/remember I like tea", ctx);
     expect(action).toEqual({ kind: "handled" });
     expect(addMemory).toHaveBeenCalledWith("I like tea");
-    expect(push).toHaveBeenCalledTimes(2); 
+    expect(push).toHaveBeenCalledTimes(2);
   });
 
   it("/remember with an empty fact is a no-op", async () => {
@@ -132,7 +132,7 @@ describe("slashCommandCatalog", () => {
         "/json ",
       ]),
     );
-    
+
     expect(completions.some((c) => c.includes("exit") || c.includes("chat"))).toBe(false);
     expect(slashCommandCatalog().every((c) => c.hint.length > 0)).toBe(true);
   });

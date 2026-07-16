@@ -18,7 +18,7 @@ function trimSlash(url: string): string {
 }
 
 export function startTelemetry(config: TelemetryConfig): void {
-  configureTelemetry({ captureContent: config.captureContent });
+  configureTelemetry({ captureContent: config.captureContent, redactPii: config.redactPii });
   if (!config.enabled) return;
 
   const base = trimSlash(config.endpoint);

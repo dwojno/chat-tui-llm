@@ -16,6 +16,7 @@ import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
 import { createAgentTools } from "@/app/tools";
 import { Session } from "@/app/session/session";
 import { createRagDeps, loadRagConfig, LocalStore, type OpenStoreOptions } from "@/store";
+import { redactPII, redactPiiEnabled } from "@/platform/utils/redact";
 import { renderChat } from "@/ui/chat";
 import { messagesFromTranscript } from "@/ui/history";
 
@@ -38,6 +39,7 @@ export async function run(): Promise<void> {
     instructions: SYSTEM_INSTRUCTIONS,
     tools,
     forkProfiles,
+    ...(redactPiiEnabled() ? { redact: redactPII } : {}),
   });
   const session = await Session.create(agent, openai, store, KEEP_LAST_TURNS, bus);
 

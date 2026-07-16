@@ -19,10 +19,10 @@ describe("resolveFileMentions", () => {
     writeFileSync(join(dir, "note.txt"), "fixture body");
 
     const resolved = await resolveFileMentions("summarize @note.txt", dir);
-    
+
     expect(resolved).not.toContain("@note.txt");
     expect(resolved).toMatch(/summarize \S*note\.txt$/);
-    
+
     expect(resolved).not.toContain("fixture body");
     expect(resolved).not.toContain("read_file");
   });
@@ -57,7 +57,6 @@ describe("resolveFileMentions", () => {
       const { symlinkSync } = await import("node:fs");
       symlinkSync(join(dir, "outside.txt"), join(root, "link.txt"));
     } catch {
-      
       return;
     }
 
