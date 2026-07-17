@@ -21,6 +21,19 @@ describe("createAgentTools", () => {
     expect(names).not.toContain("read_source");
   });
 
+  it("does not expose request_approval, so the deterministic gate is the only approval prompt", async () => {
+    const store = await createMemoryStore();
+    const { tools } = createAgentTools(store);
+    const names = tools.map((t) => t.name);
+
+    expect(names).not.toContain("request_approval");
+
+    const writeFile = tools.find((t) => t.name === "write_file");
+    assert(writeFile !== undefined);
+    const need = writeFile.approvalPolicy?.({ path: "notes.txt", content: "x" });
+    expect(need).toMatchObject({ required: true });
+  });
+
   it("gives the general fork web_search + weather but never delegate tools (no recursion)", async () => {
     const store = await createMemoryStore();
     const { forkProfiles } = createAgentTools(store);

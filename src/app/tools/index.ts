@@ -10,7 +10,6 @@ import { delegateTasksTool } from "./delegation/delegate-tasks";
 import { FORK_PROFILE_META, FORK_PROFILE_NAMES } from "./delegation/profiles";
 import { editFileTool } from "./edit-file";
 import { readFileTool } from "./read-file";
-import { requestApprovalTool } from "./request-approval";
 import { updateScratchpadTool } from "./scratchpad";
 import { weatherTool } from "./weather";
 import { webSearchTool } from "./web-search";
@@ -20,7 +19,6 @@ export { weatherTool } from "./weather";
 export { webSearchTool } from "./web-search";
 export { delegateTaskTool } from "./delegation/delegate-task";
 export { delegateTasksTool } from "./delegation/delegate-tasks";
-export { requestApprovalTool } from "./request-approval";
 export { askUserTool } from "./ask-user";
 export { readFileTool } from "./read-file";
 export { writeFileTool } from "./write-file";
@@ -45,7 +43,6 @@ const mainTools: ToolDefinition<z.ZodType>[] = [
   weatherTool,
   delegateTaskTool,
   delegateTasksTool,
-  requestApprovalTool,
   askUserTool,
   readFileTool,
   writeFileTool,
