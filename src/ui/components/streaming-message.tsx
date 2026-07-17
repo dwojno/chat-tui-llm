@@ -2,6 +2,7 @@ import React from "react";
 import { Box } from "ink";
 import { ROLE_META, type Step } from "../types";
 import Markdown from "../markdown";
+import { contentWidth } from "./message";
 import { MessageHeader } from "./message-header";
 import { CollapsibleStepList } from "./step-list";
 import { ScratchpadPanel } from "./scratchpad-panel";
@@ -21,7 +22,7 @@ export function StreamingMessage({
   return (
     <Box flexDirection="column" marginBottom={1}>
       <MessageHeader role="assistant" />
-      <Box flexDirection="column" paddingLeft={2}>
+      <Box flexDirection="column" paddingLeft={2} marginTop={1} width={contentWidth()}>
         {scratchpad?.length ? <ScratchpadPanel sections={scratchpad} /> : null}
         <CollapsibleStepList steps={steps} active={!answering} collapsed={answering} />
         {answering ? (
