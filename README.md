@@ -247,6 +247,7 @@ Dig deeper:
 
 - [docs/architecture.md](docs/architecture.md) — how the layers fit together
 - [docs/agent-loop.md](docs/agent-loop.md) — the turn / reducer / delegation mechanics
+- [docs/context-and-cost.md](docs/context-and-cost.md) — context window, token saving & cost
 - [docs/rag.md](docs/rag.md) — the knowledge-base pipeline and its services
 - [docs/database.md](docs/database.md) — persistence, schema, migrations
 - [docs/evals.md](docs/evals.md) — live-model prompt evals
