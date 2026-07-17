@@ -113,12 +113,6 @@ Sleep 1500ms
 Enter
 Sleep 5.5s
 
-# 9) A multi-step research turn — "Delegating: …" with the sub-agent's
-#    "Searching the web" step nested underneath, then the synthesized answer.
-Type "Compare server-side rendering and static site generation, and recommend one for a personal blog."
-Enter
-Sleep 30s
-
 Type "exit"
 Enter
 Sleep 1500ms
