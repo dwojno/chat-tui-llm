@@ -225,6 +225,15 @@ State is folded only from the windowed events (`forModel()`), so the scratchpad 
 persists within `KEEP_LAST_TURNS` — deliberately temporary working memory, not durable
 storage. It rides the orchestrator only; forks stay lean.
 
+**A turn's scratchpad is reset as it returns, not carried whole into the next.** When the
+runner finishes a turn (`finish`), it appends one synthetic `scratchpad` event computed by
+`scratchpadResetOps`: every section is trimmed to its still-open (`- [ ]`) todo items, and
+anything else — checked-off todos, spent plans, interim findings — is cleared
+(`content: null`). This is deterministic and happens in code, not left to the model to
+remember: an unfinished task resumes cleanly next turn (its open items survive), while a
+finished task doesn't leak its findings or done checklist into an unrelated follow-up. The
+cleared state is persisted and emitted to the UI, so the panel reflects it immediately.
+
 ## Compact errors → self-healing
 
 A tool that throws is caught by `executeTool` and returned as a compact `"Error: …"`

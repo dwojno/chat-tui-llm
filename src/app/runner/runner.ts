@@ -27,7 +27,12 @@ import {
 } from "@/app/tools/control-intents";
 import { parseScratchpadArgs, UPDATE_SCRATCHPAD_NAME } from "@/app/tools/scratchpad";
 import type { AgentEvent } from "./thread/events";
-import { buildMessage, deriveControl, deriveScratchpad } from "./thread/reducer";
+import {
+  buildMessage,
+  deriveControl,
+  deriveScratchpad,
+  scratchpadResetOps,
+} from "./thread/reducer";
 import {
   canonicalizeArgs,
   eventsToInputItems,
@@ -70,11 +75,14 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<LoopResult> 
   const runTurn: RunTurn = (a) => forkTurn({ agent, maxToolSteps, maxConsecutiveErrors, args: a });
 
   const stepArgs = { options, bus, ...(args.profile ? { profile: args.profile } : {}) };
-  const finish = (answer: string): LoopResult => ({
-    answer,
-    events: events.slice(seedLength),
-    usage: sumUsage(usages),
-  });
+  const finish = (answer: string): LoopResult => {
+    const resetOps = scratchpadResetOps(events);
+    if (resetOps) {
+      events.push({ type: "scratchpad", ops: resetOps });
+      bus.emit({ type: "scratchpad", sections: deriveScratchpad(events) });
+    }
+    return { answer, events: events.slice(seedLength), usage: sumUsage(usages) };
+  };
 
   let steps = 0;
   const liveItems: ResponseInputItem[] = [];

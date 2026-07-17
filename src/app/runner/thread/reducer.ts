@@ -95,6 +95,27 @@ export function deriveScratchpad(
   return [...sections].map(([section, content]) => ({ section, content }));
 }
 
+const OPEN_TODO_ITEM = /^\s*[-*]\s+\[ \]/;
+
+function retainOpenItems(content: string): string | null {
+  const open = content.split("\n").filter((line) => OPEN_TODO_ITEM.test(line));
+  return open.length ? open.join("\n") : null;
+}
+
+export function scratchpadResetOps(
+  events: readonly AgentEvent[],
+): { section: string; content: string | null }[] | null {
+  const ops = deriveScratchpad(events)
+    .map(({ section, content }) => ({
+      section,
+      reset: retainOpenItems(content),
+      original: content,
+    }))
+    .filter(({ reset, original }) => reset !== original)
+    .map(({ section, reset }) => ({ section, content: reset }));
+  return ops.length ? ops : null;
+}
+
 function scratchpadBlock(sections: { section: string; content: string }[]): string {
   return tagBlock("scratchpad", sections.map((s) => tagBlock(s.section, s.content)).join("\n"));
 }

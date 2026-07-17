@@ -4,6 +4,7 @@ import {
   deriveControl,
   deriveScratchpad,
   eventToPrompt,
+  scratchpadResetOps,
   threadToPrompt,
 } from "@/app/runner/thread/reducer";
 import type { AgentEvent } from "@/app/runner/thread/events";
@@ -150,6 +151,45 @@ describe("deriveScratchpad", () => {
     expect(
       threadToPrompt([{ type: "scratchpad", ops: [{ section: "todo", content: "secret" }] }]),
     ).toBe("");
+  });
+});
+
+describe("scratchpadResetOps", () => {
+  it("clears a finished turn's sections so nothing leaks into the next", () => {
+    const events: AgentEvent[] = [
+      {
+        type: "scratchpad",
+        ops: [
+          { section: "todo", content: "- [x] check Paris\n- [x] recommend" },
+          { section: "findings", content: "Paris was sunny" },
+        ],
+      },
+    ];
+    const ops = scratchpadResetOps(events);
+    expect(deriveScratchpad([...events, { type: "scratchpad", ops: ops ?? [] }])).toEqual([]);
+  });
+
+  it("keeps only still-open todo items when a task is unfinished", () => {
+    const events: AgentEvent[] = [
+      {
+        type: "scratchpad",
+        ops: [
+          { section: "todo", content: "- [x] step one\n- [ ] step two" },
+          { section: "plan", content: "do it in two steps" },
+        ],
+      },
+    ];
+    const ops = scratchpadResetOps(events);
+    expect(deriveScratchpad([...events, { type: "scratchpad", ops: ops ?? [] }])).toEqual([
+      { section: "todo", content: "- [ ] step two" },
+    ]);
+  });
+
+  it("returns null when there is nothing to reset", () => {
+    expect(scratchpadResetOps([])).toBeNull();
+    expect(
+      scratchpadResetOps([{ type: "scratchpad", ops: [{ section: "todo", content: "- [ ] go" }] }]),
+    ).toBeNull();
   });
 });
 
