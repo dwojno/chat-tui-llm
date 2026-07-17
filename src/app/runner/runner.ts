@@ -27,7 +27,7 @@ import {
 } from "@/app/tools/control-intents";
 import { parseScratchpadArgs, UPDATE_SCRATCHPAD_NAME } from "@/app/tools/scratchpad";
 import type { AgentEvent } from "./thread/events";
-import { buildMessage, deriveControl } from "./thread/reducer";
+import { buildMessage, deriveControl, deriveScratchpad } from "./thread/reducer";
 import {
   canonicalizeArgs,
   eventsToInputItems,
@@ -167,8 +167,10 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<LoopResult> 
         continue;
       }
       events.push({ type: "scratchpad", ops: parsed.sections });
-      bus.emit({ type: "status", text: "Updated scratchpad" });
       outputs.set(call.call_id, SCRATCHPAD_SAVED_OUTPUT);
+    }
+    if (padCalls.some((call) => outputs.get(call.call_id) === SCRATCHPAD_SAVED_OUTPUT)) {
+      bus.emit({ type: "scratchpad", sections: deriveScratchpad(events) });
     }
 
     const work = calls.filter(

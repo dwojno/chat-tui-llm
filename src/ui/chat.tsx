@@ -60,7 +60,9 @@ function Chat({
 
       {empty && overlay === undefined && <Welcome />}
 
-      {live !== undefined && <StreamingMessage steps={live.steps} content={live.content} />}
+      {live !== undefined && (
+        <StreamingMessage steps={live.steps} content={live.content} scratchpad={live.scratchpad} />
+      )}
 
       {overlay?.kind === "picker" && (
         <PickerOverlay
@@ -107,6 +109,7 @@ export interface ChatHandle {
   push(message: Message): void;
   setStreaming(content: string): void;
   addStep(step: Step): void;
+  setScratchpad(sections: { section: string; content: string }[]): void;
   appendStreaming(delta: string): void;
   commitStreaming(content?: string): void;
   stream(deltas: AsyncIterable<string>): Promise<string>;
@@ -217,6 +220,11 @@ export function renderChat(
     addStep(step: Step): void {
       const base = live ?? { steps: [], content: "" };
       live = { ...base, steps: [...base.steps, step] };
+      update();
+    },
+    setScratchpad(sections: { section: string; content: string }[]): void {
+      const base = live ?? { steps: [], content: "" };
+      live = { ...base, scratchpad: sections };
       update();
     },
     appendStreaming(delta: string): void {

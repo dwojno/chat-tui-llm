@@ -17,6 +17,7 @@ export interface Message {
 export interface LiveTurn {
   steps: Step[];
   content: string;
+  scratchpad?: { section: string; content: string }[] | undefined;
 }
 
 interface RoleMeta {

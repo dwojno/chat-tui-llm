@@ -418,11 +418,15 @@ describe("runAgentLoop control intents", () => {
       { text: "all done" },
     ]);
 
-    const { result } = await run(agent, [userMessage("plan it")]);
+    const { events, result } = await run(agent, [userMessage("plan it")]);
 
     expect(result.answer).toBe("all done");
     expect(exec).not.toHaveBeenCalled();
     expect(result.events.some((e) => e.type === "scratchpad")).toBe(true);
+    expect(events).toContainEqual({
+      type: "scratchpad",
+      sections: [{ section: "todo", content: "1. check weather" }],
+    });
     expect(mock.calls.stream).toHaveLength(2);
 
     const secondInput = (mock.calls.stream[1] as { input: Record<string, unknown>[] }).input;

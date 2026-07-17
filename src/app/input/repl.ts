@@ -40,6 +40,9 @@ function subscribeChat(bus: EventBus, chat: ChatHandle, session: Session): () =>
         chat.addStep({ label: event.text, fork: event.fork });
         refreshUsage();
         break;
+      case "scratchpad":
+        chat.setScratchpad(event.sections);
+        break;
       case "approval_request":
         chat.addStep({ label: `Awaiting approval — ${event.label ?? event.toolName}` });
         break;

@@ -4,6 +4,7 @@ export type TurnEvent =
   | { type: "delta"; text: string }
   | { type: "tool"; name: string; label?: string; detail?: string; fork?: string }
   | { type: "status"; text: string; fork?: string }
+  | { type: "scratchpad"; sections: { section: string; content: string }[] }
   | {
       type: "approval_request";
       toolName: string;
