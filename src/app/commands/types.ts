@@ -1,10 +1,12 @@
 import type { TurnOptions } from "@/agent/conversation/options";
 import type { Session } from "@/app/session/session";
+import type { Store } from "@/store";
 import type { ChatHandle } from "@/ui/chat";
 
 export interface CommandContext {
   session: Session;
   chat: ChatHandle;
+  store: Store;
 }
 
 export type CommandAction =

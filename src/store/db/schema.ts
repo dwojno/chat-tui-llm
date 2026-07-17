@@ -65,3 +65,21 @@ export const conversationItem = sqliteTable(
     index("conversation_item_conversation_kind_id").on(table.conversationId, table.kind, table.id),
   ],
 );
+
+export const mcpServer = sqliteTable(
+  "mcp_server",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    profileId: text("profile_id")
+      .notNull()
+      .references(() => profile.id),
+    label: text("label").notNull(),
+    transport: text("transport").notNull(),
+    url: text("url"),
+    command: text("command"),
+    args: text("args"),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => [uniqueIndex("mcp_server_profile_label").on(table.profileId, table.label)],
+);

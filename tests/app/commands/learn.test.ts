@@ -29,6 +29,7 @@ describe("learn command", () => {
     const ctx: CommandContext = {
       session,
       chat: { push } as unknown as ChatHandle,
+      store: session.store,
     };
 
     const action = await runCommand("/learn @note.txt @missing.txt", ctx);

@@ -45,10 +45,15 @@ function PickerRow({
   const meta = item?.meta ? pad(item.meta, 16) : "".padEnd(16);
   const marker = item?.current ? " *" : "  ";
   const label = pad(item?.label ?? "", CONTENT_WIDTH - 20);
+  const dot =
+    item?.status !== undefined ? (
+      <Text color={item.status === "on" ? "green" : "red"}>● </Text>
+    ) : null;
 
   return (
     <Text {...(selected ? { color: "cyan", bold: true } : { dimColor: true })}>
-      {prefix} {number} {label} {meta}
+      {prefix} {number} {dot}
+      {label} {meta}
       {marker}
     </Text>
   );

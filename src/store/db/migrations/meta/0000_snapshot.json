@@ -1,9 +1,58 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "53551aad-978b-46c7-867e-fbfbec5812fd",
+  "id": "221cda48-17c6-460a-9026-12a4e33c72fb",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
+    "conversation": {
+      "name": "conversation",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "profile_id": {
+          "name": "profile_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'New chat'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "conversation_profile_id_profile_id_fk": {
+          "name": "conversation_profile_id_profile_id_fk",
+          "tableFrom": "conversation",
+          "tableTo": "profile",
+          "columnsFrom": ["profile_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "conversation_item": {
       "name": "conversation_item",
       "columns": {
@@ -14,8 +63,8 @@
           "notNull": true,
           "autoincrement": true
         },
-        "session_id": {
-          "name": "session_id",
+        "conversation_id": {
+          "name": "conversation_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -83,23 +132,23 @@
         }
       },
       "indexes": {
-        "conversation_item_session_turn": {
-          "name": "conversation_item_session_turn",
-          "columns": ["session_id", "turn_index"],
+        "conversation_item_conversation_turn": {
+          "name": "conversation_item_conversation_turn",
+          "columns": ["conversation_id", "turn_index"],
           "isUnique": false
         },
-        "conversation_item_session_kind_id": {
-          "name": "conversation_item_session_kind_id",
-          "columns": ["session_id", "kind", "id"],
+        "conversation_item_conversation_kind_id": {
+          "name": "conversation_item_conversation_kind_id",
+          "columns": ["conversation_id", "kind", "id"],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "conversation_item_session_id_session_id_fk": {
-          "name": "conversation_item_session_id_session_id_fk",
+        "conversation_item_conversation_id_conversation_id_fk": {
+          "name": "conversation_item_conversation_id_conversation_id_fk",
           "tableFrom": "conversation_item",
-          "tableTo": "session",
-          "columnsFrom": ["session_id"],
+          "tableTo": "conversation",
+          "columnsFrom": ["conversation_id"],
           "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -109,8 +158,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "fact": {
-      "name": "fact",
+    "mcp_server": {
+      "name": "mcp_server",
       "columns": {
         "id": {
           "name": "id",
@@ -119,8 +168,98 @@
           "notNull": true,
           "autoincrement": true
         },
-        "session_id": {
-          "name": "session_id",
+        "profile_id": {
+          "name": "profile_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "transport": {
+          "name": "transport",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "command": {
+          "name": "command",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "args": {
+          "name": "args",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "mcp_server_profile_label": {
+          "name": "mcp_server_profile_label",
+          "columns": ["profile_id", "label"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "mcp_server_profile_id_profile_id_fk": {
+          "name": "mcp_server_profile_id_profile_id_fk",
+          "tableFrom": "mcp_server",
+          "tableTo": "profile",
+          "columnsFrom": ["profile_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "memory": {
+      "name": "memory",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "profile_id": {
+          "name": "profile_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -151,11 +290,11 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "fact_session_id_session_id_fk": {
-          "name": "fact_session_id_session_id_fk",
-          "tableFrom": "fact",
-          "tableTo": "session",
-          "columnsFrom": ["session_id"],
+        "memory_profile_id_profile_id_fk": {
+          "name": "memory_profile_id_profile_id_fk",
+          "tableFrom": "memory",
+          "tableTo": "profile",
+          "columnsFrom": ["profile_id"],
           "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -165,8 +304,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "session": {
-      "name": "session",
+    "profile": {
+      "name": "profile",
       "columns": {
         "id": {
           "name": "id",
@@ -175,13 +314,19 @@
           "notNull": true,
           "autoincrement": false
         },
-        "title": {
-          "name": "title",
+        "name": {
+          "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'New chat'"
+          "autoincrement": false
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "created_at": {
           "name": "created_at",
@@ -207,8 +352,8 @@
           "notNull": true,
           "autoincrement": true
         },
-        "session_id": {
-          "name": "session_id",
+        "profile_id": {
+          "name": "profile_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -221,6 +366,42 @@
           "notNull": true,
           "autoincrement": false
         },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
+        },
+        "s3_key": {
+          "name": "s3_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "content_hash": {
+          "name": "content_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "chunk_count": {
+          "name": "chunk_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "indexed_at": {
+          "name": "indexed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -230,18 +411,18 @@
         }
       },
       "indexes": {
-        "source_session_path": {
-          "name": "source_session_path",
-          "columns": ["session_id", "path"],
+        "source_profile_path": {
+          "name": "source_profile_path",
+          "columns": ["profile_id", "path"],
           "isUnique": true
         }
       },
       "foreignKeys": {
-        "source_session_id_session_id_fk": {
-          "name": "source_session_id_session_id_fk",
+        "source_profile_id_profile_id_fk": {
+          "name": "source_profile_id_profile_id_fk",
           "tableFrom": "source",
-          "tableTo": "session",
-          "columnsFrom": ["session_id"],
+          "tableTo": "profile",
+          "columnsFrom": ["profile_id"],
           "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"

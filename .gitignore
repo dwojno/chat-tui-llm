@@ -2,3 +2,4 @@ node_modules
 .env
 .chat-state
 .pnpm-store
+.playwright-mcp

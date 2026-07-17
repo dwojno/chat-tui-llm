@@ -3,6 +3,7 @@ export type PickerItem = {
   label: string;
   meta?: string | undefined;
   current?: boolean | undefined;
+  status?: "on" | "off" | undefined;
 };
 
 export type PickerKeyAction =

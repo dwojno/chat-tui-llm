@@ -14,8 +14,9 @@ import { EventBus } from "@/agent/events/bus";
 import { TEMPERATURE } from "@/app/config";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
 import { createAgentTools } from "@/app/tools";
+import { connectMcpServers, type McpConnection } from "@/app/tools/mcp";
 import { Session } from "@/app/session/session";
-import { createRagDeps, LocalStore, type OpenStoreOptions } from "@/store";
+import { createRagDeps, LocalStore, type OpenStoreOptions, type Store } from "@/store";
 import { redactPII } from "@/platform/utils/redact";
 import { renderChat } from "@/ui/chat";
 import { messagesFromTranscript } from "@/ui/history";
@@ -24,6 +25,12 @@ export interface RunDeps {
   openai?: OpenAI;
   ragOpenai?: OpenAI;
   dbPath?: string;
+  disableMcp?: boolean;
+}
+
+async function connectProfileMcp(store: Store): Promise<McpConnection> {
+  const stored = await store.mcp.list(store.profileId);
+  return connectMcpServers(stored);
 }
 
 export async function run(deps: RunDeps = {}): Promise<void> {
@@ -42,7 +49,10 @@ export async function run(deps: RunDeps = {}): Promise<void> {
   };
   if (cli.conversationId !== undefined) openOpts.conversationId = cli.conversationId;
   const store = await LocalStore.open(deps.dbPath ?? DB_PATH, openOpts);
-  const { tools, forkProfiles } = createAgentTools(store);
+  const mcp: McpConnection = !deps.disableMcp
+    ? await connectProfileMcp(store)
+    : { tools: [], close: async () => {} };
+  const { tools, forkProfiles } = createAgentTools(store, mcp.tools);
   const bus = new EventBus();
   const agent = new Agent({
     openai,
@@ -67,5 +77,5 @@ export async function run(deps: RunDeps = {}): Promise<void> {
     session.setClarificationHandler((req) => chat.promptClarification(req));
   }
 
-  await runRepl({ chat, session, interactive, store, bus });
+  await runRepl({ chat, session, interactive, store, bus, onShutdown: mcp.close });
 }

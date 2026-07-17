@@ -18,6 +18,7 @@ export interface ReplDeps {
   store: Store;
   bus: EventBus;
   interactive: boolean;
+  onShutdown?: () => Promise<void>;
 }
 
 function subscribeChat(bus: EventBus, chat: ChatHandle, session: Session): () => void {
@@ -87,7 +88,14 @@ export async function processLine(
   return "continue";
 }
 
-export async function runRepl({ chat, session, store, bus, interactive }: ReplDeps): Promise<void> {
+export async function runRepl({
+  chat,
+  session,
+  store,
+  bus,
+  interactive,
+  onShutdown,
+}: ReplDeps): Promise<void> {
   const sigint = new AbortController();
 
   const shutdown = (): void => {
@@ -98,6 +106,7 @@ export async function runRepl({ chat, session, store, bus, interactive }: ReplDe
     chat.unmount();
     void buildExitMessage(store, session).then(async (message) => {
       writeSync(1, message);
+      await onShutdown?.();
       await shutdownTelemetry();
       process.exit(0);
     });
@@ -105,7 +114,7 @@ export async function runRepl({ chat, session, store, bus, interactive }: ReplDe
 
   process.on("SIGINT", shutdown);
 
-  const ctx: CommandContext = { session, chat };
+  const ctx: CommandContext = { session, chat, store };
 
   chat.setUsage(await session.getUsageTotals());
 

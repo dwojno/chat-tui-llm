@@ -31,6 +31,8 @@ db-generate *args:
     pnpm exec drizzle-kit generate {{ args }}
 db-studio:
     pnpm exec drizzle-kit studio
+db-migrate:
+    pnpm exec drizzle-kit migrate
 
 # --- infra (docker compose; --wait blocks on healthchecks) ---
 

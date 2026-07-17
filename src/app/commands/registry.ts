@@ -3,6 +3,7 @@ import { exitCommand } from "./exit";
 import { conversationCommand } from "./conversation";
 import { jsonCommand } from "./json";
 import { learnCommand } from "./learn";
+import { mcpCommand } from "./mcp";
 import { profileCommand } from "./profile";
 import { reindexCommand } from "./reindex";
 import { rememberCommand } from "./remember";
@@ -16,6 +17,7 @@ const COMMANDS: Command[] = [
   learnCommand,
   reindexCommand,
   sourcesCommand,
+  mcpCommand,
   profileCommand,
   conversationCommand,
   structuredCommand,

@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { openDatabase, type SqliteDb } from "@/store/db/db";
 import { ConversationFacade, SqliteConversationFacade } from "./conversation";
 import { ConversationRepository } from "./conversation/conversation.repository";
+import { McpFacade } from "./mcp";
+import { McpRepository } from "./mcp/mcp.repository";
 import { MemoryFacade, SqliteMemoryFacade } from "./memory";
 import { MemoryRepository } from "./memory/memory.repository";
 import { ProfileFacade, SqliteProfileFacade } from "./profile";
@@ -26,6 +28,7 @@ export interface Store {
   readonly conversation: ConversationFacade;
   readonly memory: MemoryFacade;
   readonly sources: SourcesFacade;
+  readonly mcp: McpFacade;
 }
 
 interface StoreFacades {
@@ -33,6 +36,7 @@ interface StoreFacades {
   conversation: ConversationFacade;
   memory: MemoryFacade;
   sources: SourcesFacade;
+  mcp: McpFacade;
 }
 
 function createFacades(db: SqliteDb, ctx: StoreContext, rag?: RagDeps): StoreFacades {
@@ -40,6 +44,7 @@ function createFacades(db: SqliteDb, ctx: StoreContext, rag?: RagDeps): StoreFac
   const conversationRepo = new ConversationRepository(db);
   const memoryRepo = new MemoryRepository(db);
   const sourceRepo = new SourceRepository(db);
+  const mcpRepo = new McpRepository(db);
 
   profileRepo.ensureDefault();
 
@@ -47,8 +52,9 @@ function createFacades(db: SqliteDb, ctx: StoreContext, rag?: RagDeps): StoreFac
   const profile = new SqliteProfileFacade(profileRepo, ctx, conversation);
   const memory = new SqliteMemoryFacade(memoryRepo);
   const sources = new SqliteSourcesFacade(sourceRepo, rag);
+  const mcp = new McpFacade(mcpRepo);
 
-  return { profile, conversation, memory, sources };
+  return { profile, conversation, memory, sources, mcp };
 }
 
 export class LocalStore implements Store {
@@ -56,6 +62,7 @@ export class LocalStore implements Store {
   readonly conversation: ConversationFacade;
   readonly memory: MemoryFacade;
   readonly sources: SourcesFacade;
+  readonly mcp: McpFacade;
 
   private constructor(
     private readonly ctx: StoreContext,
@@ -65,6 +72,7 @@ export class LocalStore implements Store {
     this.conversation = facades.conversation;
     this.memory = facades.memory;
     this.sources = facades.sources;
+    this.mcp = facades.mcp;
   }
 
   get profileId(): string {

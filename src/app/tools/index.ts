@@ -51,7 +51,10 @@ const mainTools: ToolDefinition<z.ZodType>[] = [
   ...controlIntentTools,
 ];
 
-export function createAgentTools(store: Store): AgentTools {
+export function createAgentTools(
+  store: Store,
+  mcpTools: ToolDefinition<z.ZodType>[] = [],
+): AgentTools {
   const forkProfiles = Object.fromEntries(
     FORK_PROFILE_NAMES.map((name) => [
       name,
@@ -62,7 +65,7 @@ export function createAgentTools(store: Store): AgentTools {
       },
     ]),
   ) as ForkProfiles;
-  return { tools: mainTools, forkProfiles };
+  return { tools: [...mainTools, ...mcpTools], forkProfiles };
 }
 
 export const forkToolSchemas: OpenAITool[] = (

@@ -68,7 +68,7 @@ export async function createE2EHarness(opts?: {
     return next;
   };
 
-  const ctx: CommandContext = { session, chat };
+  const ctx: CommandContext = { session, chat, store };
 
   return {
     chat,

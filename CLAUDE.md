@@ -34,6 +34,7 @@ just check          # typecheck + lint + format-check + test (pre-commit gate)
 just eval           # prompt evals (needs a real OPENAI_API_KEY)
 just integration    # RAG-tools integration vs real Qdrant + OpenAI (starts Qdrant first)
 just db-generate    # regenerate drizzle migrations after editing src/store/db/schema.ts
+                    #   (the ONLY way to add a migration — never hand-write SQL/journal)
 just db-studio      # open drizzle-kit studio against the SQLite db
 just infra          # docker compose up -d --wait (Qdrant + Langfuse stack)
 ```
@@ -386,7 +387,10 @@ threatens the frameworkless claim); changing the model, `KEEP_LAST_TURNS`, or
 `Store` interface (then run `db:generate`); reshaping the `TurnEvent` contract or the
 `Agent` step/executeTool signatures.
 
-**Never** — import `ui/`, `store/`, or anything under `app/` (`session/`, `runner/`,
+**Never** — hand-write a migration SQL file or edit `migrations/meta/_journal.json`
+by hand; after editing `schema.ts` always regenerate with `just db-generate` (the
+drizzle-kit command that keeps the journal + snapshot chain consistent); import
+`ui/`, `store/`, or anything under `app/` (`session/`, `runner/`,
 `commands/`, `tools/`, …) from `agent/` (the core imports nothing outward); route storable data through the
 `EventBus` (it is UI-only, never persisted); introduce an agent framework or SDK
 abstraction over `openai`; give `delegate_task`/`delegate_tasks` to forks (infinite

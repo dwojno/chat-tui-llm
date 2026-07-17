@@ -1,1 +1,0 @@
-ALTER TABLE `fact` RENAME TO `memory`;

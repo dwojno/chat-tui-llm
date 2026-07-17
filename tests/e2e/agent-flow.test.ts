@@ -57,7 +57,7 @@ async function setup(client: OpenAI): Promise<Harness> {
   });
   const session = await Session.create(agent, client, store, 4, bus);
   const chat = renderChat([], { interactive: false });
-  const ctx: CommandContext = { session, chat };
+  const ctx: CommandContext = { session, chat, store };
   return {
     chat,
     session,

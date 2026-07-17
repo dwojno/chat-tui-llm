@@ -16,6 +16,8 @@ export interface ToolDefinition<TArgs extends z.ZodType> {
   label: string;
   description: string;
   parameters: TArgs;
+  rawParameters?: Record<string, unknown>;
+  strict?: boolean;
   execute: (args: z.infer<TArgs>, ctx?: ToolRunContext) => Promise<string>;
   summarize?: (args: z.infer<TArgs>) => string;
   requiresApproval?: boolean;
@@ -35,8 +37,8 @@ export function toOpenAITool<TArgs extends z.ZodType>(tool: ToolDefinition<TArgs
     type: "function",
     name: tool.name,
     label: tool.label,
-    parameters: tool.parameters.toJSONSchema() as Record<string, unknown>,
-    strict: true,
+    parameters: tool.rawParameters ?? (tool.parameters.toJSONSchema() as Record<string, unknown>),
+    strict: tool.strict ?? true,
     description: tool.description,
   };
 }

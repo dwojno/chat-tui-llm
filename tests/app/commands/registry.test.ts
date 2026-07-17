@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ResponseSchema } from "@/app/tools/schemas";
 import type { Session } from "@/app/session/session";
+import type { Store } from "@/store";
 import type { ChatHandle } from "@/ui/chat";
 import { resolveCommand, runCommand, slashCommandCatalog } from "@/app/commands/registry";
 import type { CommandContext } from "@/app/commands/types";
@@ -17,6 +18,7 @@ function makeCtx(overrides: Partial<CommandContext> = {}) {
       ...overrides.session,
     } as unknown as Session,
     chat: { push, ...overrides.chat } as unknown as ChatHandle,
+    store: {} as unknown as Store,
     ...overrides,
   };
   return { ctx, addMemory, indexSource, push };

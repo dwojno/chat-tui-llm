@@ -188,6 +188,30 @@ per-profile infra layout, the four tools, every config knob, and the RAG evals �
 lives in **[rag.md](./rag.md)**. Multi-hop retrieval is delegated to the
 `rag_research` fork profile; see [agent-loop.md](./agent-loop.md#fork-profiles).
 
+## MCP servers
+
+The agent can use tools exposed by external **MCP** (Model Context Protocol)
+servers — both remote **HTTP** servers and locally-launched **stdio** servers (e.g.
+a scraping or browser-automation server). A single client
+([src/app/tools/mcp/](../src/app/tools/mcp/), built on `@modelcontextprotocol/sdk`)
+connects to each server at boot, lists its tools, and wraps every one as an ordinary
+local `ToolDefinition` whose `execute` proxies to `client.callTool`. Because the wrap
+produces a plain tool, the runner loop, approval gate, and dispatch registry work on
+MCP tools unchanged — MCP tools are marked `requiresApproval` (they run browsers /
+spawn processes) and carry the server's JSON Schema verbatim via `rawParameters`
+(with `strict: false`, since arbitrary MCP schemas don't meet OpenAI strict mode).
+
+We deliberately do **not** use the Responses API's native `tools:[{type:"mcp"}]`:
+that executes server-side and can only reach HTTP endpoints, so it cannot drive a
+local stdio process like Playwright. One unified client covers both transports.
+
+Servers are configured **per profile** (`mcp_server` table, `store.mcp` facade),
+managed with the interactive **`/mcp`** modal (a picker to add / enable / disable /
+remove, built from the existing `pickEntity` + `promptInModal` primitives); there are no
+servers by default. Changes take effect on the **next start** — the tool registry
+is built once at boot. Connecting runs by default; since a fresh profile has no servers,
+the offline test suite spawns nothing (and `run({ disableMcp: true })` skips it outright).
+
 ## The UI
 
 The Ink TUI ([src/ui/](../src/ui/)) is a thin adapter over the event stream. The
