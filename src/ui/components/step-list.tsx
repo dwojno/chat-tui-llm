@@ -49,7 +49,11 @@ export function CollapsibleStepList({
   if (steps.length === 0) return null;
 
   if (collapsed) {
-    return <Text dimColor>▸ {summarizeSteps(steps)}</Text>;
+    return (
+      <Box marginBottom={1}>
+        <Text dimColor>▸ {summarizeSteps(steps)}</Text>
+      </Box>
+    );
   }
 
   return <StepList steps={steps} active={active} />;
