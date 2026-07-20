@@ -48,6 +48,15 @@ describe("resolveFileMentions", () => {
     expect(resolved.match(/note\.txt/g)?.length).toBe(2);
   });
 
+  it("resolves quoted mentions and quotes paths that contain spaces", async () => {
+    writeFileSync(join(dir, "my notes.txt"), "spaced");
+
+    const resolved = await resolveFileMentions('summarize @"my notes.txt"', dir);
+
+    expect(resolved).not.toContain("@");
+    expect(resolved).toMatch(/^summarize ".+my notes\.txt"$/);
+  });
+
   it("blocks symlink escapes outside the cwd", async () => {
     const root = join(dir, "proj");
     mkdirSync(root, { recursive: true });

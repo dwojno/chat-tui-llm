@@ -46,7 +46,7 @@ export function PromptInput({
   const acceptFile = (file: FileSuggestion): void => {
     const token = matchFileMentionToken(value, cursor);
     if (!token) return;
-    const insertion = `@${file.path} `;
+    const insertion = file.path.includes(" ") ? `@"${file.path}" ` : `@${file.path} `;
     const next = value.slice(0, token.start) + insertion + value.slice(cursor);
     setValue(next);
     setCursor(token.start + insertion.length);

@@ -1,7 +1,11 @@
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 
-const MENTION_RE = /(?:^|\s)@([\w./-]+)/g;
+const MENTION_RE = /(?:^|\s)@(?:"([^"]+)"|([\w./-]+))/g;
+
+function formatResolvedPath(path: string): string {
+  return path.includes(" ") ? `"${path}"` : path;
+}
 
 function isWithinRoot(root: string, target: string): boolean {
   const rel = relative(root, target);
@@ -44,7 +48,7 @@ export function parseFileMentions(text: string): string[] {
   const seen = new Set<string>();
 
   for (const match of text.matchAll(MENTION_RE)) {
-    const path = match[1];
+    const path = match[1] ?? match[2];
     if (path && !seen.has(path)) {
       seen.add(path);
       paths.push(path);
@@ -65,11 +69,13 @@ export async function resolveFileMentions(text: string, cwd = process.cwd()): Pr
   const resolved = new Map(entries.filter((entry): entry is [string, string] => entry[1] !== null));
   if (!resolved.size) return text;
 
-  return text.replace(MENTION_RE, (match, mention: string) => {
+  return text.replace(MENTION_RE, (match, quoted: string | undefined, bare: string | undefined) => {
+    const mention = quoted ?? bare;
+    if (!mention) return match;
     const full = resolved.get(mention);
     if (!full) return match;
 
-    const lead = match.slice(0, match.length - mention.length - 1);
-    return `${lead}${full}`;
+    const lead = match.slice(0, match.indexOf("@"));
+    return `${lead}${formatResolvedPath(full)}`;
   });
 }
