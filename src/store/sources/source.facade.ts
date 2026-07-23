@@ -21,34 +21,11 @@ const NOT_CONFIGURED =
 
 const DEFAULT_SEARCH_LIMIT = 8;
 
-export abstract class SourcesFacade {
-  abstract query(): SourceQuery;
-  abstract create(profileId: string, path: string): Promise<Source>;
-  abstract createMany(profileId: string, paths: string[]): Promise<Source[]>;
-  abstract update(id: number, patch: { path: string }): Promise<void>;
-  abstract delete(id: OneOrMany<number>): Promise<void>;
-
-  abstract add(profileId: string, path: string): AsyncGenerator<SourceProgress, IndexResult>;
-  abstract reindex(profileId: string): AsyncGenerator<SourceProgress, IndexResult[]>;
-  abstract remove(profileId: string, id: number): Promise<void>;
-  abstract reset(profileId: string): Promise<void>;
-  abstract search(profileId: string, query: string, opts?: SearchOptions): Promise<SearchHit[]>;
-  abstract listFiles(profileId: string): Promise<string[]>;
-  abstract grep(
-    profileId: string,
-    pattern: string,
-    opts?: GrepOptions,
-  ): AsyncGenerator<GrepMatch, void>;
-  abstract readFile(profileId: string, path: string, range: ReadRange): Promise<string>;
-}
-
-export class SqliteSourcesFacade extends SourcesFacade {
+export class SourcesFacade {
   constructor(
     private readonly repo: SourceRepository,
     private readonly deps?: RagDeps,
-  ) {
-    super();
-  }
+  ) {}
 
   private engine(): RagEngine {
     assert(this.deps, NOT_CONFIGURED);

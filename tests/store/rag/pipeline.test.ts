@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { LocalStore, type Store } from "@/store";
 import { createFakeRag, type FakeRag } from "@tests/helpers/fake-rag";
-import { collect, drain } from "@/platform/utils/async-gen";
+import { drain } from "@/platform/utils/async-gen";
 
 const GUIDE = [
   "# Deployment Guide",
@@ -74,7 +74,8 @@ describe("sources RAG pipeline", () => {
 
   it("greps raw file text streamed from object storage", async () => {
     await drain(store.sources.add(store.profileId, "guide.md"));
-    const matches = await collect(store.sources.grep(store.profileId, "Redis"));
+    const matches = [];
+    for await (const match of store.sources.grep(store.profileId, "Redis")) matches.push(match);
     expect(matches).toHaveLength(1);
     expect(matches[0]?.path).toBe("guide.md");
     expect(matches[0]?.line).toBe(9);

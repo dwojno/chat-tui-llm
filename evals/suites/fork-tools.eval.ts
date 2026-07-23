@@ -1,7 +1,6 @@
 import { evalite } from "evalite";
 import { FORK_INSTRUCTIONS } from "@/app/tools/prompts/fork";
 import { forkToolSchemas } from "@/app/tools";
-import { WEATHER_TOOL_NAME } from "@/app/tools/weather";
 import { WEB_SEARCH_TOOL_NAME } from "@/app/tools/web-search";
 import {
   avoidsTools,
@@ -25,7 +24,6 @@ evalite<ProbeSpec, ProbeResult, Expected>("fork tool routing", {
       },
       expected: {
         route: WEB_SEARCH_TOOL_NAME,
-        forbidTools: [WEATHER_TOOL_NAME],
       },
     },
     {
@@ -36,18 +34,6 @@ evalite<ProbeSpec, ProbeResult, Expected>("fork tool routing", {
       },
       expected: {
         route: WEB_SEARCH_TOOL_NAME,
-        forbidTools: [WEATHER_TOOL_NAME],
-      },
-    },
-    {
-      input: {
-        prompt: "What is the current weather in Tokyo?",
-        instructions: FORK_INSTRUCTIONS,
-        tools: forkToolSchemas,
-      },
-      expected: {
-        route: WEATHER_TOOL_NAME,
-        toolArg: { key: "city", contains: "Tokyo" },
       },
     },
     {
@@ -58,7 +44,7 @@ evalite<ProbeSpec, ProbeResult, Expected>("fork tool routing", {
       },
       expected: {
         route: "direct",
-        forbidTools: [WEATHER_TOOL_NAME, WEB_SEARCH_TOOL_NAME],
+        forbidTools: [WEB_SEARCH_TOOL_NAME],
       },
     },
   ],

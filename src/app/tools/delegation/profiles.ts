@@ -7,7 +7,6 @@ import { WEB_FORK_INSTRUCTIONS } from "../prompts/web-fork";
 import { CODEBASE_FORK_INSTRUCTIONS } from "../prompts/codebase-fork";
 import { createRagTools } from "../rag";
 import { readFileTool } from "../read-file";
-import { weatherTool } from "../weather";
 import { webSearchTool } from "../web-search";
 
 export const FORK_PROFILE_NAMES = ["general", "rag_research", "web_research", "codebase"] as const;
@@ -23,9 +22,9 @@ interface ForkProfileMeta {
 export const FORK_PROFILE_META: Record<ForkProfileName, ForkProfileMeta> = {
   general: {
     description:
-      "quick, self-contained one-off tasks (weather, a single fact) — the fallback when no specialist fits",
+      "quick, self-contained one-off tasks (a single fact) — the fallback when no specialist fits",
     instructions: FORK_INSTRUCTIONS,
-    tools: () => [weatherTool, webSearchTool],
+    tools: () => [webSearchTool],
   },
   rag_research: {
     description: "multi-hop retrieval over this profile's indexed knowledge base",

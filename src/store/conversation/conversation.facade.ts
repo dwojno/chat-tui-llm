@@ -44,34 +44,11 @@ export class HistoryQuery {
   }
 }
 
-export abstract class ConversationFacade {
-  abstract query(): ConversationQuery;
-  abstract queryHistory(conversationId: string): HistoryQuery;
-  abstract create(profileId: string, title?: string): Promise<Conversation>;
-  abstract update(id: string, patch: { title: string }): Promise<void>;
-  abstract delete(id: OneOrMany<string>): Promise<void>;
-  abstract createItems(
-    conversationId: string,
-    items: OneOrMany<ConversationItemInsert>,
-  ): Promise<void>;
-  abstract appendUserMessage(
-    conversationId: string,
-    item: ConversationItemInsert,
-    title?: string,
-  ): Promise<void>;
-  abstract switchTo(conversationId: string): Promise<void>;
-  abstract usageTotals(conversationId: string): Promise<UsageTotals>;
-  abstract readLatestSummaryText(conversationId: string): Promise<string>;
-  abstract pruneEmpty(profileId?: string): Promise<void>;
-}
-
-export class SqliteConversationFacade extends ConversationFacade {
+export class ConversationFacade {
   constructor(
     private readonly repo: ConversationRepository,
     private readonly ctx: StoreContext,
-  ) {
-    super();
-  }
+  ) {}
 
   query(): ConversationQuery {
     return this.repo.query();

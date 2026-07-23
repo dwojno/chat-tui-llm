@@ -1,4 +1,6 @@
 import { OpenAI } from "openai";
+import type { z } from "zod";
+import type { ToolDefinition } from "@/agent/tools/types";
 import { parseCliArgs } from "@/platform/cli/args";
 import { runRepl } from "@/app/input/repl";
 import { buildChatContext } from "@/app/session/switch";
@@ -26,6 +28,7 @@ export interface RunDeps {
   ragOpenai?: OpenAI;
   dbPath?: string;
   disableMcp?: boolean;
+  extraTools?: ToolDefinition<z.ZodType>[];
 }
 
 async function connectProfileMcp(store: Store): Promise<McpConnection> {
@@ -52,7 +55,7 @@ export async function run(deps: RunDeps = {}): Promise<void> {
   const mcp: McpConnection = !deps.disableMcp
     ? await connectProfileMcp(store)
     : { tools: [], close: async () => {} };
-  const { tools, forkProfiles } = createAgentTools(store, mcp.tools);
+  const { tools, forkProfiles } = createAgentTools(store, mcp.tools, deps.extraTools);
   const bus = new EventBus();
   const agent = new Agent({
     openai,

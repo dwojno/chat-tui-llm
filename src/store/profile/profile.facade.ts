@@ -11,22 +11,12 @@ import {
 
 export { DEFAULT_PROFILE_ID } from "./profile.repository";
 
-export abstract class ProfileFacade {
-  abstract query(): ProfileQuery;
-  abstract create(name: string): Promise<Profile>;
-  abstract update(id: string, patch: ProfilePatch): Promise<void>;
-  abstract delete(id: OneOrMany<string>): Promise<void>;
-  abstract switchTo(profileId: string): Promise<void>;
-}
-
-export class SqliteProfileFacade extends ProfileFacade {
+export class ProfileFacade {
   constructor(
     private readonly repo: ProfileRepository,
     private readonly ctx: StoreContext,
     private readonly conversations: ConversationFacade,
-  ) {
-    super();
-  }
+  ) {}
 
   query(): ProfileQuery {
     return this.repo.query();

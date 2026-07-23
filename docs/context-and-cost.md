@@ -69,7 +69,7 @@ turns:  1  2  3  4  5 … 26 27 28 29 30   (newest)
 Everything here reduces **input tokens** — the dominant, repeated cost of an agent loop.
 
 - **Custom packed message, not a role array.** The reducer renders events as compact XML-tagged
-  blocks (a tool call is `<get_weather>`, its result `<get_weather_result>`) instead of a verbose
+  blocks (a tool call is `<web_search>`, its result `<web_search_result>`) instead of a verbose
   multi-message role array.
 - **Resolved errors are pruned.** A thrown tool becomes a compact `<error>` event (message only,
   no stack). Once the same tool later succeeds, `pruneResolvedErrors` drops the error from the

@@ -1,2 +1,2 @@
-export { ProfileFacade, SqliteProfileFacade } from "./profile.facade";
+export { ProfileFacade } from "./profile.facade";
 export type { Profile, ProfilePatch } from "./profile.repository";

@@ -5,6 +5,7 @@ import { OpenAI } from "openai";
 import { run } from "@/main";
 import { DEFAULT_PROFILE_ID } from "@/store/profile/profile.facade";
 import { createMockOpenAI, type MockHandoff, type MockTurn } from "@tests/helpers/mock-openai";
+import { weatherStubTool } from "./stub-tool";
 
 const stateDir = process.env.CHAT_CLI_STATE_DIR;
 if (!stateDir) throw new Error("CHAT_CLI_STATE_DIR must be set to launch the e2e TUI");
@@ -29,5 +30,10 @@ const dbPath = join(stateDir, "chat.db");
 const turnsFile = process.env.E2E_TURNS_FILE;
 
 await (turnsFile
-  ? run({ openai: replayChatClient(turnsFile), ragOpenai: new OpenAI(), dbPath })
-  : run({ dbPath }));
+  ? run({
+      openai: replayChatClient(turnsFile),
+      ragOpenai: new OpenAI(),
+      dbPath,
+      extraTools: [weatherStubTool],
+    })
+  : run({ dbPath, extraTools: [weatherStubTool] }));

@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { openDatabase, type SqliteDb } from "@/store/db/db";
-import { ConversationFacade, SqliteConversationFacade } from "./conversation";
+import { ConversationFacade } from "./conversation";
 import { ConversationRepository } from "./conversation/conversation.repository";
 import { McpFacade } from "./mcp";
 import { McpRepository } from "./mcp/mcp.repository";
-import { MemoryFacade, SqliteMemoryFacade } from "./memory";
+import { MemoryFacade } from "./memory";
 import { MemoryRepository } from "./memory/memory.repository";
-import { ProfileFacade, SqliteProfileFacade } from "./profile";
+import { ProfileFacade } from "./profile";
 import { ProfileRepository } from "./profile/profile.repository";
-import { SourcesFacade, SqliteSourcesFacade, type RagDeps } from "./sources";
+import { SourcesFacade, type RagDeps } from "./sources";
 import { SourceRepository } from "./sources/source.repository";
 import { DEFAULT_PROFILE_ID } from "./profile/helpers";
 import { readActiveState } from "./active-state";
@@ -48,10 +48,10 @@ function createFacades(db: SqliteDb, ctx: StoreContext, rag?: RagDeps): StoreFac
 
   profileRepo.ensureDefault();
 
-  const conversation = new SqliteConversationFacade(conversationRepo, ctx);
-  const profile = new SqliteProfileFacade(profileRepo, ctx, conversation);
-  const memory = new SqliteMemoryFacade(memoryRepo);
-  const sources = new SqliteSourcesFacade(sourceRepo, rag);
+  const conversation = new ConversationFacade(conversationRepo, ctx);
+  const profile = new ProfileFacade(profileRepo, ctx, conversation);
+  const memory = new MemoryFacade(memoryRepo);
+  const sources = new SourcesFacade(sourceRepo, rag);
   const mcp = new McpFacade(mcpRepo);
 
   return { profile, conversation, memory, sources, mcp };
