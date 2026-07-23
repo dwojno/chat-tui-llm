@@ -28,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [integration, e2e, eval]
+        suite: [integration, e2e, e2e-full, eval]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -43,7 +43,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           if [ -z "$OPENAI_API_KEY" ]; then
-            echo "::notice::No OPENAI_API_KEY secret — skipping ${{ matrix.suite }}."
+            echo "::notice::No OPENAI_API_KEY secret — failing ${{ matrix.suite }}."
             exit 1
           fi
           just ${{ matrix.suite }}

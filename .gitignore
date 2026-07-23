@@ -3,3 +3,4 @@ node_modules
 .chat-state
 .pnpm-store
 .playwright-mcp
+.scratch
