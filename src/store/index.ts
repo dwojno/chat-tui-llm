@@ -9,9 +9,7 @@ export type {
   HistoryQueryConfig,
   ItemKind,
   StoredItemRow,
-  TokenColumns,
 } from "./conversation";
-export { ZERO_TOKENS, responseUsageToTokens } from "./conversation";
 export type { Memory, MemoryFacade } from "./memory";
 export type { McpFacade, McpServer, McpServerInput, McpTransport } from "./mcp";
 export type {

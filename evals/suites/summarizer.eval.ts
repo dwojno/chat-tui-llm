@@ -1,6 +1,7 @@
 import { evalite } from "evalite";
 import { summarize } from "@/app/tokens/summarizer";
 import type { AgentEvent } from "@/app/runner/thread/events";
+import { Model } from "@/platform/model";
 import {
   judged,
   mentionsRequired,
@@ -84,8 +85,8 @@ evalite<SummarizeInput, ProbeResult, Expected>("summarizer fidelity", {
     },
   ],
   task: async ({ evicted, prior }) => {
-    const { text, usage } = await summarize(openai(), prior ?? "", evicted);
-    return { text, toolCalls: [], parsed: null, usage };
+    const { text } = await summarize(Model.fromOpenAI(openai()), prior ?? "", evicted);
+    return { text, toolCalls: [], parsed: null, usage: undefined };
   },
   scorers: [withinWordLimit, mentionsRequired, judged],
 });

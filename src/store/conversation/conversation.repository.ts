@@ -1,38 +1,24 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, exists, gt, inArray, ne, not, or, sql, type SQL } from "drizzle-orm";
 import type { AgentEvent, AgentEventType } from "@/app/runner/thread/events";
+import type { UsageRecord } from "@/platform/model";
 import type { SqliteDb } from "@/store/db/db";
-import { conversation, conversationItem } from "@/store/db/schema";
+import { conversation, conversationItem, usageRecord } from "@/store/db/schema";
 import {
   conversationLastActivity,
   conversationShape,
   rowToStored,
   transcriptItems,
-  usageFromItems,
+  usageFromRecords,
 } from "./helpers";
 import { asArray, type OneOrMany } from "../helpers";
 
 export type ItemKind = AgentEventType | "summary";
 
-export type TokenColumns = {
-  inputTokens: number;
-  cachedInputTokens: number;
-  outputTokens: number;
-  summarizerTokens: number;
-};
-
-export const ZERO_TOKENS: TokenColumns = {
-  inputTokens: 0,
-  cachedInputTokens: 0,
-  outputTokens: 0,
-  summarizerTokens: 0,
-};
-
 export type ConversationItemInsert = {
   kind: ItemKind;
   turnIndex: number | null;
   payload: AgentEvent | { content: string };
-  tokens?: Partial<TokenColumns> | undefined;
 };
 
 export type Conversation = {
@@ -49,10 +35,6 @@ export type StoredItemRow = {
   kind: string;
   turnIndex: number | null;
   payload: string;
-  inputTokens: number;
-  cachedInputTokens: number;
-  outputTokens: number;
-  summarizerTokens: number;
   createdAt: number;
 };
 
@@ -216,6 +198,7 @@ export class ConversationRepository {
   deleteConversations(ids: string[]): void {
     if (!ids.length) return;
     this.db.transaction((tx) => {
+      tx.delete(usageRecord).where(inArray(usageRecord.conversationId, ids)).run();
       tx.delete(conversationItem).where(inArray(conversationItem.conversationId, ids)).run();
       tx.delete(conversation).where(inArray(conversation.id, ids)).run();
     });
@@ -231,27 +214,56 @@ export class ConversationRepository {
     const now = Date.now();
     this.db.transaction((tx) => {
       for (const item of batch) {
-        const tokens = {
-          inputTokens: item.tokens?.inputTokens ?? 0,
-          cachedInputTokens: item.tokens?.cachedInputTokens ?? 0,
-          outputTokens: item.tokens?.outputTokens ?? 0,
-          summarizerTokens: item.tokens?.summarizerTokens ?? 0,
-        };
         tx.insert(conversationItem)
           .values({
             conversationId,
             turnIndex: item.turnIndex,
             kind: item.kind,
             payload: JSON.stringify(item.payload),
-            inputTokens: tokens.inputTokens,
-            cachedInputTokens: tokens.cachedInputTokens,
-            outputTokens: tokens.outputTokens,
-            summarizerTokens: tokens.summarizerTokens,
             createdAt: now,
           })
           .run();
       }
     });
+  }
+
+  insertUsage(conversationId: string, records: OneOrMany<UsageRecord>): void {
+    const batch = asArray(records);
+    if (!batch.length) return;
+    const now = Date.now();
+    this.db.transaction((tx) => {
+      for (const record of batch) {
+        tx.insert(usageRecord)
+          .values({
+            conversationId,
+            kind: record.kind,
+            model: record.model,
+            inputTokens: record.inputTokens,
+            cachedInputTokens: record.cachedInputTokens,
+            outputTokens: record.outputTokens,
+            createdAt: now,
+          })
+          .run();
+      }
+    });
+  }
+
+  listUsage(conversationId: string): Promise<UsageRecord[]> {
+    return Promise.resolve(
+      this.db
+        .select()
+        .from(usageRecord)
+        .where(eq(usageRecord.conversationId, conversationId))
+        .orderBy(usageRecord.id)
+        .all()
+        .map((row) => ({
+          kind: row.kind as UsageRecord["kind"],
+          model: row.model,
+          inputTokens: row.inputTokens,
+          cachedInputTokens: row.cachedInputTokens,
+          outputTokens: row.outputTokens,
+        })),
+    );
   }
 
   async summaryBoundaryId(conversationId: string): Promise<number | null> {
@@ -270,11 +282,15 @@ export class ConversationRepository {
     return row?.id ?? null;
   }
 
-  usageTotals(conversationId: string) {
-    return this.items()
-      .forConversation(conversationId)
-      .execute()
-      .then((rows) => usageFromItems(rows.map((row) => rowToStored(row))));
+  async usageTotals(conversationId: string) {
+    const [records, rows] = await Promise.all([
+      this.listUsage(conversationId),
+      this.items().forConversation(conversationId).execute(),
+    ]);
+    return usageFromRecords(
+      records,
+      rows.map((row) => rowToStored(row)),
+    );
   }
 
   async readLatestSummaryText(conversationId: string): Promise<string> {

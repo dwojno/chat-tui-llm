@@ -1,8 +1,7 @@
-import type { OpenAI } from "openai";
-import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
 import { SUMMARIZER_MODEL } from "@/app/config";
 import type { AgentEvent } from "@/app/runner/thread/events";
 import { threadToPrompt } from "@/app/runner/thread/reducer";
+import type { Model } from "@/platform/model";
 
 const SUMMARIZER_INSTRUCTIONS =
   "You compress conversation history for another assistant. Merge the prior " +
@@ -13,11 +12,10 @@ const SUMMARIZER_INSTRUCTIONS =
 
 export interface SummaryResult {
   text: string;
-  usage: ResponseUsage | undefined;
 }
 
 export async function summarize(
-  openai: OpenAI,
+  model: Model,
   priorSummary: string,
   evicted: readonly AgentEvent[],
 ): Promise<SummaryResult> {
@@ -29,14 +27,15 @@ export async function summarize(
     .filter(Boolean)
     .join("\n\n");
 
-  const response = await openai.responses.create({
+  const response = await model.complete({
     model: SUMMARIZER_MODEL,
+    operation: "summarize",
     instructions: SUMMARIZER_INSTRUCTIONS,
     input,
     temperature: 0.2,
-    max_output_tokens: 600,
+    maxOutputTokens: 600,
     store: false,
   });
 
-  return { text: response.output_text.trim(), usage: response.usage };
+  return { text: response.outputText.trim() };
 }

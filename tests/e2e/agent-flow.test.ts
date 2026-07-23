@@ -18,6 +18,7 @@ vi.mock("ink", () => ({
 
 import { processLine } from "@/app/input/repl";
 import type { CommandContext } from "@/app/commands/types";
+import { Model } from "@/platform/model";
 import { Agent } from "@/agent/agent";
 import { EventBus } from "@/agent/events/bus";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
@@ -48,14 +49,14 @@ async function setup(client: OpenAI): Promise<Harness> {
   const { tools, forkProfiles } = createAgentTools(store);
   const bus = new EventBus();
   const agent = new Agent({
-    openai: client,
+    model: Model.fromOpenAI(client),
     temperature: 0.7,
     cacheKey: "chat-cli:test",
     instructions: SYSTEM_INSTRUCTIONS,
     tools,
     forkProfiles,
   });
-  const session = await Session.create(agent, client, store, 4, bus);
+  const session = await Session.create(agent, Model.fromOpenAI(client), store, 4, bus);
   const chat = renderChat([], { interactive: false });
   const ctx: CommandContext = { session, chat, store };
   return {

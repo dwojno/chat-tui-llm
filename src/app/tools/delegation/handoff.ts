@@ -1,7 +1,7 @@
-import type { OpenAI } from "openai";
-import type { ResponseInputItem, ResponseUsage } from "openai/resources/responses/responses.mjs";
+import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { zodTextFormat } from "openai/helpers/zod";
 import { HANDOFF_MODEL } from "@/app/config";
+import type { Model } from "@/platform/model";
 import { renderItemsText } from "@/agent/conversation/items";
 import { ForkResultSchema, type ForkResult } from "./fork-result";
 
@@ -41,11 +41,10 @@ function sanitizeFallbackSummary(outputText: string): string {
 
 export interface HandoffResult {
   result: ForkResult;
-  usage: ResponseUsage | undefined;
 }
 
 export async function compressHandoff(
-  openai: OpenAI,
+  model: Model,
   childItems: readonly ResponseInputItem[],
   childSummary: string,
 ): Promise<HandoffResult> {
@@ -57,21 +56,22 @@ export async function compressHandoff(
     .filter(Boolean)
     .join("\n");
 
-  const response = await openai.responses.parse({
+  const response = await model.complete({
     model: HANDOFF_MODEL,
+    operation: "handoff",
     instructions: HANDOFF_INSTRUCTIONS,
     input,
     text: { format: zodTextFormat(ForkResultSchema, "fork_result") },
     temperature: 0.2,
-    max_output_tokens: HANDOFF_MAX_OUTPUT_TOKENS,
+    maxOutputTokens: HANDOFF_MAX_OUTPUT_TOKENS,
     store: false,
   });
 
   const truncated = response.status === "incomplete";
-  const parsed = response.output_parsed as ForkResult | null;
+  const parsed = response.outputParsed as ForkResult | null;
   const result =
     parsed && !truncated
       ? parsed
-      : fallbackResult(sanitizeFallbackSummary(response.output_text ?? ""));
-  return { result, usage: response.usage };
+      : fallbackResult(sanitizeFallbackSummary(response.outputText ?? ""));
+  return { result };
 }

@@ -15,6 +15,7 @@ import { createAgentTools } from "@/app/tools";
 import { createRagTools } from "@/app/tools/rag";
 import { createRagDeps, LocalStore, type IndexResult, type Store } from "@/store";
 import { loadConfig } from "@/platform/config";
+import { Model } from "@/platform/model";
 
 const KB_TOOLS = new Set(["search_knowledge_base", "read_source", "grep_files"]);
 
@@ -79,7 +80,7 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
       await store.profile.switchTo(profile.id);
       const { forkProfiles } = createAgentTools(store);
       const agent = new Agent({
-        openai,
+        model: Model.fromOpenAI(openai),
         temperature: 0.7,
         tools: createRagTools(store),
         forkProfiles,

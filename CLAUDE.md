@@ -68,6 +68,7 @@ loop in `app/runner/`, session state in `app/session/`, tool impls in `app/tools
 - **Ask first:** adding any npm dep (especially an LLM/agent lib — threatens the frameworkless
   claim); changing the model, `KEEP_LAST_TURNS`, or `MAX_TOOL_STEPS`; editing `schema.ts` or the
   `Store` interface; reshaping the `TurnEvent` contract or the `Agent` step/executeTool signatures.
-- **Never:** import outward from `agent/`; route storable data through the EventBus; add an agent
-  framework or an SDK abstraction over `openai`; give `delegate_task[s]` to forks (infinite
-  recursion).
+- **Never:** import outward from `agent/`; route storable data through the EventBus; add an
+  agent framework (LangChain et al.) that hides the loop. A thin provider `Model` adapter
+  (`Model.fromOpenAI` / `fromAnthropic`) for generations is fine — raw SDK clients stay at the
+  composition root. Never give `delegate_task[s]` to forks (infinite recursion).

@@ -1,5 +1,3 @@
-import type { OpenAI } from "openai";
-import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
 import type { Agent, TurnContext } from "@/agent";
 import type { EventBus } from "@/agent/events/bus";
 import type { ApprovalDecision, ApprovalGate, ApprovalRequest } from "@/agent/humanLayer/approval";
@@ -15,26 +13,21 @@ import type { Span } from "@opentelemetry/api";
 import { summarize } from "@/app/tokens";
 import {
   endSpan,
-  recordLlmSpan,
   recordTurnTimeToFirstToken,
   setSpanIO,
   startSpan,
   withSpan,
 } from "@/platform/telemetry";
+import type { Model, UsageRecord } from "@/platform/model";
+import { withUsageRecorder } from "@/platform/model";
 import {
   type ConversationItemInsert,
   type IndexResult,
   type ItemKind,
   type SourceProgress,
   type Store,
-  responseUsageToTokens,
 } from "@/store";
-import {
-  SUMMARIZER_MODEL,
-  MAX_CONSECUTIVE_ERRORS,
-  MAX_TOOL_STEPS,
-  ORCHESTRATOR_MODEL,
-} from "@/app/config";
+import { MAX_CONSECUTIVE_ERRORS, MAX_TOOL_STEPS, ORCHESTRATOR_MODEL } from "@/app/config";
 import { createSerialQueue } from "@/platform/utils/serial-queue";
 import { runAgentLoop } from "@/app/runner/runner";
 import { formatReport, usageSnapshot, type UsageSnapshot } from "./usage";
@@ -57,7 +50,7 @@ export class Session {
 
   private constructor(
     private readonly agent: Agent,
-    private readonly openai: OpenAI,
+    private readonly model: Model,
     private activeStore: Store,
     private readonly keepLastTurns: number,
     private readonly bus: EventBus,
@@ -69,12 +62,12 @@ export class Session {
 
   static async create(
     agent: Agent,
-    openai: OpenAI,
+    model: Model,
     store: Store,
     keepLastTurns: number,
     bus: EventBus,
   ): Promise<Session> {
-    return new Session(agent, openai, store, keepLastTurns, bus);
+    return new Session(agent, model, store, keepLastTurns, bus);
   }
 
   rebind(store: Store): void {
@@ -236,20 +229,24 @@ export class Session {
     });
 
     try {
-      const {
-        answer,
-        events: produced,
-        usage,
-      } = await runAgentLoop({
-        agent: this.agent,
-        events,
-        options: turnOptions,
-        context,
-        bus: this.bus,
-        maxToolSteps: MAX_TOOL_STEPS,
-        maxConsecutiveErrors: MAX_CONSECUTIVE_ERRORS,
-      });
-      await this.persistTurn(produced, usage);
+      const harvested: UsageRecord[] = [];
+      const { answer, events: produced } = await withUsageRecorder(
+        (record) => void harvested.push(record),
+        () =>
+          runAgentLoop({
+            agent: this.agent,
+            events,
+            options: turnOptions,
+            context,
+            bus: this.bus,
+            maxToolSteps: MAX_TOOL_STEPS,
+            maxConsecutiveErrors: MAX_CONSECUTIVE_ERRORS,
+          }),
+      );
+      await this.persistTurn(produced);
+      if (harvested.length) {
+        await this.store.conversation.recordUsage(this.store.conversationId, harvested);
+      }
       setSpanIO(turnSpan, { output: answer });
       await this.maintainWindow(turnSpan);
       return answer;
@@ -258,14 +255,12 @@ export class Session {
     }
   }
 
-  private async persistTurn(events: AgentEvent[], usage: ResponseUsage | undefined): Promise<void> {
+  private async persistTurn(events: AgentEvent[]): Promise<void> {
     if (!events.length) return;
-    const tokens = responseUsageToTokens(usage ?? {});
-    const inserts: ConversationItemInsert[] = events.map((event, index) => ({
+    const inserts: ConversationItemInsert[] = events.map((event) => ({
       kind: eventKind(event),
       turnIndex: this.currentTurnIndex,
       payload: event,
-      tokens: index === events.length - 1 ? tokens : undefined,
     }));
     await this.store.conversation.createItems(this.store.conversationId, inserts);
   }
@@ -283,20 +278,20 @@ export class Session {
       },
     });
     try {
-      const { text, usage } = await summarize(this.openai, "", evicted);
-      recordLlmSpan(span, {
-        model: SUMMARIZER_MODEL,
-        operation: "summarize",
-        usage,
-        input: JSON.stringify({ evicted }),
-        output: text,
-      });
+      const harvested: UsageRecord[] = [];
+      const { text } = await withUsageRecorder(
+        (record) => void harvested.push(record),
+        () => summarize(this.model, "", evicted),
+      );
+      setSpanIO(span, { input: { evicted }, output: text });
       await conversation.createItems(conversationId, {
         kind: "summary",
         turnIndex: null,
         payload: { type: "summary", content: text },
-        tokens: { summarizerTokens: usage?.total_tokens ?? 0 },
       });
+      if (harvested.length) {
+        await conversation.recordUsage(conversationId, harvested);
+      }
       endSpan(span);
     } catch (error) {
       endSpan(span, error);

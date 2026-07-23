@@ -19,6 +19,7 @@ import { createAgentTools } from "@/app/tools";
 import { connectMcpServers, type McpConnection } from "@/app/tools/mcp";
 import { Session } from "@/app/session/session";
 import { createRagDeps, LocalStore, type OpenStoreOptions, type Store } from "@/store";
+import { Model } from "@/platform/model";
 import { redactPII } from "@/platform/utils/redact";
 import { renderChat } from "@/ui/chat";
 import { messagesFromTranscript } from "@/ui/history";
@@ -47,6 +48,7 @@ export async function run(deps: RunDeps = {}): Promise<void> {
       maxRetries: OPENAI_MAX_RETRIES,
       timeout: OPENAI_TIMEOUT_MS,
     });
+  const model = Model.fromOpenAI(openai);
   const openOpts: OpenStoreOptions = {
     rag: createRagDeps(deps.ragOpenai ?? openai, envConfig.rag),
   };
@@ -58,7 +60,7 @@ export async function run(deps: RunDeps = {}): Promise<void> {
   const { tools, forkProfiles } = createAgentTools(store, mcp.tools, deps.extraTools);
   const bus = new EventBus();
   const agent = new Agent({
-    openai,
+    model,
     temperature: TEMPERATURE,
     cacheKey: `chat-cli:${process.pid}`,
     instructions: SYSTEM_INSTRUCTIONS,
@@ -66,7 +68,7 @@ export async function run(deps: RunDeps = {}): Promise<void> {
     forkProfiles,
     ...(envConfig.security.redactPii ? { redact: redactPII } : {}),
   });
-  const session = await Session.create(agent, openai, store, KEEP_LAST_TURNS, bus);
+  const session = await Session.create(agent, model, store, KEEP_LAST_TURNS, bus);
 
   const chat = renderChat(messagesFromTranscript(await session.history()), {
     interactive,

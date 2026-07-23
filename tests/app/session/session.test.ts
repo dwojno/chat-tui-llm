@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Model } from "@/platform/model";
 import { Agent } from "@/agent/agent";
 import { EventBus } from "@/agent/events/bus";
 import type { TurnEvent } from "@/agent/events/events";
@@ -20,12 +21,18 @@ async function makeSession(
   const events: TurnEvent[] = [];
   bus.subscribe((e) => events.push(e));
   const agent = new Agent({
-    openai: mock.client,
+    model: Model.fromOpenAI(mock.client),
     temperature: TEMPERATURE,
     cacheKey: "chat-cli:test",
     instructions: "system",
   });
-  const session = await Session.create(agent, mock.client, resolvedStore, keepLastTurns, bus);
+  const session = await Session.create(
+    agent,
+    Model.fromOpenAI(mock.client),
+    resolvedStore,
+    keepLastTurns,
+    bus,
+  );
   return { session, mock, store: resolvedStore, events };
 }
 

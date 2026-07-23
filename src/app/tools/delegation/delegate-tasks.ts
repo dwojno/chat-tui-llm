@@ -1,10 +1,12 @@
 import { z } from "zod";
 import type { ToolRunContext } from "@/agent/conversation/turn";
 import type { ToolDefinition } from "@/agent/tools/types";
-import { runFork } from "./delegate-task";
+import { DELEGATE_TASK_NAME, runFork } from "./delegate-task";
 import { profileArg } from "./profiles";
 
 export const DELEGATE_TASKS_NAME = "delegate_tasks" as const;
+
+export const FORK_TOOL_NAMES = new Set<string>([DELEGATE_TASK_NAME, DELEGATE_TASKS_NAME]);
 
 const MAX_PARALLEL_TASKS = 6;
 
