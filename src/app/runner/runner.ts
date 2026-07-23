@@ -3,7 +3,6 @@ import type {
   ResponseFunctionToolCall,
   ResponseInputItem,
   ResponseOutputItem,
-  ResponseUsage,
 } from "openai/resources/responses/responses.mjs";
 import type { Agent } from "@/agent/agent";
 import type { EventBus } from "@/agent/events/bus";
@@ -59,15 +58,12 @@ export interface RunAgentLoopArgs {
 export interface LoopResult {
   answer: string;
   events: AgentEvent[];
-  usage: ResponseUsage | undefined;
 }
 
 export async function runAgentLoop(args: RunAgentLoopArgs): Promise<LoopResult> {
   const { agent, options, context, bus, maxToolSteps, maxConsecutiveErrors } = args;
   const events: AgentEvent[] = [...args.events];
   const seedLength = events.length;
-  const usages: (ResponseUsage | undefined)[] = [];
-  const recordUsage = (usage: ResponseUsage | undefined): void => void usages.push(usage);
 
   const toolMemo = new Map<string, string>();
   const toolErrors = new Map<string, number>();
@@ -81,7 +77,10 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<LoopResult> 
       events.push({ type: "scratchpad", ops: resetOps });
       bus.emit({ type: "scratchpad", sections: deriveScratchpad(events) });
     }
-    return { answer, events: events.slice(seedLength), usage: sumUsage(usages) };
+    return {
+      answer,
+      events: events.slice(seedLength),
+    };
   };
 
   let steps = 0;
@@ -106,7 +105,6 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<LoopResult> 
       ...stepArgs,
       forbidTools: steps >= maxToolSteps,
     });
-    recordUsage(step.usage);
     liveItems.push(...toInputItems(step.outputItems));
 
     const calls = step.toolCalls;
@@ -199,7 +197,12 @@ export async function runAgentLoop(args: RunAgentLoopArgs): Promise<LoopResult> 
       memo: toolMemo,
       errors: toolErrors,
       execute: (call) =>
-        agent.executeTool(call, { context, runTurn, bus, recordUsage, ...gates(context) }),
+        agent.executeTool(call, {
+          context,
+          runTurn,
+          bus,
+          ...gates(context),
+        }),
     });
     work.forEach((call, index) => {
       const output = workOutputs[index];
@@ -250,7 +253,6 @@ async function forkTurn(deps: {
   }).then((result) => ({
     answer: result.answer,
     items: eventsToInputItems(result.events),
-    usage: result.usage,
   }));
 }
 
@@ -429,29 +431,4 @@ async function runApprovalGate(args: {
     if (decision.outcome === "reject") denied.set(index, APPROVAL_DENIED_OUTPUT);
   }
   return denied;
-}
-
-function sumUsage(usages: (ResponseUsage | null | undefined)[]): ResponseUsage | undefined {
-  const present = usages.filter((usage): usage is ResponseUsage => usage != null);
-  if (!present.length) return undefined;
-
-  let input = 0;
-  let output = 0;
-  let total = 0;
-  let cached = 0;
-  let reasoning = 0;
-  for (const usage of present) {
-    input += usage.input_tokens ?? 0;
-    output += usage.output_tokens ?? 0;
-    total += usage.total_tokens ?? 0;
-    cached += usage.input_tokens_details?.cached_tokens ?? 0;
-    reasoning += usage.output_tokens_details?.reasoning_tokens ?? 0;
-  }
-  return {
-    input_tokens: input,
-    input_tokens_details: { cached_tokens: cached },
-    output_tokens: output,
-    output_tokens_details: { reasoning_tokens: reasoning },
-    total_tokens: total,
-  };
 }

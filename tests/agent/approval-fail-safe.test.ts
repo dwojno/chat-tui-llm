@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { Model } from "@/platform/model";
 import { Agent } from "@/agent/agent";
 import type { ToolDefinition } from "@/agent/tools/types";
 import { WRITE_FILE_NAME, writeFileTool } from "@/app/tools/write-file";
@@ -14,7 +15,7 @@ const readOnly: ToolDefinition<z.ZodType> = {
 };
 
 const agent = new Agent({
-  openai: createMockOpenAI().client,
+  model: Model.fromOpenAI(createMockOpenAI().client),
   temperature: 0.7,
   cacheKey: "chat-cli:test",
   instructions: "system",

@@ -1,14 +1,11 @@
-import type { Span } from "@opentelemetry/api";
-import type { OpenAI } from "openai";
-import { zodTextFormat } from "openai/helpers/zod";
 import type {
-  ParsedResponse,
   ResponseFunctionToolCall,
   ResponseInputItem,
   ResponseOutputItem,
-  ResponseUsage,
 } from "openai/resources/responses/responses.mjs";
 import type { z } from "zod";
+import { zodTextFormat } from "openai/helpers/zod";
+import type { Model } from "@/platform/model";
 import type { EventBus } from "./events/bus";
 import type { TurnOptions } from "./conversation/options";
 import { describeToolCall, executeToolCall, toolLabel } from "./tools";
@@ -17,15 +14,7 @@ import type { ClarificationGate } from "./humanLayer/clarification";
 import { toOpenAITool, type ForkProfiles, type ToolDefinition } from "./tools/types";
 import { getFunctionCalls } from "./conversation/items";
 import type { RunTurn, ToolRunContext, TurnContext, TurnProfile } from "./conversation/turn";
-import {
-  endSpan,
-  isContentCaptureEnabled,
-  recordCompletionStart,
-  recordLlmSpan,
-  setSpanIO,
-  startSpan,
-  withSpan,
-} from "@/platform/telemetry";
+import { setSpanIO, withSpan } from "@/platform/telemetry";
 
 function isReasoningModel(model: string): boolean {
   return (/^o\d/.test(model) || model.startsWith("gpt-5")) && !model.includes("chat");
@@ -34,7 +23,7 @@ function isReasoningModel(model: string): boolean {
 export type { TurnContext } from "./conversation/turn";
 
 export interface AgentDeps {
-  openai: OpenAI;
+  model: Model;
   temperature: number;
   cacheKey: string;
   instructions: string;
@@ -56,20 +45,18 @@ export interface StepResult {
   outputParsed: unknown;
   toolCalls: ResponseFunctionToolCall[];
   outputItems: ResponseOutputItem[];
-  usage: ResponseUsage | undefined;
 }
 
 export interface ToolExecDeps {
   context: TurnContext;
   runTurn: RunTurn;
   bus: EventBus;
-  recordUsage: (usage: ResponseUsage | undefined) => void;
   requestApproval?: ApprovalGate;
   requestClarification?: ClarificationGate;
 }
 
 export class Agent {
-  private readonly openai: OpenAI;
+  private readonly model: Model;
   private readonly temperature: number;
   private readonly registry: ToolDefinition<z.ZodType>[];
   private readonly forkProfiles: ForkProfiles;
@@ -78,7 +65,7 @@ export class Agent {
 
   constructor(deps: AgentDeps) {
     const tools = deps.tools ?? [];
-    this.openai = deps.openai;
+    this.model = deps.model;
     this.temperature = deps.temperature;
     if (deps.redact) this.redact = deps.redact;
     this.forkProfiles = deps.forkProfiles ?? {};
@@ -98,7 +85,7 @@ export class Agent {
     bus,
     forbidTools = false,
   }: StepArgs): Promise<StepResult> {
-    const { output, output_text, output_parsed, usage } = await this.streamResponse({
+    const { output, outputText, outputParsed } = await this.streamResponse({
       input: messages,
       options,
       profile,
@@ -107,11 +94,10 @@ export class Agent {
     });
     const toolCalls = getFunctionCalls(output);
     return {
-      outputText: output_text,
-      outputParsed: output_parsed,
+      outputText,
+      outputParsed,
       toolCalls,
       outputItems: output,
-      usage,
     };
   }
 
@@ -169,12 +155,11 @@ export class Agent {
 
   private toolContext(deps: ToolExecDeps): ToolRunContext {
     return {
-      openai: this.openai,
+      model: this.model,
       forkProfiles: this.forkProfiles,
       context: deps.context,
       runTurn: deps.runTurn,
       bus: deps.bus,
-      recordUsage: deps.recordUsage,
       ...(deps.requestApproval ? { requestApproval: deps.requestApproval } : {}),
       ...(deps.requestClarification ? { requestClarification: deps.requestClarification } : {}),
     };
@@ -202,19 +187,20 @@ export class Agent {
 
     return {
       model,
+      operation: "chat" as const,
       input: this.redact ? redactInputItems(items, this.redact) : items,
       instructions: profile.instructions,
       ...(text ? { text } : {}),
       ...(isReasoningModel(model)
-        ? { include: ["reasoning.encrypted_content" as const] }
+        ? { include: ["reasoning.encrypted_content"] }
         : { temperature: this.temperature }),
       ...(profile.reasoningEffort ? { reasoning: { effort: profile.reasoningEffort } } : {}),
       ...(options.max_output_tokens !== undefined
-        ? { max_output_tokens: options.max_output_tokens }
+        ? { maxOutputTokens: options.max_output_tokens }
         : {}),
-      store: false as const,
+      store: false,
       tools: forbidTools ? [] : profile.tools,
-      prompt_cache_key: profile.cacheKey,
+      promptCacheKey: profile.cacheKey,
     };
   }
 
@@ -230,53 +216,18 @@ export class Agent {
     profile: TurnProfile;
     bus: EventBus;
     forbidTools: boolean;
-  }): Promise<ParsedResponse<unknown>> {
+  }) {
     const params = this.buildRequestParams({ input, options, profile, forbidTools });
-    const span = startSpan(`gen_ai.chat ${params.model}`);
-    const startedAt = performance.now();
-
-    try {
-      const response = await this.callModel(params, options.stream, bus, span);
-      recordLlmSpan(span, {
-        model: params.model,
-        operation: "chat",
-        usage: response.usage,
-        temperature: "temperature" in params ? params.temperature : undefined,
-        finishReasons: response.status ? [response.status] : undefined,
-        durationSeconds: (performance.now() - startedAt) / 1000,
-        input: isContentCaptureEnabled() ? JSON.stringify(params.input) : undefined,
-        output: isContentCaptureEnabled()
-          ? response.output_text || JSON.stringify(response.output)
-          : undefined,
-      });
-      endSpan(span);
-      return response;
-    } catch (error) {
-      endSpan(span, error);
-      throw error;
-    }
-  }
-
-  private async callModel(
-    params: ReturnType<Agent["buildRequestParams"]>,
-    stream: boolean,
-    bus: EventBus,
-    span: Span,
-  ): Promise<ParsedResponse<unknown>> {
-    if (!stream) return this.openai.responses.parse(params);
-
-    const source = this.openai.responses.stream(params);
-    let firstToken = true;
-    for await (const event of source) {
-      if (event.type === "response.output_text.delta") {
-        if (firstToken) {
-          recordCompletionStart(span, new Date());
-          firstToken = false;
-        }
-        bus.emit({ type: "delta", text: event.delta });
-      }
-    }
-    return source.finalResponse();
+    return this.model.complete({
+      ...params,
+      ...(options.stream
+        ? {
+            stream: {
+              onDelta: (text) => bus.emit({ type: "delta", text }),
+            },
+          }
+        : {}),
+    });
   }
 }
 

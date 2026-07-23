@@ -54,16 +54,29 @@ export const conversationItem = sqliteTable(
     turnIndex: integer("turn_index"),
     kind: text("kind").notNull(),
     payload: text("payload").notNull(),
-    inputTokens: integer("input_tokens").notNull().default(0),
-    cachedInputTokens: integer("cached_input_tokens").notNull().default(0),
-    outputTokens: integer("output_tokens").notNull().default(0),
-    summarizerTokens: integer("summarizer_tokens").notNull().default(0),
     createdAt: integer("created_at").notNull(),
   },
   (table) => [
     index("conversation_item_conversation_turn").on(table.conversationId, table.turnIndex),
     index("conversation_item_conversation_kind_id").on(table.conversationId, table.kind, table.id),
   ],
+);
+
+export const usageRecord = sqliteTable(
+  "usage_record",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => conversation.id),
+    kind: text("kind").notNull(),
+    model: text("model").notNull(),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    cachedInputTokens: integer("cached_input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => [index("usage_record_conversation").on(table.conversationId)],
 );
 
 export const mcpServer = sqliteTable(

@@ -2,14 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import type { OpenAI } from "openai";
 import { summarize } from "@/app/tokens/summarizer";
 import type { AgentEvent } from "@/app/runner/thread/events";
+import { Model } from "@/platform/model";
 import { usage } from "@tests/helpers/mock-openai";
 
-function fakeOpenAI(outputText: string) {
+function fakeModel(outputText: string) {
   const create = vi.fn(async (_params: unknown) => ({
     output_text: outputText,
     usage: usage(),
   }));
-  return { client: { responses: { create } } as unknown as OpenAI, create };
+  const client = { responses: { create } } as unknown as OpenAI;
+  return { model: Model.fromOpenAI(client), create };
 }
 
 const evicted: AgentEvent[] = [
@@ -19,12 +21,11 @@ const evicted: AgentEvent[] = [
 
 describe("summarize", () => {
   it("folds evicted turns into the prior summary and returns trimmed text", async () => {
-    const { client, create } = fakeOpenAI("  a tidy summary  ");
+    const { model, create } = fakeModel("  a tidy summary  ");
 
-    const result = await summarize(client, "earlier summary", evicted);
+    const result = await summarize(model, "earlier summary", evicted);
 
     expect(result.text).toBe("a tidy summary");
-    expect(result.usage).toBeDefined();
 
     const params = create.mock.calls[0]![0] as {
       input: string;
@@ -37,8 +38,8 @@ describe("summarize", () => {
   });
 
   it("omits the prior-summary section when there is none", async () => {
-    const { client, create } = fakeOpenAI("fresh");
-    await summarize(client, "", evicted);
+    const { model, create } = fakeModel("fresh");
+    await summarize(model, "", evicted);
     const params = create.mock.calls[0]![0] as { input: string };
     expect(params.input).not.toContain("Prior summary:");
   });

@@ -96,6 +96,7 @@ describe("renderChat handle", () => {
         cachedInput: 20,
         output: 50,
         summarizer: 10,
+        forkInput: 0,
         turns: 3,
       }),
     ).not.toThrow();

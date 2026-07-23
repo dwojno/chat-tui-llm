@@ -5,17 +5,21 @@ export interface UsageTotals {
   cachedInput: number;
   output: number;
   summarizer: number;
+  forkInput: number;
+  managedInput: number;
   baselineInput: number;
   turns: number;
 }
 
-export type UsageSnapshot = Omit<UsageTotals, "baselineInput">;
+export type UsageSnapshot = Omit<UsageTotals, "baselineInput" | "managedInput">;
 
 export const EMPTY_USAGE: UsageTotals = {
   actualInput: 0,
   cachedInput: 0,
   output: 0,
   summarizer: 0,
+  forkInput: 0,
+  managedInput: 0,
   baselineInput: 0,
   turns: 0,
 };
@@ -37,8 +41,8 @@ export function addSummarizerUsage(totals: UsageTotals, usage: ResponseUsage | u
 }
 
 export function usageSnapshot(totals: UsageTotals): UsageSnapshot {
-  const { actualInput, cachedInput, output, summarizer, turns } = totals;
-  return { actualInput, cachedInput, output, summarizer, turns };
+  const { actualInput, cachedInput, output, summarizer, forkInput, turns } = totals;
+  return { actualInput, cachedInput, output, summarizer, forkInput, turns };
 }
 
 export function formatUsageBar(snapshot: UsageSnapshot): string {
@@ -58,13 +62,18 @@ export function formatUsageBar(snapshot: UsageSnapshot): string {
 export function formatReport(totals: UsageTotals): string {
   if (totals.turns === 0) return "No turns recorded — nothing to report.";
 
-  const netInput = totals.actualInput + totals.summarizer;
-  const saved = totals.baselineInput - netInput;
+  const netManaged = totals.managedInput + totals.summarizer;
+  const saved = totals.baselineInput - netManaged;
+  const forkLine =
+    totals.forkInput > 0
+      ? `    └ fork / handoff:      ${formatNumber(totals.forkInput)} tok`
+      : null;
 
   return [
     `Context report — ${totals.turns} turn${totals.turns === 1 ? "" : "s"}`,
     `  Input sent (actual):     ${formatNumber(totals.actualInput)} tok`,
     `    └ served from cache:   ${formatNumber(totals.cachedInput)} tok (${formatPercent(totals.cachedInput, totals.actualInput)})`,
+    ...(forkLine ? [forkLine] : []),
     `  Summarizer overhead:     ${formatNumber(totals.summarizer)} tok`,
     `  Naive append-all input:  ${formatNumber(totals.baselineInput)} tok`,
     `  Saved vs naive:          ${formatNumber(saved)} tok (${formatPercent(saved, totals.baselineInput)})`,

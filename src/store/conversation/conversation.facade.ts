@@ -1,5 +1,6 @@
 import type { AgentEvent } from "@/app/runner/thread/events";
 import type { UsageTotals } from "@/app/session/usage";
+import type { UsageRecord } from "@/platform/model";
 import type { StoreContext } from "../context";
 import { asArray, type OneOrMany } from "../helpers";
 import {
@@ -75,6 +76,14 @@ export class ConversationFacade {
     items: OneOrMany<ConversationItemInsert>,
   ): Promise<void> {
     this.repo.insertItems(conversationId, items);
+  }
+
+  async recordUsage(conversationId: string, records: OneOrMany<UsageRecord>): Promise<void> {
+    this.repo.insertUsage(conversationId, records);
+  }
+
+  listUsage(conversationId: string): Promise<UsageRecord[]> {
+    return this.repo.listUsage(conversationId);
   }
 
   async appendUserMessage(

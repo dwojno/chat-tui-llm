@@ -104,10 +104,11 @@ Everything here reduces **input tokens** — the dominant, repeated cost of an a
   | Handoff compression | `gpt-4.1-nano`             | `HANDOFF_MODEL`      |
   | Eval probes         | `gpt-4o-mini`              | `EVAL_PROBE_MODEL`   |
 
-- **Usage is real, never estimated.** Token counts come straight from the model's `ResponseUsage`.
-  They are written on the **last (anchor) row** of each API batch in `conversation_item`; all other
-  rows get `0`, so `SUM()` over the token columns derives totals with no separate usage table and
-  nothing cached in a row. → [database.md](database.md).
+- **Usage is real, never estimated.** Token counts come from the model response via the
+  [`Model`](../src/platform/model/index.ts) adapter (`Model.fromOpenAI` / later
+  `fromAnthropic`). Each call harvests `{ inputTokens, cachedInputTokens, outputTokens, model, kind }`
+  into `usage_record` when a session binds `withUsageRecorder`. Totals are `SUM()` over that
+  table — not estimated, not on transcript rows. → [database.md](database.md).
 - **Pricing** lives in [`platform/telemetry/pricing.ts`](../src/platform/telemetry/pricing.ts),
   USD per **1M** tokens. `estimateCost` charges `uncachedInput = max(0, input − cached)` at the
   input rate, cached tokens at the (much lower) cached rate, and output at the output rate:
@@ -131,21 +132,28 @@ contrasts what was actually sent against a naive "re-send everything every turn"
 Context report — 12 turns
   Input sent (actual):     18,430 tok
     └ served from cache:   14,110 tok (77%)
+    └ fork / handoff:       3,200 tok
   Summarizer overhead:      1,240 tok
   Naive append-all input:  96,880 tok
-  Saved vs naive:          77,210 tok (80%)
+  Saved vs naive:          80,410 tok (83%)
   Output generated:         6,050 tok
 ```
 
-The math, honestly accounted:
+The math compares like with like:
 
-- `netInput = actualInput + summarizer` — the summarizer's own cost is **charged against** the
-  strategy, not hidden.
-- `baselineInput` is the estimate (`estimateTokens` = `Math.ceil(chars / 4)`) of resending the
-  full transcript plus system prompt on every turn — computed at read time in
-  [`store/conversation/helpers.ts`](../src/store/conversation/helpers.ts) `usageFromItems`, never
-  stored.
-- `saved = baselineInput − netInput`. Only the baseline is estimated; actuals are real.
+- `managedInput` estimates each parent call's packed prompt using summaries and recent events,
+  exactly as `buildMessage` constructs it.
+- `baselineInput` estimates the same calls with every summary removed and the full raw history
+  retained. Both use `estimateTokens = Math.ceil(chars / 4)` and include the system prompt.
+- `saved = baselineInput − (managedInput + summarizer)`. Tool schemas and model-internal tokens are
+  absent from both estimates, so their fixed overhead cancels instead of contaminating the delta.
+- Real API totals remain under `Input sent (actual)`. Fork/handoff spend is real and shown there,
+  but excluded from the context-strategy delta because fork transcripts never enter parent history;
+  only their digests do.
+
+Both estimates are reconstructed at read time in
+[`store/conversation/helpers.ts`](../src/store/conversation/helpers.ts) `usageFromItems`, never
+stored. One-turn conversations without summaries should report approximately zero saved.
 
 A live one-line usage bar (`↑ in (cached) · ↓ out · total · N turns`) shows the running totals
 during the session.

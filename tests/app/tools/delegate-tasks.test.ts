@@ -12,6 +12,7 @@ import {
 import type { ForkResult } from "@/app/tools/delegation/fork-result";
 import { runAgentLoop } from "@/app/runner/runner";
 import { eventsToInputItems, inputItemsToEvents } from "@/app/runner/thread/convert";
+import { Model } from "@/platform/model";
 import { createMockOpenAI, type MockHandoff, type MockTurn } from "@tests/helpers/mock-openai";
 import { testAgent } from "@tests/helpers/agent";
 
@@ -24,7 +25,7 @@ function makeCtx(turns: MockTurn[], handoffs: MockHandoff[]) {
   const mock = createMockOpenAI(turns, handoffs);
   const agent = testAgent(mock.client, { forkProfiles });
   const ctx: ToolRunContext = {
-    openai: mock.client,
+    model: Model.fromOpenAI(mock.client),
     context: { memories: [] },
     runTurn: (args) =>
       runAgentLoop({
@@ -36,10 +37,9 @@ function makeCtx(turns: MockTurn[], handoffs: MockHandoff[]) {
         context: args.context,
         bus: args.bus,
         ...(args.profile ? { profile: args.profile } : {}),
-      }).then((r) => ({ answer: r.answer, items: eventsToInputItems(r.events), usage: r.usage })),
+      }).then((r) => ({ answer: r.answer, items: eventsToInputItems(r.events) })),
     forkProfiles,
     bus: new EventBus(),
-    recordUsage: () => {},
   };
   return { ctx, mock };
 }

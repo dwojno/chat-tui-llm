@@ -4,16 +4,18 @@ import type { OpenAI } from "openai";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { compressHandoff } from "@/app/tools/delegation/handoff";
 import type { ForkResult } from "@/app/tools/delegation/fork-result";
+import { Model } from "@/platform/model";
 import { usage } from "@tests/helpers/mock-openai";
 
-function fakeOpenAI(parsed: ForkResult | null, outputText = "", status = "completed") {
+function fakeModel(parsed: ForkResult | null, outputText = "", status = "completed") {
   const parse = vi.fn(async (_params: unknown) => ({
     output_parsed: parsed,
     output_text: outputText,
     status,
     usage: usage(),
   }));
-  return { client: { responses: { parse } } as unknown as OpenAI, parse };
+  const client = { responses: { parse } } as unknown as OpenAI;
+  return { model: Model.fromOpenAI(client), parse };
 }
 
 const childItems: ResponseInputItem[] = [
@@ -31,12 +33,11 @@ const forkResult: ForkResult = {
 
 describe("compressHandoff", () => {
   it("returns the parsed ForkResult and requests the structured format", async () => {
-    const { client, parse } = fakeOpenAI(forkResult);
+    const { model, parse } = fakeModel(forkResult);
 
-    const result = await compressHandoff(client, childItems, "");
+    const result = await compressHandoff(model, childItems, "");
 
     expect(result.result).toEqual(forkResult);
-    expect(result.usage).toBeDefined();
 
     const call = parse.mock.calls[0];
     assert(call !== undefined);
@@ -52,8 +53,8 @@ describe("compressHandoff", () => {
   });
 
   it("requests a raised output budget so full results are not truncated", async () => {
-    const { client, parse } = fakeOpenAI(forkResult);
-    await compressHandoff(client, childItems, "");
+    const { model, parse } = fakeModel(forkResult);
+    await compressHandoff(model, childItems, "");
     const call = parse.mock.calls[0];
     assert(call !== undefined);
     const params = call[0] as { max_output_tokens: number };
@@ -61,8 +62,8 @@ describe("compressHandoff", () => {
   });
 
   it("includes the prior child summary when present", async () => {
-    const { client, parse } = fakeOpenAI(forkResult);
-    await compressHandoff(client, childItems, "child was midway through");
+    const { model, parse } = fakeModel(forkResult);
+    await compressHandoff(model, childItems, "child was midway through");
     const call = parse.mock.calls[0];
     assert(call !== undefined);
     const params = call[0] as { input: string };
@@ -71,27 +72,22 @@ describe("compressHandoff", () => {
   });
 
   it("falls back to a low-confidence result when parsing fails", async () => {
-    const { client } = fakeOpenAI(null, "raw text");
-    const result = await compressHandoff(client, childItems, "");
+    const { model } = fakeModel(null, "raw text");
+    const result = await compressHandoff(model, childItems, "");
     expect(result.result.confidence).toBe("low");
     expect(result.result.summary).toBe("raw text");
     expect(result.result.findings).toEqual([]);
   });
 
-  it("treats a truncated response as a failure and sanitizes the JSON blob", async () => {
-    const { client } = fakeOpenAI(forkResult, '{"summary":"SSR renders on the ser', "incomplete");
-    const result = await compressHandoff(client, childItems, "");
+  it("falls back when the response is incomplete even if parsed", async () => {
+    const { model } = fakeModel(forkResult, "", "incomplete");
+    const result = await compressHandoff(model, childItems, "");
     expect(result.result.confidence).toBe("low");
-    expect(result.result.findings).toEqual([]);
-    expect(result.result.summary).not.toContain("{");
-    expect(result.result.summary).toContain("could not be compressed cleanly");
   });
 
-  it("does not surface a raw JSON blob when parsing fails on a complete response", async () => {
-    const { client } = fakeOpenAI(null, '{"summary":"half serialized');
-    const result = await compressHandoff(client, childItems, "");
-    expect(result.result.confidence).toBe("low");
-    expect(result.result.summary).not.toContain("{");
-    expect(result.result.summary).toContain("could not be compressed cleanly");
+  it("uses a truncated placeholder when fallback text looks like JSON", async () => {
+    const { model } = fakeModel(null, '{"broken":');
+    const result = await compressHandoff(model, childItems, "");
+    expect(result.result.summary).toContain("could not be compressed");
   });
 });

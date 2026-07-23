@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
+import { Model } from "@/platform/model";
 import { Agent } from "@/agent/agent";
 import { EventBus } from "@/agent/events/bus";
 import { DEFAULT_TURN_OPTIONS } from "@/agent/conversation/options";
@@ -16,7 +17,7 @@ describe("Agent model-input redaction", () => {
   it("scrubs PII from the input sent to the model when a redactor is injected", async () => {
     const mock = createMockOpenAI([{ text: "ok" }]);
     const agent = new Agent({
-      openai: mock.client,
+      model: Model.fromOpenAI(mock.client),
       temperature: 0.7,
       cacheKey: "chat-cli:test",
       instructions: "system",
@@ -50,7 +51,7 @@ describe("Agent model-input redaction", () => {
 
     const mock = createMockOpenAI([{ text: "ok" }]);
     const agent = new Agent({
-      openai: mock.client,
+      model: Model.fromOpenAI(mock.client),
       temperature: 0.7,
       cacheKey: "chat-cli:test",
       instructions: "system",
@@ -76,7 +77,7 @@ describe("Agent model-input redaction", () => {
   it("leaves the input untouched when no redactor is injected", async () => {
     const mock = createMockOpenAI([{ text: "ok" }]);
     const agent = new Agent({
-      openai: mock.client,
+      model: Model.fromOpenAI(mock.client),
       temperature: 0.7,
       cacheKey: "chat-cli:test",
       instructions: "system",

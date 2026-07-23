@@ -15,6 +15,7 @@ import type { TurnEvent } from "@/agent/events/events";
 import { EventBus } from "@/agent/events/bus";
 import type { TurnContext, TurnProfile } from "@/agent/conversation/turn";
 import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "@/agent/conversation/options";
+import { Model } from "@/platform/model";
 import { Agent } from "@/agent/agent";
 import { runAgentLoop } from "@/app/runner/runner";
 import type { AgentEvent } from "@/app/runner/thread/events";
@@ -38,7 +39,7 @@ const userMessage = (content: string): AgentEvent => ({ type: "user_message", co
 function makeAgent(turns: MockTurn[], compressions: string[] = []) {
   const mock = createMockOpenAI(turns, compressions);
   const agent = new Agent({
-    openai: mock.client,
+    model: Model.fromOpenAI(mock.client),
     temperature: 0.7,
     cacheKey: "chat-cli:test",
     instructions: "system",
@@ -88,7 +89,6 @@ describe("runAgentLoop", () => {
 
     expect(exec).not.toHaveBeenCalled();
     expect(mock.calls.stream).toHaveLength(1);
-    expect(result.usage).toBeDefined();
   });
 
   it("returns produced events and keeps no state between runs", async () => {

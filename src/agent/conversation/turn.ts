@@ -1,5 +1,5 @@
-import type { OpenAI } from "openai";
-import type { ResponseInputItem, ResponseUsage } from "openai/resources/responses/responses.mjs";
+import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
+import type { Model } from "@/platform/model";
 import type { EventBus } from "../events/bus";
 import type { ForkProfiles, OpenAITool } from "../tools/types";
 import type { ApprovalGate } from "../humanLayer/approval";
@@ -23,7 +23,6 @@ export type TurnProfile = {
 export type TurnResult = {
   answer: string;
   items: ResponseInputItem[];
-  usage: ResponseUsage | undefined;
 };
 
 export type RunTurnArgs = {
@@ -37,12 +36,11 @@ export type RunTurnArgs = {
 export type RunTurn = (args: RunTurnArgs) => Promise<TurnResult>;
 
 export interface ToolRunContext {
-  openai: OpenAI;
+  model: Model;
   context: TurnContext;
   runTurn: RunTurn;
   forkProfiles: ForkProfiles;
   bus: EventBus;
-  recordUsage: (usage: ResponseUsage | undefined) => void;
   requestApproval?: ApprovalGate;
   requestClarification?: ClarificationGate;
 }

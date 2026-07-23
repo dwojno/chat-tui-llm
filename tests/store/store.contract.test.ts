@@ -83,7 +83,6 @@ export function storeContract(name: string, createStore: () => Promise<Store>): 
         kind: "summary",
         turnIndex: null,
         payload: { content: "rolled up" },
-        tokens: { summarizerTokens: 10 },
       });
 
       expect(await store.conversation.queryHistory(conversationId).execute()).toEqual([
@@ -99,7 +98,6 @@ export function storeContract(name: string, createStore: () => Promise<Store>): 
         kind: "summary",
         turnIndex: null,
         payload: { content: "rolled up" },
-        tokens: { summarizerTokens: 5 },
       });
       await store.conversation.createItems(conversationId, userMsg("new", 1));
 
@@ -178,13 +176,17 @@ export function storeContract(name: string, createStore: () => Promise<Store>): 
       expect(await store.conversation.readLatestSummaryText(conversationId)).toBe("second");
     });
 
-    it("accumulates token usage via anchor rows", async () => {
+    it("accumulates token usage via usage_record rows", async () => {
       const store = await createStore();
       const { conversationId } = store;
       await store.conversation.createItems(conversationId, userMsg("hi"));
-      await store.conversation.createItems(conversationId, {
-        ...assistantMsg("hello"),
-        tokens: { inputTokens: 100, cachedInputTokens: 10, outputTokens: 50 },
+      await store.conversation.createItems(conversationId, assistantMsg("hello"));
+      await store.conversation.recordUsage(conversationId, {
+        kind: "parent",
+        model: "gpt-test",
+        inputTokens: 100,
+        cachedInputTokens: 10,
+        outputTokens: 50,
       });
 
       const totals = await store.conversation.usageTotals(conversationId);
@@ -201,7 +203,13 @@ export function storeContract(name: string, createStore: () => Promise<Store>): 
         kind: "summary",
         turnIndex: null,
         payload: { content: "rolled up" },
-        tokens: { summarizerTokens: 42 },
+      });
+      await store.conversation.recordUsage(conversationId, {
+        kind: "summarizer",
+        model: "gpt-test",
+        inputTokens: 30,
+        cachedInputTokens: 0,
+        outputTokens: 12,
       });
 
       const totals = await store.conversation.usageTotals(conversationId);

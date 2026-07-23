@@ -293,28 +293,30 @@ Each windowing pass:
 Each segment covers a distinct slice, so segments are **not** cumulative — `forModel()`
 returns them all (plus the messages after the last one), and the model reads every one.
 
-## Token usage: anchor row pattern
+## Token usage: `usage_record` table
 
-One API call can produce several `conversation_item` rows. Token usage is
-written only on the **last row** of that batch; all others get `0`. This keeps
-`SUM()` correct without a separate usage table.
+Each chat-path model call goes through [`Model`](../src/platform/model/index.ts)
+(`Model.fromOpenAI` today). The adapter stamps GenAI span attrs and, when a session
+has bound `withUsageRecorder`, appends a normalized `UsageRecord` that is flushed to
+`usage_record` (conversation-scoped). Transcript rows no longer carry token columns.
 
-| Insert event               | Token columns                             |
-| -------------------------- | ----------------------------------------- |
-| User message               | all `0`                                   |
-| Tool output                | all `0`                                   |
-| Items from an API response | usage on the last row of the batch        |
-| Fork handoff row           | the delegated sub-agent's rolled-up usage |
-| New summary row            | `summarizer_tokens`; others `0`           |
+| `kind`       | Source                               |
+| ------------ | ------------------------------------ |
+| `parent`     | Orchestrator `agent.step`            |
+| `fork`       | Sub-agent loop under `withForkUsage` |
+| `handoff`    | `compressHandoff`                    |
+| `summarizer` | Window `summarize`                   |
 
 ```sql
 SELECT
   COALESCE(SUM(input_tokens), 0)        AS actual_input,
   COALESCE(SUM(cached_input_tokens), 0) AS cached_input,
-  COALESCE(SUM(output_tokens), 0)       AS output_tokens,
-  COALESCE(SUM(summarizer_tokens), 0)   AS summarizer_tokens
-FROM conversation_item WHERE conversation_id = ?;
+  COALESCE(SUM(output_tokens), 0)       AS output_tokens
+FROM usage_record
+WHERE conversation_id = ? AND kind != 'summarizer';
 ```
+
+Summarizer spend is tracked separately (`kind = 'summarizer'`) for the exit report.
 
 ## Runtime assembly
 

@@ -2,8 +2,8 @@ import assert from "node:assert";
 import { randomUUID } from "node:crypto";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { z } from "zod";
-import { HANDOFF_MODEL } from "@/app/config";
-import { endSpan, recordLlmSpan, setSpanIO, startSpan, withSpan } from "@/platform/telemetry";
+import { setSpanIO, withSpan } from "@/platform/telemetry";
+import { withForkUsage } from "@/platform/model";
 import { keyMemories } from "@/app/context/context";
 import { compressHandoff } from "./handoff";
 import type { ForkResult } from "./fork-result";
@@ -94,33 +94,22 @@ export async function runFork(
       },
       input: brief,
     },
-    async (forkSpan) => {
-      const child = await ctx.runTurn({
-        messages: [userMessage],
-        options: { ...DEFAULT_TURN_OPTIONS, stream: false },
-        context: { memories },
-        profile: turnProfile,
-        bus: ctx.bus.scoped(title),
-      });
-      ctx.recordUsage(child.usage);
+    async (forkSpan) =>
+      withForkUsage(async () => {
+        const child = await ctx.runTurn({
+          messages: [userMessage],
+          options: { ...DEFAULT_TURN_OPTIONS, stream: false },
+          context: { memories },
+          profile: turnProfile,
+          bus: ctx.bus.scoped(title),
+        });
 
-      const childItems = [userMessage, ...child.items];
-      const handoffSpan = startSpan(`gen_ai.handoff ${HANDOFF_MODEL}`, { parent: forkSpan });
-      const { result, usage } = await compressHandoff(ctx.openai, childItems, "");
-      recordLlmSpan(handoffSpan, {
-        model: HANDOFF_MODEL,
-        operation: "handoff",
-        usage,
-        input: JSON.stringify(childItems),
-        output: JSON.stringify(result),
-      });
-      handoffSpan.setAttribute("chat.fork.confidence", result.confidence);
-      endSpan(handoffSpan);
-      ctx.recordUsage(usage);
-
-      setSpanIO(forkSpan, { output: JSON.stringify(result) });
-      return result;
-    },
+        const childItems = [userMessage, ...child.items];
+        const { result } = await compressHandoff(ctx.model, childItems, "");
+        forkSpan.setAttribute("chat.fork.confidence", result.confidence);
+        setSpanIO(forkSpan, { output: JSON.stringify(result) });
+        return result;
+      }),
   );
 }
 

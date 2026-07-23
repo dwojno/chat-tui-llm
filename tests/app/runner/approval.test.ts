@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { Model } from "@/platform/model";
 import { Agent } from "@/agent/agent";
 import { EventBus } from "@/agent/events/bus";
 import { APPROVAL_DENIED_OUTPUT } from "@/agent/humanLayer/approval";
@@ -52,7 +53,7 @@ function safeTool(onRun: () => void): ToolDefinition<z.ZodType> {
 function makeAgent(turns: MockTurn[], tools: ToolDefinition<z.ZodType>[]) {
   const mock = createMockOpenAI(turns);
   const agent = new Agent({
-    openai: mock.client,
+    model: Model.fromOpenAI(mock.client),
     temperature: 0.7,
     cacheKey: "chat-cli:test",
     instructions: "system",
