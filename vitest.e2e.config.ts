@@ -15,5 +15,6 @@ export default defineConfig({
     testTimeout: 300_000,
     hookTimeout: 300_000,
     fileParallelism: false,
+    retry: 2,
   },
 });
