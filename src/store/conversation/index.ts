@@ -1,4 +1,4 @@
-export { ConversationFacade, HistoryQuery, SqliteConversationFacade } from "./conversation.facade";
+export { ConversationFacade, HistoryQuery } from "./conversation.facade";
 export type {
   Conversation,
   ConversationItemInsert,

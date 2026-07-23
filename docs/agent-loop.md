@@ -75,16 +75,16 @@ buildMessage({ events, memories }) -> ResponseInputItem[]   // length-1: one use
   <events>
     <conversation_summary>…</conversation_summary>   ← summary segments (events) lead the list
 
-    <user_message>weather in Paris and Tokyo?</user_message>
+    <user_message>what's new in the TypeScript 6 release?</user_message>
 
-    <get_weather_data>
-      intent: "get_weather_data"
-      city: "Paris"
-    </get_weather_data>
+    <web_search>
+      intent: "web_search"
+      query: "TypeScript 6 release notes"
+    </web_search>
 
-    <get_weather_data_result>
-      The weather in Paris is sunny
-    </get_weather_data_result>
+    <web_search_result>
+      TypeScript 6 ships …
+    </web_search_result>
   </events>
   <context> …<user_known_memories> M1: … </user_known_memories>… </context>   ← appended LAST
   <scratchpad> <todo> - [x] check Paris … </todo> </scratchpad>   ← derived working state
@@ -355,7 +355,7 @@ specialist is one entry there.
 
 | Profile        | Instructions                 | Tools                                                              |
 | -------------- | ---------------------------- | ------------------------------------------------------------------ |
-| `general`      | `FORK_INSTRUCTIONS`          | `web_search`, `get_weather_data` — the simple-one-off fallback     |
+| `general`      | `FORK_INSTRUCTIONS`          | `web_search` — the simple-one-off fallback                         |
 | `rag_research` | `RAG_FORK_INSTRUCTIONS`      | `search_knowledge_base`, `list_files`, `grep_files`, `read_source` |
 | `web_research` | `WEB_FORK_INSTRUCTIONS`      | `web_search` — thorough, cross-checked, cited                      |
 | `codebase`     | `CODEBASE_FORK_INSTRUCTIONS` | `read_file` — reads working-dir files at paths named in the brief  |

@@ -1,7 +1,7 @@
 import { evalite } from "evalite";
 import type { z } from "zod";
 import { toOpenAITool, type ToolDefinition } from "@/agent/tools/types";
-import { updateScratchpadTool, weatherTool } from "@/app/tools";
+import { updateScratchpadTool, webSearchTool } from "@/app/tools";
 import {
   avoidsTools,
   probePrompt,
@@ -12,9 +12,9 @@ import {
 } from "../harness";
 
 const SCRATCHPAD = "update_scratchpad";
-const WEATHER = "get_weather_data";
+const WEB = "web_search";
 
-const TOOLS = ([weatherTool, updateScratchpadTool] as ToolDefinition<z.ZodType>[]).map(
+const TOOLS = ([webSearchTool, updateScratchpadTool] as ToolDefinition<z.ZodType>[]).map(
   toOpenAITool,
 );
 
@@ -23,16 +23,16 @@ evalite<ProbeSpec, ProbeResult, Expected>("scratchpad planning", {
     {
       input: {
         prompt:
-          "I'm deciding where to travel this weekend — Paris, Tokyo, or New York. Check the " +
-          "weather in each city, then for whichever has the best weather find a few places " +
+          "I'm deciding where to travel this weekend — Paris, Tokyo, or New York. Research the " +
+          "main attractions in each city, then for whichever sounds best find a few places " +
           "worth visiting there, and finish with a recommendation.",
         tools: TOOLS,
       },
-      expected: { route: SCRATCHPAD, forbidTools: [WEATHER] },
+      expected: { route: SCRATCHPAD, forbidTools: [WEB] },
     },
     {
-      input: { prompt: "What's the weather in Paris right now?", tools: TOOLS },
-      expected: { route: WEATHER, forbidTools: [SCRATCHPAD] },
+      input: { prompt: "Find the current population of Paris.", tools: TOOLS },
+      expected: { route: WEB, forbidTools: [SCRATCHPAD] },
     },
     {
       input: { prompt: "In one sentence, what is a REST API?", tools: TOOLS },

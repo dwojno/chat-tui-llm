@@ -1,5 +1,4 @@
 const TOOL_LABELS: Record<string, string> = {
-  get_weather_data: "Fetching weather data",
   web_search: "Searching the web",
   delegate_task: "Delegating",
   delegate_tasks: "Delegating",

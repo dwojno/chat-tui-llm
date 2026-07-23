@@ -11,11 +11,9 @@ import { FORK_PROFILE_META, FORK_PROFILE_NAMES } from "./delegation/profiles";
 import { editFileTool } from "./edit-file";
 import { readFileTool } from "./read-file";
 import { updateScratchpadTool } from "./scratchpad";
-import { weatherTool } from "./weather";
 import { webSearchTool } from "./web-search";
 import { writeFileTool } from "./write-file";
 
-export { weatherTool } from "./weather";
 export { webSearchTool } from "./web-search";
 export { delegateTaskTool } from "./delegation/delegate-task";
 export { delegateTasksTool } from "./delegation/delegate-tasks";
@@ -40,7 +38,6 @@ export interface AgentTools {
 }
 
 const mainTools: ToolDefinition<z.ZodType>[] = [
-  weatherTool,
   delegateTaskTool,
   delegateTasksTool,
   askUserTool,
@@ -54,26 +51,29 @@ const mainTools: ToolDefinition<z.ZodType>[] = [
 export function createAgentTools(
   store: Store,
   mcpTools: ToolDefinition<z.ZodType>[] = [],
+  extraTools: ToolDefinition<z.ZodType>[] = [],
 ): AgentTools {
   const forkProfiles = Object.fromEntries(
     FORK_PROFILE_NAMES.map((name) => [
       name,
       {
         instructions: FORK_PROFILE_META[name].instructions,
-        tools: FORK_PROFILE_META[name].tools(store),
+        tools:
+          name === "general"
+            ? [...FORK_PROFILE_META[name].tools(store), ...extraTools]
+            : FORK_PROFILE_META[name].tools(store),
         model: FORK_MODEL,
       },
     ]),
   ) as ForkProfiles;
-  return { tools: [...mainTools, ...mcpTools], forkProfiles };
+  return { tools: [...mainTools, ...mcpTools, ...extraTools], forkProfiles };
 }
 
-export const forkToolSchemas: OpenAITool[] = (
-  [weatherTool, webSearchTool] as ToolDefinition<z.ZodType>[]
-).map(toOpenAITool);
+export const forkToolSchemas: OpenAITool[] = ([webSearchTool] as ToolDefinition<z.ZodType>[]).map(
+  toOpenAITool,
+);
 export const mainToolSchemas: OpenAITool[] = (
   [
-    weatherTool,
     delegateTaskTool,
     delegateTasksTool,
     readFileTool,

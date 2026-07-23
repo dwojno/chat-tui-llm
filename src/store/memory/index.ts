@@ -1,2 +1,2 @@
-export { MemoryFacade, SqliteMemoryFacade } from "./memory.facade";
+export { MemoryFacade } from "./memory.facade";
 export type { Memory } from "./memory.repository";

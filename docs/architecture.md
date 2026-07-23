@@ -27,7 +27,7 @@ src/
   app/           MIDDLE — integrator + configurator that wires the pillars together:
     runner/        runAgentLoop — the caller-owned model→tool→result loop + reducer.
     session/       Thin wiring: Session (state + persistence), context switch, usage.
-    tools/         Tool IMPLEMENTATIONS (weather, web-search, disk, rag, ask-user),
+    tools/         Tool IMPLEMENTATIONS (web-search, disk, rag, ask-user),
                    delegation/, fork prompts/, and response formatting.
     commands/      User-intent handlers that bridge input to the agent/session.
     input/         The REPL input loop (subscribes to the EventBus) + file mentions.

@@ -143,7 +143,7 @@ export const delegateTaskTool: ToolDefinition<typeof parameters> = {
     "multi-step research, exploratory work, or tasks that need several tool " +
     "calls. Call it several times in one response to fan out independent " +
     "sub-tasks to parallel sub-agents. Do not use for simple one-shot lookups " +
-    "(e.g. a single weather check).",
+    "(e.g. a single fact check).",
   parameters,
   execute,
   summarize: ({ title }) => title,

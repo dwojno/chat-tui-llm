@@ -1,4 +1,4 @@
-export { SourcesFacade, SqliteSourcesFacade } from "./source.facade";
+export { SourcesFacade } from "./source.facade";
 export type { Source, SourceStatus } from "./source.repository";
 export type {
   GrepMatch,
