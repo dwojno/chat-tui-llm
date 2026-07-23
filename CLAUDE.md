@@ -52,6 +52,14 @@ loop in `app/runner/`, session state in `app/session/`, tool impls in `app/tools
 - Before adding an abstraction, ask: would a senior engineer call this overcomplicated? Prefer the
   boring, direct solution; add structure only when a concrete need forces it.
 
+## Workflow
+
+- New feature / fix: branch off `main` (`git switch -c <type>/<slug>`); never
+  commit directly to `main`.
+- After finishing and passing `just check`, offer to open a PR with `gh pr create` — **always ask first**, never open one unprompted.
+- CI (`.github/workflows/ci.yml`) runs static checks + unit + integration + e2e
+- eval on every PR and push to `main`; keep it green.
+
 ## Gotchas / boundaries
 
 - **Migrations:** after editing `src/store/db/schema.ts`, always regenerate with `just db-generate`
