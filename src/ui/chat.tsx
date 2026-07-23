@@ -195,7 +195,7 @@ export function renderChat(
     />
   );
 
-  const instance = render(view(), { exitOnCtrlC: false });
+  const instance = render(view(), { exitOnCtrlC: false, interactive });
 
   const update = (): void => instance.rerender(view());
 

@@ -20,6 +20,7 @@ describe("TUI e2e: picker + prompt overlays", () => {
     await tui.submit("/profile");
     await tui.waitFor("Select Profile");
     tui.press("n");
+    await tui.waitIdle();
     tui.press(KEY.enter);
     await tui.waitFor("Profile name");
     await tui.type("Work");
