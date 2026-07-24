@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAssistantContent, formatResponse } from "@/app/tools/format";
-import { ResponseSchema } from "@/app/tools/schemas";
+import { formatAssistantContent, formatResponse, ResponseSchema } from "@chat/engine";
 
 describe("formatAssistantContent", () => {
   it("returns the bare answer when there are no sources", () => {

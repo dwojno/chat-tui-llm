@@ -1,16 +1,15 @@
 import type { z } from "zod";
 import { toOpenAITool, type ForkProfiles, type ToolDefinition } from "@chat/agent/tools/types";
 import type { OpenAITool } from "@chat/agent/tools/types";
+import { controlIntentTools, updateScratchpadTool } from "@chat/engine";
 import { FORK_MODEL } from "@/app/config";
 import type { Store } from "@/store";
 import { askUserTool } from "./ask-user";
-import { controlIntentTools } from "./control-intents";
 import { delegateTaskTool } from "./delegation/delegate-task";
 import { delegateTasksTool } from "./delegation/delegate-tasks";
 import { FORK_PROFILE_META, FORK_PROFILE_NAMES } from "./delegation/profiles";
 import { editFileTool } from "./edit-file";
 import { readFileTool } from "./read-file";
-import { updateScratchpadTool } from "./scratchpad";
 import { webSearchTool } from "./web-search";
 import { writeFileTool } from "./write-file";
 
@@ -21,8 +20,9 @@ export { askUserTool } from "./ask-user";
 export { readFileTool } from "./read-file";
 export { writeFileTool } from "./write-file";
 export { editFileTool } from "./edit-file";
-export { updateScratchpadTool, UPDATE_SCRATCHPAD_NAME } from "./scratchpad";
 export {
+  updateScratchpadTool,
+  UPDATE_SCRATCHPAD_NAME,
   controlIntentTools,
   doneForNowTool,
   requestMoreInformationTool,
@@ -30,7 +30,7 @@ export {
   isControlIntent,
   DONE_FOR_NOW_NAME,
   REQUEST_MORE_INFORMATION_NAME,
-} from "./control-intents";
+} from "@chat/engine";
 
 export interface AgentTools {
   tools: ToolDefinition<z.ZodType>[];

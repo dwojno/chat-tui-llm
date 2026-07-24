@@ -1,6 +1,5 @@
-import { SUMMARIZER_MODEL } from "@/app/config";
 import type { AgentEvent } from "@chat/agent";
-import { threadToPrompt } from "@/app/runner/thread/reducer";
+import { threadToPrompt } from "../thread/reducer";
 import type { Model } from "@chat/platform/model";
 
 const SUMMARIZER_INSTRUCTIONS =
@@ -14,11 +13,19 @@ export interface SummaryResult {
   text: string;
 }
 
-export async function summarize(
-  model: Model,
-  priorSummary: string,
-  evicted: readonly AgentEvent[],
-): Promise<SummaryResult> {
+export interface SummarizeArgs {
+  model: Model;
+  modelName: string;
+  priorSummary: string;
+  evicted: readonly AgentEvent[];
+}
+
+export async function summarize({
+  model,
+  modelName,
+  priorSummary,
+  evicted,
+}: SummarizeArgs): Promise<SummaryResult> {
   const transcript = threadToPrompt(evicted);
   const input = [
     priorSummary ? `Prior summary:\n${priorSummary}` : "",
@@ -28,7 +35,7 @@ export async function summarize(
     .join("\n\n");
 
   const response = await model.complete({
-    model: SUMMARIZER_MODEL,
+    model: modelName,
     operation: "summarize",
     instructions: SUMMARIZER_INSTRUCTIONS,
     input,

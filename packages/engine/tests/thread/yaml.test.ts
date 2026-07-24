@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toYaml } from "@/app/runner/thread/yaml";
+import { toYaml } from "@chat/engine/thread/yaml";
 
 describe("toYaml", () => {
   it("quotes strings and renders bare scalars for numbers/booleans/null", () => {

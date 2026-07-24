@@ -12,9 +12,8 @@ import type {
 } from "@chat/agent/humanLayer/clarification";
 import type { TurnOptions } from "@chat/agent/conversation";
 import type { AgentEvent } from "@chat/agent";
-import { countUserTurns } from "@/app/runner/thread/window";
+import { countUserTurns, runAgentLoop, summarize } from "@chat/engine";
 import type { Span } from "@opentelemetry/api";
-import { summarize } from "@/app/tokens";
 import {
   endSpan,
   recordTurnTimeToFirstToken,
@@ -31,9 +30,13 @@ import {
   type SourceProgress,
   type Store,
 } from "@/store";
-import { MAX_CONSECUTIVE_ERRORS, MAX_TOOL_STEPS, ORCHESTRATOR_MODEL } from "@/app/config";
+import {
+  MAX_CONSECUTIVE_ERRORS,
+  MAX_TOOL_STEPS,
+  ORCHESTRATOR_MODEL,
+  SUMMARIZER_MODEL,
+} from "@/app/config";
 import { createSerialQueue } from "@chat/platform/utils/serial-queue";
-import { runAgentLoop } from "@/app/runner/runner";
 import { formatReport, usageSnapshot, type UsageSnapshot } from "./usage";
 
 function eventKind(event: AgentEvent): ItemKind {
@@ -285,7 +288,13 @@ export class Session {
       const harvested: UsageRecord[] = [];
       const { text } = await withUsageRecorder(
         (record) => void harvested.push(record),
-        () => summarize(this.model, "", evicted),
+        () =>
+          summarize({
+            model: this.model,
+            modelName: SUMMARIZER_MODEL,
+            priorSummary: "",
+            evicted,
+          }),
       );
       setSpanIO(span, { input: { evicted }, output: text });
       await conversation.createItems(conversationId, {

@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentEvent } from "@chat/agent";
-import { buildMessage } from "@/app/runner/thread/reducer";
+import { buildMessage, estimateTokens } from "@chat/engine";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
-import { estimateTokens } from "@/app/tokens";
 import { usageFromItems, usageFromRecords } from "@/store/conversation/helpers";
 
 type StoredItem = Parameters<typeof usageFromItems>[0][number];

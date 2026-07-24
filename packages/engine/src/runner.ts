@@ -16,15 +16,15 @@ import type {
   TurnProfile,
   TurnResult,
 } from "@chat/agent/conversation/turn";
-import { formatAssistantContent, formatResponse } from "@/app/tools/format";
+import { formatAssistantContent, formatResponse } from "./format";
 import {
   DONE_FOR_NOW_NAME,
   isControlIntent,
   parseDoneForNowArgs,
   parseRequestMoreInformationArgs,
   REQUEST_MORE_INFORMATION_NAME,
-} from "@/app/tools/control-intents";
-import { parseScratchpadArgs, UPDATE_SCRATCHPAD_NAME } from "@/app/tools/scratchpad";
+} from "./control-intents";
+import { parseScratchpadArgs, UPDATE_SCRATCHPAD_NAME } from "./scratchpad";
 import type { AgentEvent } from "@chat/agent";
 import {
   buildMessage,

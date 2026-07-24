@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countUserTurns, splitAtLastTurns } from "@/app/runner/thread/window";
+import { countUserTurns, splitAtLastTurns } from "@chat/engine/thread/window";
 import type { AgentEvent } from "@chat/agent";
 
 const turn = (n: number): AgentEvent[] => [

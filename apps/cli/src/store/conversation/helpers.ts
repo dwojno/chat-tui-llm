@@ -1,9 +1,8 @@
 import assert from "node:assert";
 import { sql } from "drizzle-orm";
 import type { AgentEvent } from "@chat/agent";
-import { buildMessage } from "@/app/runner/thread/reducer";
+import { buildMessage, estimateTokens } from "@chat/engine";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
-import { estimateTokens } from "@/app/tokens";
 import type { UsageRecord } from "@chat/platform/model";
 import type { UsageTotals } from "@chat/store";
 import { conversation, conversationItem } from "@/store/db/schema";

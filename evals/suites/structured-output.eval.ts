@@ -1,6 +1,6 @@
 import { evalite } from "evalite";
 import { z } from "zod";
-import { ResponseSchema } from "@/app/tools/schemas";
+import { ResponseSchema } from "@chat/engine";
 import {
   judged,
   matchesSchema,

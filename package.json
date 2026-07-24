@@ -9,6 +9,7 @@
   },
   "devDependencies": {
     "@chat/agent": "workspace:*",
+    "@chat/engine": "workspace:*",
     "@chat/platform": "workspace:*",
     "@types/node": "24.13.2",
     "autoevals": "0.3.0",

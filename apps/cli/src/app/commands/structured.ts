@@ -1,5 +1,5 @@
 import { DEFAULT_TURN_OPTIONS } from "@chat/agent/conversation/options";
-import { ResponseSchema } from "@/app/tools/schemas";
+import { ResponseSchema } from "@chat/engine";
 import type { Command } from "./types";
 
 const PREFIX = "/structured ";

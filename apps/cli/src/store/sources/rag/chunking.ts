@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { estimateTokens } from "@/app/tokens";
+import { estimateTokens } from "@chat/engine";
 
 export interface Chunk {
   index: number;

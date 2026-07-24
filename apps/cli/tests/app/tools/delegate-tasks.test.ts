@@ -10,8 +10,7 @@ import {
   parseDelegateTasksArgs,
 } from "@/app/tools/delegation/delegate-tasks";
 import type { ForkResult } from "@/app/tools/delegation/fork-result";
-import { runAgentLoop } from "@/app/runner/runner";
-import { eventsToInputItems, inputItemsToEvents } from "@/app/runner/thread/convert";
+import { eventsToInputItems, inputItemsToEvents, runAgentLoop } from "@chat/engine";
 import { Model } from "@chat/platform/model";
 import { createMockOpenAI, type MockHandoff, type MockTurn } from "@tests/helpers/mock-openai";
 import { testAgent } from "@tests/helpers/agent";

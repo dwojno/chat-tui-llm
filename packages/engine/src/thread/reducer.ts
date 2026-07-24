@@ -1,5 +1,4 @@
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
-import { keyMemories } from "@/app/context/context";
 import type { AgentEvent } from "@chat/agent";
 import { toYaml } from "./yaml";
 
@@ -121,7 +120,7 @@ function scratchpadBlock(sections: { section: string; content: string }[]): stri
 }
 
 function memoriesBlock(memories: readonly string[]): string {
-  const lines = keyMemories(memories).map((m) => `${m.key}: ${m.text}`);
+  const lines = memories.map((text, index) => `M${index + 1}: ${text}`);
   return [
     ...MEMORY_RULES,
     "",

@@ -1,7 +1,8 @@
 import { evalite } from "evalite";
-import { summarize } from "@/app/tokens/summarizer";
+import { summarize } from "@chat/engine";
 import type { AgentEvent } from "@chat/agent";
 import { Model } from "@chat/platform/model";
+import { SUMMARIZER_MODEL } from "@/app/config";
 import {
   judged,
   mentionsRequired,
@@ -85,7 +86,12 @@ evalite<SummarizeInput, ProbeResult, Expected>("summarizer fidelity", {
     },
   ],
   task: async ({ evicted, prior }) => {
-    const { text } = await summarize(Model.fromOpenAI(openai()), prior ?? "", evicted);
+    const { text } = await summarize({
+      model: Model.fromOpenAI(openai()),
+      modelName: SUMMARIZER_MODEL,
+      priorSummary: prior ?? "",
+      evicted,
+    });
     return { text, toolCalls: [], parsed: null, usage: undefined };
   },
   scorers: [withinWordLimit, mentionsRequired, judged],

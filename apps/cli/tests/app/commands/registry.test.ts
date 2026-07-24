@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ResponseSchema } from "@/app/tools/schemas";
+import { ResponseSchema } from "@chat/engine";
 import type { Session } from "@/app/session/session";
 import type { Store } from "@/store";
 import type { ChatHandle } from "@/ui/chat";

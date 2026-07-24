@@ -9,9 +9,9 @@ import type { ToolDefinition } from "@chat/agent/tools/types";
 import type { TurnContext } from "@chat/agent/conversation/turn";
 import type { TurnEvent } from "@chat/agent/events/events";
 import { DEFAULT_TURN_OPTIONS } from "@chat/agent/conversation/options";
-import { runAgentLoop } from "@/app/runner/runner";
+import { runAgentLoop } from "@chat/engine";
 import type { AgentEvent } from "@chat/agent";
-import { createMockOpenAI, type MockTurn } from "@tests/helpers/mock-openai";
+import { createMockOpenAI, type MockTurn } from "./helpers/mock-openai";
 
 const userMessage = (content: string): AgentEvent => ({ type: "user_message", content });
 

@@ -1,5 +1,5 @@
 import { createScorer } from "evalite";
-import { canonicalizeArgs } from "@/app/runner/thread/convert";
+import { canonicalizeArgs } from "@chat/engine";
 import type { RagResult } from "../rag";
 import type { RagExpected, RagInput } from "./rag-scorers";
 

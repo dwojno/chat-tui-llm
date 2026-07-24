@@ -4,7 +4,7 @@ import {
   isControlIntent,
   parseDoneForNowArgs,
   parseRequestMoreInformationArgs,
-} from "@/app/tools/control-intents";
+} from "@chat/engine/control-intents";
 
 describe("control intents", () => {
   it("recognizes reserved names", () => {

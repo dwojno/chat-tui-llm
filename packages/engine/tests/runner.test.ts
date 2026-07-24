@@ -17,9 +17,9 @@ import type { TurnContext, TurnProfile } from "@chat/agent/conversation/turn";
 import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "@chat/agent/conversation/options";
 import { Model } from "@chat/platform/model";
 import { Agent } from "@chat/agent/agent";
-import { runAgentLoop } from "@/app/runner/runner";
+import { runAgentLoop } from "@chat/engine";
 import type { AgentEvent } from "@chat/agent";
-import { createMockOpenAI, type MockTurn } from "@tests/helpers/mock-openai";
+import { createMockOpenAI, type MockTurn } from "./helpers/mock-openai";
 import assert from "node:assert";
 
 const exec = vi.mocked(executeToolCall);
@@ -36,8 +36,8 @@ const fakeWeatherTool: ToolDefinition<typeof weatherParams> = {
 
 const userMessage = (content: string): AgentEvent => ({ type: "user_message", content });
 
-function makeAgent(turns: MockTurn[], compressions: string[] = []) {
-  const mock = createMockOpenAI(turns, compressions);
+function makeAgent(turns: MockTurn[]) {
+  const mock = createMockOpenAI(turns);
   const agent = new Agent({
     model: Model.fromOpenAI(mock.client),
     temperature: 0.7,
