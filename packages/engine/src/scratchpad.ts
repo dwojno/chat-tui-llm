@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ToolDefinition } from "@chat/agent/tools/types";
+import type { ToolDefinition } from "@chat/agent";
 
 export const UPDATE_SCRATCHPAD_NAME = "update_scratchpad" as const;
 

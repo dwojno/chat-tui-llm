@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { ModelOperation, ModelUsage, UsageKind, UsageRecord } from "./types";
+import type { ModelOperation, ModelUsage, UsageKind, UsageRecord } from "@chat/agent";
 
 type UsageContext = {
   record: (entry: UsageRecord) => void;

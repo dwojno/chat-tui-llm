@@ -7,7 +7,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@chat/agent": "workspace:*",
-    "@chat/platform": "workspace:*"
+    "@chat/agent": "workspace:*"
   }
 }

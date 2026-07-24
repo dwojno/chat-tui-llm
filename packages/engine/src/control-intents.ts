@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ToolDefinition } from "@chat/agent/tools/types";
+import type { ToolDefinition } from "@chat/agent";
 
 export const DONE_FOR_NOW_NAME = "done_for_now" as const;
 export const REQUEST_MORE_INFORMATION_NAME = "request_more_information" as const;

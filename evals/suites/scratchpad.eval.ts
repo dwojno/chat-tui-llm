@@ -1,7 +1,8 @@
 import { evalite } from "evalite";
 import type { z } from "zod";
 import { toOpenAITool, type ToolDefinition } from "@chat/agent/tools/types";
-import { createWebSearchTool, updateScratchpadTool } from "@chat/tools";
+import { updateScratchpadTool } from "@chat/engine";
+import { createWebSearchTool } from "@chat/tools";
 import {
   avoidsTools,
   probePrompt,

@@ -9,7 +9,7 @@ import {
   startSpan,
 } from "../telemetry/index";
 import { harvestUsage } from "./usage-recorder";
-import type { ModelRequest, ModelResponse, ModelUsage } from "./types";
+import type { ModelRequest, ModelResponse, ModelUsage } from "@chat/agent";
 
 export function toModelUsage(usage: ResponseUsage | undefined): ModelUsage {
   return {

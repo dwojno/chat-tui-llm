@@ -1,7 +1,4 @@
-import type { AgentEvent, AgentEventType } from "@chat/agent";
-import type { UsageRecord } from "@chat/platform/model";
-
-export type { UsageRecord } from "@chat/platform/model";
+import type { AgentEvent, AgentEventType, UsageRecord } from "@chat/agent";
 
 export type OneOrMany<T> = T | T[];
 

@@ -19,17 +19,6 @@ export { askUserTool } from "./ask-user";
 export { readFileTool } from "./read-file";
 export { writeFileTool } from "./write-file";
 export { editFileTool } from "./edit-file";
-export {
-  updateScratchpadTool,
-  UPDATE_SCRATCHPAD_NAME,
-  controlIntentTools,
-  doneForNowTool,
-  requestMoreInformationTool,
-  CONTROL_INTENT_NAMES,
-  isControlIntent,
-  DONE_FOR_NOW_NAME,
-  REQUEST_MORE_INFORMATION_NAME,
-} from "@chat/engine";
 
 export interface AgentTools {
   tools: ToolDefinition<z.ZodType>[];
@@ -86,13 +75,13 @@ export const createForkToolSchemas = (webSearch: WebSearchConfig): OpenAITool[] 
   toOpenAITool(createWebSearchTool(webSearch)),
 ];
 
-export const createMainToolSchemas = (handoffModel: string): OpenAITool[] =>
-  (
-    [
-      createDelegateTaskTool(handoffModel),
-      createDelegateTasksTool(handoffModel),
-      readFileTool,
-      writeFileTool,
-      editFileTool,
-    ] as ToolDefinition<z.ZodType>[]
-  ).map(toOpenAITool);
+export const createMainToolSchemas = (handoffModel: string): OpenAITool[] => {
+  const tools: ToolDefinition<z.ZodType>[] = [
+    createDelegateTaskTool(handoffModel),
+    createDelegateTasksTool(handoffModel),
+    readFileTool,
+    writeFileTool,
+    editFileTool,
+  ];
+  return tools.map(toOpenAITool);
+};

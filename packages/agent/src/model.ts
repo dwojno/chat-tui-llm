@@ -9,6 +9,13 @@ export type ModelUsage = {
   outputTokens: number;
 };
 
+export type UsageKind = "parent" | "fork" | "handoff" | "summarizer";
+
+export type UsageRecord = ModelUsage & {
+  model: string;
+  kind: UsageKind;
+};
+
 export type ModelOperation = "chat" | "handoff" | "summarize";
 
 export type ModelRequest = {

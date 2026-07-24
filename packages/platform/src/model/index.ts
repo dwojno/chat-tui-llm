@@ -1,6 +1,6 @@
 import type { OpenAI } from "openai";
+import type { ModelRequest, ModelResponse } from "@chat/agent";
 import { openAiComplete } from "./openai";
-import type { ModelRequest, ModelResponse } from "./types";
 
 export type {
   ModelOperation,
@@ -9,7 +9,7 @@ export type {
   ModelUsage,
   UsageKind,
   UsageRecord,
-} from "./types";
+} from "@chat/agent";
 export { withForkUsage, withUsageRecorder } from "./usage-recorder";
 
 export class Model {

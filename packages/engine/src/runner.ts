@@ -4,18 +4,19 @@ import type {
   ResponseInputItem,
   ResponseOutputItem,
 } from "openai/resources/responses/responses.mjs";
-import type { Agent } from "@chat/agent/agent";
-import type { EventBus } from "@chat/agent/events/bus";
-import { APPROVAL_DENIED_OUTPUT } from "@chat/agent/humanLayer/approval";
-import { CLARIFICATION_UNANSWERED_OUTPUT } from "@chat/agent/humanLayer/clarification";
-import type { TurnOptions } from "@chat/agent/conversation/options";
-import type {
-  RunTurn,
-  RunTurnArgs,
-  TurnContext,
-  TurnProfile,
-  TurnResult,
-} from "@chat/agent/conversation/turn";
+import {
+  APPROVAL_DENIED_OUTPUT,
+  CLARIFICATION_UNANSWERED_OUTPUT,
+  type Agent,
+  type AgentEvent,
+  type EventBus,
+  type RunTurn,
+  type RunTurnArgs,
+  type TurnContext,
+  type TurnOptions,
+  type TurnProfile,
+  type TurnResult,
+} from "@chat/agent";
 import { formatAssistantContent, formatResponse } from "./format";
 import {
   DONE_FOR_NOW_NAME,
@@ -25,7 +26,6 @@ import {
   REQUEST_MORE_INFORMATION_NAME,
 } from "./control-intents";
 import { parseScratchpadArgs, UPDATE_SCRATCHPAD_NAME } from "./scratchpad";
-import type { AgentEvent } from "@chat/agent";
 import {
   buildMessage,
   deriveControl,
