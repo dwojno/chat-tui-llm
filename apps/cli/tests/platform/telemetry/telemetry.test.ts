@@ -4,7 +4,7 @@ import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-tr
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { configureTelemetry, contextWithSpan, withSpan } from "@/platform/telemetry";
+import { configureTelemetry, contextWithSpan, withSpan } from "@chat/platform/telemetry";
 import { DEFAULT_TURN_OPTIONS } from "@chat/agent/conversation/options";
 import type { ToolDefinition } from "@chat/agent/tools/types";
 import { EventBus } from "@chat/agent/events/bus";

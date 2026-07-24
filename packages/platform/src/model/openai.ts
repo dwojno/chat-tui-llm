@@ -7,7 +7,7 @@ import {
   recordCompletionStart,
   recordLlmSpan,
   startSpan,
-} from "@/platform/telemetry";
+} from "../telemetry/index";
 import { harvestUsage } from "./usage-recorder";
 import type { ModelRequest, ModelResponse, ModelUsage } from "./types";
 

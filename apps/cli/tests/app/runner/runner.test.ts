@@ -15,7 +15,7 @@ import type { TurnEvent } from "@chat/agent/events/events";
 import { EventBus } from "@chat/agent/events/bus";
 import type { TurnContext, TurnProfile } from "@chat/agent/conversation/turn";
 import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "@chat/agent/conversation/options";
-import { Model } from "@/platform/model";
+import { Model } from "@chat/platform/model";
 import { Agent } from "@chat/agent/agent";
 import { runAgentLoop } from "@/app/runner/runner";
 import type { AgentEvent } from "@chat/agent";

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { OpenAI } from "openai";
 import { summarize } from "@/app/tokens/summarizer";
 import type { AgentEvent } from "@chat/agent";
-import { Model } from "@/platform/model";
+import { Model } from "@chat/platform/model";
 import { usage } from "@tests/helpers/mock-openai";
 
 function fakeModel(outputText: string) {

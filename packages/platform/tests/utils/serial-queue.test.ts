@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSerialQueue } from "@/platform/utils/serial-queue";
+import { createSerialQueue } from "@chat/platform/utils/serial-queue";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

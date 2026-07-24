@@ -4,7 +4,7 @@ import type { OpenAI } from "openai";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { compressHandoff } from "@/app/tools/delegation/handoff";
 import type { ForkResult } from "@/app/tools/delegation/fork-result";
-import { Model } from "@/platform/model";
+import { Model } from "@chat/platform/model";
 import { usage } from "@tests/helpers/mock-openai";
 
 function fakeModel(parsed: ForkResult | null, outputText = "", status = "completed") {

@@ -12,7 +12,7 @@ import {
 import type { ForkResult } from "@/app/tools/delegation/fork-result";
 import { runAgentLoop } from "@/app/runner/runner";
 import { eventsToInputItems, inputItemsToEvents } from "@/app/runner/thread/convert";
-import { Model } from "@/platform/model";
+import { Model } from "@chat/platform/model";
 import { createMockOpenAI, type MockHandoff, type MockTurn } from "@tests/helpers/mock-openai";
 import { testAgent } from "@tests/helpers/agent";
 

@@ -15,8 +15,8 @@ import { createAgentTools } from "@/app/tools";
 import { createRagTools } from "@/app/tools/rag";
 import { createRagDeps, LocalStore, type IndexResult, type Store } from "@/store";
 import { loadConfig } from "@/platform/config";
-import { Model } from "@/platform/model";
-import { traceToolExecution } from "@/platform/telemetry";
+import { Model } from "@chat/platform/model";
+import { traceToolExecution } from "@chat/platform/telemetry";
 
 const KB_TOOLS = new Set(["search_knowledge_base", "read_source", "grep_files"]);
 

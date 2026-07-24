@@ -8,7 +8,7 @@ import type { TurnEvent } from "@chat/agent/events/events";
 import type { ToolRunContext } from "@chat/agent/conversation/turn";
 import { LocalStore, type Store } from "@/store";
 import { createFakeRag } from "@tests/helpers/fake-rag";
-import { drain } from "@/platform/utils/async-gen";
+import { drain } from "@chat/platform/utils/async-gen";
 
 const DOC = ["# API", "", "## Auth", "", "Send a bearer token in the Authorization header."].join(
   "\n",

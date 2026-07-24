@@ -1,7 +1,7 @@
 import type { OpenAI } from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import { GEN_AI, setSpanIO, withLlmSpan } from "@/platform/telemetry";
+import { GEN_AI, setSpanIO, withLlmSpan } from "@chat/platform/telemetry";
 
 export interface RerankCandidate {
   index: number;

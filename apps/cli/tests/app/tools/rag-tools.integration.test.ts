@@ -8,7 +8,7 @@ import { createRagTools } from "@/app/tools/rag";
 import type { ToolRunContext } from "@chat/agent/conversation/turn";
 import { createRagDeps, LocalStore, type Store } from "@/store";
 import { loadConfig } from "@/platform/config";
-import { drain } from "@/platform/utils/async-gen";
+import { drain } from "@chat/platform/utils/async-gen";
 
 const RUN = process.env.RAG_INTEGRATION === "1";
 const CORPUS = "apps/cli/tests/fixtures/rag-corpus";

@@ -21,9 +21,9 @@ import {
   setSpanIO,
   startSpan,
   withSpan,
-} from "@/platform/telemetry";
-import type { Model, UsageRecord } from "@/platform/model";
-import { withUsageRecorder } from "@/platform/model";
+} from "@chat/platform/telemetry";
+import type { Model, UsageRecord } from "@chat/platform/model";
+import { withUsageRecorder } from "@chat/platform/model";
 import {
   type ConversationItemInsert,
   type IndexResult,
@@ -32,7 +32,7 @@ import {
   type Store,
 } from "@/store";
 import { MAX_CONSECUTIVE_ERRORS, MAX_TOOL_STEPS, ORCHESTRATOR_MODEL } from "@/app/config";
-import { createSerialQueue } from "@/platform/utils/serial-queue";
+import { createSerialQueue } from "@chat/platform/utils/serial-queue";
 import { runAgentLoop } from "@/app/runner/runner";
 import { formatReport, usageSnapshot, type UsageSnapshot } from "./usage";
 

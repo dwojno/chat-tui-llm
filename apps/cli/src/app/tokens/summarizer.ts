@@ -1,7 +1,7 @@
 import { SUMMARIZER_MODEL } from "@/app/config";
 import type { AgentEvent } from "@chat/agent";
 import { threadToPrompt } from "@/app/runner/thread/reducer";
-import type { Model } from "@/platform/model";
+import type { Model } from "@chat/platform/model";
 
 const SUMMARIZER_INSTRUCTIONS =
   "You compress conversation history for another assistant. Merge the prior " +

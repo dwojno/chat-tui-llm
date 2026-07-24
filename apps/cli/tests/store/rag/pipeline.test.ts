@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { LocalStore, type Store } from "@/store";
 import { createFakeRag, type FakeRag } from "@tests/helpers/fake-rag";
-import { drain } from "@/platform/utils/async-gen";
+import { drain } from "@chat/platform/utils/async-gen";
 
 const GUIDE = [
   "# Deployment Guide",

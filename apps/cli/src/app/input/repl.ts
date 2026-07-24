@@ -7,7 +7,7 @@ import { resolveFileMentions } from "./file-mentions";
 import type { Session } from "@/app/session/session";
 import { buildChatContext } from "@/app/session/switch";
 import { buildExitMessage } from "@/platform/cli/shutdown";
-import { shutdownTelemetry } from "@/platform/telemetry/otel";
+import { shutdownTelemetry } from "@chat/platform/telemetry/otel";
 import type { Store } from "@/store";
 import type { ChatHandle } from "@/ui/chat";
 import { toolStepLabel } from "@/ui/labels";

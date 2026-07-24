@@ -1,4 +1,4 @@
-import { drain } from "@/platform/utils/async-gen";
+import { drain } from "@chat/platform/utils/async-gen";
 import type { Command } from "./types";
 
 const COMMAND = "/reindex";

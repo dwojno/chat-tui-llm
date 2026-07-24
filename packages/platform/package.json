@@ -1,0 +1,27 @@
+{
+  "name": "@chat/platform",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./model": "./src/model/index.ts",
+    "./telemetry": "./src/telemetry/index.ts",
+    "./telemetry/otel": "./src/telemetry/otel.ts",
+    "./utils/async-gen": "./src/utils/async-gen.ts",
+    "./utils/redact": "./src/utils/redact.ts",
+    "./utils/resilience": "./src/utils/resilience.ts",
+    "./utils/serial-queue": "./src/utils/serial-queue.ts"
+  },
+  "dependencies": {
+    "@chat/agent": "workspace:*",
+    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/exporter-metrics-otlp-http": "0.220.0",
+    "@opentelemetry/exporter-trace-otlp-http": "0.220.0",
+    "@opentelemetry/resources": "2.9.0",
+    "@opentelemetry/sdk-metrics": "2.9.0",
+    "@opentelemetry/sdk-node": "0.220.0",
+    "@opentelemetry/semantic-conventions": "1.43.0",
+    "cockatiel": "4.0.0",
+    "openai": "6.45.0"
+  }
+}

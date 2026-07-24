@@ -172,7 +172,6 @@ const configSchema = z.preprocess(
 
 export type EnvConfig = z.infer<typeof configSchema>;
 export type RagConfig = EnvConfig["rag"];
-export type TelemetryConfig = EnvConfig["telemetry"];
 
 export function loadConfig(env: Env = process.env): EnvConfig {
   const result = configSchema.safeParse(env);

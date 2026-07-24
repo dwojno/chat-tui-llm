@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Model } from "@/platform/model";
+import { Model } from "@chat/platform/model";
 import { Agent } from "@chat/agent/agent";
 import { EventBus } from "@chat/agent/events/bus";
 import type { TurnEvent } from "@chat/agent/events/events";

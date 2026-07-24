@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { Model } from "@/platform/model";
+import { Model } from "@chat/platform/model";
 import { Agent } from "@chat/agent/agent";
 import { EventBus } from "@chat/agent/events/bus";
 import { APPROVAL_DENIED_OUTPUT } from "@chat/agent/humanLayer/approval";

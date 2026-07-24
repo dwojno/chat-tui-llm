@@ -1,6 +1,6 @@
 import { isBrokenCircuitError } from "cockatiel";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createResiliencePolicy, isRetryableError } from "@/platform/utils/resilience";
+import { createResiliencePolicy, isRetryableError } from "@chat/platform/utils/resilience";
 
 function httpError(status: number): Error {
   return Object.assign(new Error(`HTTP ${status}`), { status });

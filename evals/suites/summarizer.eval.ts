@@ -1,7 +1,7 @@
 import { evalite } from "evalite";
 import { summarize } from "@/app/tokens/summarizer";
 import type { AgentEvent } from "@chat/agent";
-import { Model } from "@/platform/model";
+import { Model } from "@chat/platform/model";
 import {
   judged,
   mentionsRequired,

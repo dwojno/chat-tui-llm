@@ -1,4 +1,3 @@
-import { createRequire } from "node:module";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { resourceFromAttributes } from "@opentelemetry/resources";
@@ -6,18 +5,27 @@ import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";
 import { configureTelemetry } from "./trace";
-import type { TelemetryConfig } from "@/platform/config";
-
-const require = createRequire(import.meta.url);
-const { version } = require("../../../package.json") as { version: string };
 
 let sdk: NodeSDK | undefined;
+
+export type TelemetryConfig = {
+  captureContent: boolean;
+  redactPii: boolean;
+} & (
+  | { enabled: false }
+  | {
+      enabled: true;
+      endpoint: string;
+      headers: Record<string, string>;
+      serviceName: string;
+    }
+);
 
 function trimSlash(url: string): string {
   return url.endsWith("/") ? url.slice(0, -1) : url;
 }
 
-export function startTelemetry(config: TelemetryConfig): void {
+export function startTelemetry(config: TelemetryConfig, serviceVersion: string): void {
   configureTelemetry({ captureContent: config.captureContent, redactPii: config.redactPii });
   if (!config.enabled) return;
 
@@ -25,7 +33,7 @@ export function startTelemetry(config: TelemetryConfig): void {
   sdk = new NodeSDK({
     resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: config.serviceName,
-      [ATTR_SERVICE_VERSION]: version,
+      [ATTR_SERVICE_VERSION]: serviceVersion,
     }),
     traceExporter: new OTLPTraceExporter({
       url: `${base}/v1/traces`,

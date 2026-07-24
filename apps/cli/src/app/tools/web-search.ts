@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { isBrokenCircuitError } from "cockatiel";
 import type { ToolDefinition } from "@chat/agent/tools/types";
-import { createResiliencePolicy } from "@/platform/utils/resilience";
+import { createResiliencePolicy } from "@chat/platform/utils/resilience";
 import { envConfig } from "@/platform/config";
 
 export const WEB_SEARCH_TOOL_NAME = "web_search" as const;

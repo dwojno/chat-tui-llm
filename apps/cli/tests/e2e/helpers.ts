@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { OpenAI } from "openai";
-import { Model } from "@/platform/model";
+import { Model } from "@chat/platform/model";
 import { Agent } from "@chat/agent/agent";
 import { EventBus } from "@chat/agent/events/bus";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";

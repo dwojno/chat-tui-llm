@@ -10,7 +10,7 @@ import {
 } from "@opentelemetry/api";
 import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
 import type { TraceToolExecution } from "@chat/agent";
-import { redactPII } from "@/platform/utils/redact";
+import { redactPII } from "../utils/redact";
 import { estimateCost } from "./pricing";
 
 export const TELEMETRY_SCOPE = "chat-cli";

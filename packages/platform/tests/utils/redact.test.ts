@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { redactPII } from "@/platform/utils/redact";
+import { redactPII } from "@chat/platform/utils/redact";
 
 describe("redactPII", () => {
   it("scrubs each PII kind", () => {

@@ -1,5 +1,5 @@
 import type { OpenAI } from "openai";
-import { GEN_AI, setSpanIO, withLlmSpan } from "@/platform/telemetry";
+import { GEN_AI, setSpanIO, withLlmSpan } from "@chat/platform/telemetry";
 
 export interface DenseEmbedder {
   embed(texts: string[]): Promise<number[][]>;

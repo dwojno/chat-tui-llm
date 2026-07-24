@@ -2,8 +2,8 @@ import type { OpenAI } from "openai";
 import { Agent, type AgentDeps } from "@chat/agent/agent";
 import { EventBus } from "@chat/agent/events/bus";
 import { Session } from "@/app/session/session";
-import { Model } from "@/platform/model";
-import { traceToolExecution } from "@/platform/telemetry";
+import { Model } from "@chat/platform/model";
+import { traceToolExecution } from "@chat/platform/telemetry";
 import type { Store } from "@/store";
 
 export function testModel(openai: OpenAI): Model {

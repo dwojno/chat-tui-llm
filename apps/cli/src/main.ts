@@ -17,9 +17,9 @@ import { createAgentTools } from "@/app/tools";
 import { connectMcpServers, type McpConnection } from "@/app/tools/mcp";
 import { Session } from "@/app/session/session";
 import { createRagDeps, LocalStore, type OpenStoreOptions, type Store } from "@/store";
-import { Model } from "@/platform/model";
-import { traceToolExecution } from "@/platform/telemetry";
-import { redactPII } from "@/platform/utils/redact";
+import { Model } from "@chat/platform/model";
+import { traceToolExecution } from "@chat/platform/telemetry";
+import { redactPII } from "@chat/platform/utils/redact";
 import { renderChat } from "@/ui/chat";
 import { messagesFromTranscript } from "@/ui/history";
 

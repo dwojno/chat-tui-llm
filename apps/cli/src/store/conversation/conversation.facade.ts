@@ -1,6 +1,6 @@
 import type { AgentEvent } from "@chat/agent";
 import type { UsageTotals } from "@/app/session/usage";
-import type { UsageRecord } from "@/platform/model";
+import type { UsageRecord } from "@chat/platform/model";
 import type { StoreContext } from "../context";
 import { asArray, type OneOrMany } from "../helpers";
 import {
