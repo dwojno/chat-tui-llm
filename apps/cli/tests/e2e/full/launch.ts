@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { QdrantClient } from "@qdrant/js-client-rest";
 import { OpenAI } from "openai";
 import { run } from "@/main";
-import { DEFAULT_PROFILE_ID } from "@/store/profile/profile.facade";
+import { DEFAULT_PROFILE_ID } from "@/backend/profile/profile.facade";
 import { createMockOpenAI, type MockHandoff, type MockTurn } from "@tests/helpers/mock-openai";
 import { weatherStubTool } from "./stub-tool";
 

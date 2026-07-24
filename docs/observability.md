@@ -12,7 +12,7 @@ never wrapped" (see [architecture.md](./architecture.md)). Observability is the
 one sanctioned exception: the core imports `@opentelemetry/api` only. That package
 is an **API surface, not an SDK** — every call is a no-op until the composition
 root registers a provider (`startTelemetry` in
-[src/platform/telemetry/otel.ts](../src/platform/telemetry/otel.ts)). It is
+[packages/platform/src/telemetry/otel.ts](../packages/platform/src/telemetry/otel.ts)). It is
 not an LLM/SDK abstraction, and it adds no I/O or state to the core, so the
 stateless-core contract holds.
 
@@ -23,7 +23,7 @@ active-context rides on `AsyncLocalStorage`, which **is** preserved across `awai
 nesting needs no per-step ceremony — the core keeps observability out of the domain
 types (`TurnContext` carries no span) and relies on a single active-context wrapper:
 
-- **`withSpan(name, init, run)`** ([src/platform/telemetry/trace.ts](../src/platform/telemetry/trace.ts))
+- **`withSpan(name, init, run)`** ([packages/platform/src/telemetry/trace.ts](../packages/platform/src/telemetry/trace.ts))
   starts a span, runs `run(span)` inside `context.with(contextWithSpan(span), …)`, and
   ends it. Because the whole awaited call chain runs under that context, every span
   created downstream nests correctly. `Session.runTurn` wraps the turn span around
@@ -34,7 +34,7 @@ types (`TurnContext` carries no span) and relies on a single active-context wrap
   and the store path (`store.sources.search()` → the embeddings/rerank
   `startActiveSpan` spans) nests under `execute_tool` automatically —
   `search_knowledge_base` contains **zero** tracing code.
-  `tests/agent/telemetry.test.ts` asserts this nesting end-to-end.
+  `apps/cli/tests/telemetry.test.ts` asserts this nesting end-to-end.
 
 ## Span tree
 
@@ -111,7 +111,7 @@ supplementary and are best pointed at a Prometheus/collector.
 
 ## Cost tracking
 
-`estimateCost` ([src/platform/telemetry/pricing.ts](../src/platform/telemetry/pricing.ts))
+`estimateCost` ([packages/platform/src/telemetry/pricing.ts](../packages/platform/src/telemetry/pricing.ts))
 holds a per-model USD-per-1M-token table (`gpt-4o`, `gpt-4o-mini`,
 `text-embedding-3-small`) and subtracts cached input tokens. Update it when
 pricing changes. Langfuse can also compute cost from model + tokens; the explicit
@@ -119,8 +119,8 @@ attribute covers backends that don't.
 
 ## Configuration
 
-All via env (see [.env.example](../.env.example)); parsed by
-[src/platform/telemetry/config.ts](../src/platform/telemetry/config.ts):
+All via environment variables; parsed by
+[apps/cli/src/config.ts](../apps/cli/src/config.ts):
 
 | Var                           | Default                                 |
 | ----------------------------- | --------------------------------------- |

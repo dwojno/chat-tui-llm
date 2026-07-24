@@ -6,8 +6,8 @@ import { OpenAI } from "openai";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createRagTools } from "@chat/tools/rag";
 import type { ToolRunContext } from "@chat/agent/conversation/turn";
-import { createRagDeps, LocalStore, type Store } from "@/store";
-import { loadConfig } from "@/platform/config";
+import { createRagDeps, LocalStore, type Store } from "@/backend";
+import { loadConfig } from "@/config";
 import { drain } from "@chat/platform/utils/async-gen";
 
 const RUN = process.env.RAG_INTEGRATION === "1";

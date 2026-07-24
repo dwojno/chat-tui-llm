@@ -38,7 +38,7 @@ Three parts, each with one job:
 ## The event log is the state
 
 Everything durable is an `AgentEvent` in one append-only log
-([app/runner/thread/events.ts](../src/app/runner/thread/events.ts)). The SDK's
+([packages/agent/src/events/agent-event.ts](../packages/agent/src/events/agent-event.ts)). The SDK's
 `ResponseInputItem` is no longer the domain type — it survives only at the model
 boundary.
 
@@ -64,7 +64,7 @@ requests/responses are events too, so the transcript is complete and auditable.
 
 ## Own your context window
 
-The reducer ([app/runner/thread/reducer.ts](../src/app/runner/thread/reducer.ts)) folds the
+The reducer ([packages/engine/src/thread/reducer.ts](../packages/engine/src/thread/reducer.ts)) folds the
 log into **one packed `<user>` message** — a custom, token-efficient format, not a raw
 role array. Each event renders as an XML-tagged block; a tool call is `<{intent}>`, its
 result `<{intent}_result>`:
@@ -94,7 +94,7 @@ buildMessage({ events, memories }) -> ResponseInputItem[]   // length-1: one use
 Summaries are just `summary` events in the log (see [Windowing](#windowing)), so the
 reducer takes only `events` + `memories` — there's no separate summary channel. Data
 renders as YAML via a tiny dependency-free serializer
-([yaml.ts](../src/app/runner/thread/yaml.ts)), keeping the "frameworkless" claim intact.
+([yaml.ts](../packages/engine/src/thread/yaml.ts)), keeping the "frameworkless" claim intact.
 
 **Ordering is deliberate — it protects the prompt cache.** Summary segments lead (they
 only change when a new one is minted), messages append-only, memories **last** (so a
@@ -127,7 +127,7 @@ persisted, and rebuilt from the seed each turn.
 The log can't grow forever, so it's bounded by **summary segments**. After each turn, if
 the un-summarized tail (messages since the last summary) exceeds `KEEP_LAST_TURNS` (4),
 the whole tail is folded into a single new `summary` event and appended — a checkpoint,
-not a rewrite (`maintainWindow`, [session.ts](../src/app/session/session.ts)).
+not a rewrite (`maintainWindow`, [session.ts](../apps/cli/src/session/session.ts)).
 
 `forModel()` then returns **every summary segment, then the messages after the last
 one** — so nothing is dropped as the window slides: evicted turns are represented by
@@ -144,7 +144,7 @@ segment is minted. Older segment rows are also the audit trail.
 
 ## Primitives vs. the loop
 
-The `Agent` ([agent.ts](../src/agent/agent.ts)) is **stateless**, owns **no loop**, and
+The `Agent` ([agent.ts](../packages/agent/src/agent.ts)) is **stateless**, owns **no loop**, and
 imports no config, prompt, or event type — every collaborator is injected via
 `AgentDeps`. It knows nothing about `AgentEvent` or the reducer.
 
@@ -156,7 +156,7 @@ executeTool(call, deps): Promise<string>
 ```
 
 The **loop** is a plain async function the caller owns
-([runner.ts](../src/app/runner/runner.ts)):
+([runner.ts](../packages/engine/src/runner.ts)):
 
 ```ts
 runAgentLoop({ agent, events, options, context, bus,
@@ -189,7 +189,7 @@ fire several tools in one turn (executed in parallel via `Promise.all`), the fin
 answer still streams token-by-token, and delegation/approval are untouched.
 
 "Intents" enter the loop as two **reserved control tools**
-([app/tools/control-intents.ts](../src/app/tools/control-intents.ts)) the runner _interprets_
+([packages/engine/src/control-intents.ts](../packages/engine/src/control-intents.ts)) the runner _interprets_
 by name instead of dispatching:
 
 | Intent                     | Carries                | Effect                                     |
@@ -204,7 +204,7 @@ lets the model self-heal (below).
 
 ## Scratchpad: a derived-state action
 
-The `update_scratchpad` tool ([app/tools/scratchpad.ts](../src/app/tools/scratchpad.ts)) is
+The `update_scratchpad` tool ([packages/engine/src/scratchpad.ts](../packages/engine/src/scratchpad.ts)) is
 the agent's private working memory across steps — a todo list, a discovery plan, interim
 findings. Like the control intents it is **interpreted by name, never dispatched**: the
 runner pulls scratchpad calls out of the work set, folds each into a `scratchpad` event,
@@ -275,7 +275,7 @@ the prompt's job so a guardrail never misfires.
 
 ## Streaming vs. durable — the bus is UI-only
 
-Progress rides the injected **`EventBus`** ([events/bus.ts](../src/agent/events/bus.ts));
+Progress rides the injected **`EventBus`** ([events/bus.ts](../packages/agent/src/events/bus.ts));
 durable data rides the **return value**. The bus is never persisted.
 
 ```ts
@@ -293,7 +293,7 @@ subscribes to the bus; a web server could forward the same stream over SSE.
 
 ## Model routing
 
-Role-routed via constants ([config.ts](../src/app/config.ts)):
+Role-routed via constants ([config.ts](../apps/cli/src/config.ts)):
 
 | Constant                                    | Value          | Used by                                       |
 | ------------------------------------------- | -------------- | --------------------------------------------- |
@@ -322,13 +322,13 @@ so a fork sees only what it needs.
 
 No bespoke sub-agent class — delegation is **just tools** that recursively call the same
 loop with a different `TurnProfile`. The recursion seam is `ToolRunContext.runTurn`
-([conversation/turn.ts](../src/agent/conversation/turn.ts)), which stays **SDK-typed**
+([conversation/turn.ts](../packages/agent/src/conversation/turn.ts)), which stays **SDK-typed**
 (`messages` in, `items` out) so `agent/` never imports the event type and there's no
 import cycle. The runner **bridges** at that boundary via
-[convert.ts](../src/app/runner/thread/convert.ts) — SDK items ⇄ events — while working in
+[convert.ts](../packages/engine/src/thread/convert.ts) — SDK items ⇄ events — while working in
 events internally.
 
-`runFork` ([delegate-task.ts](../src/app/tools/delegation/delegate-task.ts)):
+`runFork` ([delegate-task.ts](../packages/tools/src/delegation/delegate-task.ts)):
 
 1. builds a self-contained brief from the selected memories (`relevantMemoryKeys`) + the `task`;
 2. resolves the fork profile into a `TurnProfile` (instructions, tool schemas,
@@ -347,7 +347,7 @@ events internally.
 A fork runs under a named **specialist** profile. Profiles are **app configuration**, not
 agent core: the agent takes an opaque `ForkProfiles = Record<string, ForkProfile>` and knows
 none of the concrete names. The registry `FORK_PROFILE_META`
-([app/tools/delegation/profiles.ts](../src/app/tools/delegation/profiles.ts)) is the single
+([packages/tools/src/delegation/profiles.ts](../packages/tools/src/delegation/profiles.ts)) is the single
 source of truth — each entry carries the specialist's menu `description`, `instructions`, and
 `tools(store)` factory. Both `createAgentTools` (the wiring) and the shared `profileArg` (the
 `delegate_task`/`delegate_tasks` `profile` menu the model sees) derive from it, so adding a
@@ -370,7 +370,7 @@ so a fork doesn't loop on redundant retrieval.
 ### Structured handoff (`ForkResult`)
 
 A fork's whole transcript is compressed into a strict schema
-([fork-result.ts](../src/app/tools/delegation/fork-result.ts)) rather than prose, so exact
+([fork-result.ts](../packages/tools/src/delegation/fork-result.ts)) rather than prose, so exact
 values survive:
 
 ```ts

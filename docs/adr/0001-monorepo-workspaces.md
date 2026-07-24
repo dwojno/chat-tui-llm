@@ -17,9 +17,9 @@ the `@chat/*` scope.
 
 ```
 apps/
-  cli/              Ink TUI, session, commands, REPL input, platform/cli, platform/config,
-                    the SQLite Store implementation (schema, drizzle, repos, migrations,
-                    active-state), and the composition root (main.ts, cli.ts).
+  cli/              Ink TUI, session, commands, REPL input, unified config,
+                    the SQLite Store implementation under src/backend/ (schema, drizzle,
+                    repos, migrations, active-state), and the composition root.
 packages/
   @chat/agent       Pure core: agent.ts, events/bus, tools/types, humanLayer, conversation
                     contracts. Also owns the persisted turn-event type (AgentEvent).
@@ -55,8 +55,6 @@ mechanically: a package can only import what it declares, so `@chat/agent` canno
 - **`AgentEvent` lives in `@chat/agent`.** It is the persisted turn-event contract, consumed by
   both the engine (reducer) and the store (persistence). Placing it in the pure core keeps both
   `@chat/store` and `@chat/engine` depending _inward_; the store never depends on the engine.
-  (Today it lives in `app/runner/thread/events.ts` and the store imports it _outward_ — the
-  restructure fixes that inversion.)
 
 - **Minimal-config, root-orchestrated checks.** Essentially one TypeScript config (a root base
   with the current strict options); oxlint/oxfmt glob the whole tree from root; one vitest
@@ -64,8 +62,8 @@ mechanically: a package can only import what it declares, so `@chat/agent` canno
   illegal cross-package import, because the node_modules symlink won't exist unless the dep is
   declared. `just check` stays typecheck + lint + format-check + test, now spanning the workspace.
 
-- **Unit tests co-locate with their package**; `evals/` stays at the repo root (cross-cutting,
-  needs a real key); the PTY e2e + integration suites stay in `apps/cli` (they drive the real TUI).
+- **Tests co-locate with their owner.** Package unit tests live with their package; the CLI's
+  prompt evals, PTY e2e, and integration suites live under `apps/cli`.
 
 - **`apps/cli` keeps its internal `@/*` alias**, scoped to its own `src`, to avoid rewriting
   hundreds of intra-app imports. `@chat/*` specifiers are used only across package boundaries.

@@ -32,7 +32,7 @@
         "apps/*/tests/**/*.tsx",
         "packages/*/tests/**/*.ts",
         "packages/*/tests/**/*.tsx",
-        "evals/**/*.ts"
+        "apps/*/evals/**/*.ts"
       ],
       "plugins": ["vitest"],
       "env": { "vitest": true },

@@ -6,7 +6,7 @@ import { createRagTools } from "@chat/tools/rag";
 import { EventBus } from "@chat/agent/events/bus";
 import type { TurnEvent } from "@chat/agent/events/events";
 import type { ToolRunContext } from "@chat/agent/conversation/turn";
-import { LocalStore, type Store } from "@/store";
+import { LocalStore, type Store } from "@/backend";
 import { createFakeRag } from "@tests/helpers/fake-rag";
 import { drain } from "@chat/platform/utils/async-gen";
 

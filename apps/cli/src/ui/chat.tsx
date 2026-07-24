@@ -1,6 +1,6 @@
 import React from "react";
 import { render, Box, Static } from "ink";
-import type { UsageSnapshot } from "@/app/session/usage";
+import type { UsageSnapshot } from "@/session/usage";
 import type { LiveTurn, Message, Step } from "./types";
 import { ChatMessage } from "./components/message";
 import { StreamingMessage } from "./components/streaming-message";

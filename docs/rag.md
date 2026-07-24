@@ -1,8 +1,8 @@
 # Retrieval-Augmented Generation
 
 The knowledge base is a hand-built RAG pipeline — ingest, hybrid retrieval,
-rerank, and citable slicing — that lives **entirely inside the `sources` store
-domain** ([src/store/sources/](../src/store/sources/)). The agent core never
+rerank, and citable slicing — that lives **entirely inside the CLI backend's `sources`
+domain** ([apps/cli/src/backend/sources/](../apps/cli/src/backend/sources/)). The agent core never
 learns it exists: RAG reaches the model only as four store-backed tools, exactly
 like any other tool (see [agent-loop.md](./agent-loop.md#rag-touchpoint)). This
 is the authoritative reference for how documents are indexed, how a query is
@@ -13,7 +13,7 @@ answered, and how the infrastructure is laid out. For the loop and delegation se
 ## Where it sits
 
 ```
-src/store/sources/
+apps/cli/src/backend/sources/
   source.facade.ts    the domain's public API (store.sources.*) — the only surface
   source.repository.ts SQLite bookkeeping: one row per indexed file, per profile
   rag/
@@ -33,7 +33,7 @@ The facade (`SqliteSourcesFacade`) is the boundary. It owns the SQLite `source`
 rows (path, status, `s3Key`, `contentHash`, `chunkCount`) and delegates all
 retrieval work to the `RagEngine`, which is **stateless w.r.t. that table** — it
 touches only the object store and the vector index. `createRagDeps(openai,
-config)` ([deps.ts](../src/store/sources/rag/deps.ts)) wires the concrete infra
+config)` ([deps.ts](../apps/cli/src/backend/sources/rag/deps.ts)) wires the concrete infra
 clients (embedder, blob, index, reranker) into the engine, so the facade never
 holds a blob or Qdrant client directly. The CLI always wires these `deps`; a store
 built without them (e.g. tests, or an embedding with RAG disabled) throws a friendly
@@ -47,13 +47,13 @@ knowledge bases.
 
 ## Ingest (`/learn @file`)
 
-`/learn @file` ([app/commands/learn.ts](../src/app/commands/learn.ts)) resolves
+`/learn @file` ([apps/cli/src/commands/learn.ts](../apps/cli/src/commands/learn.ts)) resolves
 the mention, then streams `session.indexSource(path)` →
 `facade.add` → `engine.indexDocument`
-([engine.ts](../src/store/sources/rag/engine.ts)). One document flows through:
+([engine.ts](../apps/cli/src/backend/sources/rag/engine.ts)). One document flows through:
 
 1. **Convert to Markdown** (`toMarkdown`,
-   [markdown.ts](../src/store/sources/rag/markdown.ts)). By extension: `md`
+   [markdown.ts](../apps/cli/src/backend/sources/rag/markdown.ts)). By extension: `md`
    passthrough; `html`/`docx` via Turndown (docx first through mammoth); `pdf` via
    unpdf text extraction; `xlsx`/`xls`/`csv` rendered as Markdown tables (one
    `## sheet` heading per worksheet); any other UTF-8 text or source file is
@@ -63,7 +63,7 @@ the mention, then streams `session.indexSource(path)` →
    on MinIO/S3) under a sanitized key (`s3KeyFor(path)` → `<path>.md`). The raw text is kept so
    `grep_files` and `read_source` can stream/slice it later without re-fetching the
    original.
-3. **Chunk** (`chunkMarkdown`, [chunking.ts](../src/store/sources/rag/chunking.ts)).
+3. **Chunk** (`chunkMarkdown`, [chunking.ts](../apps/cli/src/backend/sources/rag/chunking.ts)).
    Split on Markdown headings, then pack each section's lines into ~`chunkTokens`
    (512) windows with ~`chunkOverlap` (64) token overlap. Every chunk carries its
    **heading breadcrumb** (`Guide > Setup > Auth`) and its **1-based line range**
@@ -74,9 +74,9 @@ the mention, then streams `session.indexSource(path)` →
    (`embedText`) — the breadcrumb gives an otherwise-context-free chunk its place
    in the document. Dense vectors come from OpenAI
    (`text-embedding-3-small`, 1536-dim) in batches of 64
-   ([embeddings.ts](../src/store/sources/rag/embeddings.ts)).
+   ([embeddings.ts](../apps/cli/src/backend/sources/rag/embeddings.ts)).
 5. **Upsert** into the profile's Qdrant collection
-   ([qdrant.ts](../src/store/sources/rag/qdrant.ts)). Each point gets a
+   ([qdrant.ts](../apps/cli/src/backend/sources/rag/qdrant.ts)). Each point gets a
    deterministic id derived from `profileId:path:chunkIndex`, so re-indexing the
    same file overwrites cleanly; stale chunks for that path are deleted first. The
    dense vector is stored directly; the **sparse** vector is produced by Qdrant
@@ -107,7 +107,7 @@ regardless of how relevant each one actually is ("gets all the things"). So
 2. **Rerank.** With reranking on, `search()` over-fetches a larger candidate pool
    (`limit × RAG_RERANK_CANDIDATE_MULTIPLIER`, capped at
    `RAG_RERANK_MAX_CANDIDATES`) and hands it to a **`Reranker`**
-   ([reranker.ts](../src/store/sources/rag/reranker.ts)). The default
+   ([reranker.ts](../apps/cli/src/backend/sources/rag/reranker.ts)). The default
    `LlmReranker` makes one structured-output call that scores each candidate 0–1
    for true relevance, returns them most-relevant-first, and **omits off-topic
    ones**. Two safety properties:
@@ -119,7 +119,7 @@ regardless of how relevant each one actually is ("gets all the things"). So
      because reranking did.
 
    `Reranker` is an interface, so a Cohere/cross-encoder implementation is a
-   one-line swap in [deps.ts](../src/store/sources/rag/deps.ts).
+   one-line swap in [deps.ts](../apps/cli/src/backend/sources/rag/deps.ts).
 
 3. **Relative filter** (`applyRelativeCutoff`). Because rerank scores now have real
    0–1 spread, drop any hit below `RAG_RELATIVE_CUTOFF × topScore`. The cutoff is
@@ -138,7 +138,7 @@ to raw RRF scores, since they have no absolute scale).
 ## The tools
 
 Composed in `createRagTools(store)`
-([src/app/tools/rag.ts](../src/app/tools/rag.ts)) and injected into
+([packages/tools/src/rag.ts](../packages/tools/src/rag.ts)) and injected into
 the agent; each closes over the live `Store` and calls `store.sources.*` for the
 **active profile**.
 
@@ -159,7 +159,7 @@ One-shot lookups call these tools directly from the main orchestrator turn.
 **Multi-hop** retrieval — chained searches where a fact from one passage guides
 the next lookup — is delegated to the **`rag_research` fork profile**, which
 carries exactly this tool set and the `RAG_FORK_INSTRUCTIONS` prompt
-([app/tools/prompts/rag-fork.ts](../src/app/tools/prompts/rag-fork.ts)). The fork works
+([packages/tools/src/prompts/rag-fork.ts](../packages/tools/src/prompts/rag-fork.ts)). The fork works
 iteratively (refine query → grep → read slice → repeat), then its transcript is
 compressed into a structured `ForkResult` so exact values (numbers, paths, ids)
 survive the handoff verbatim. See
@@ -167,8 +167,8 @@ survive the handoff verbatim. See
 
 ## Configuration
 
-Knobs live in [config.ts](../src/store/sources/rag/config.ts), parsed from the
-environment (defaults in [.env.example](../.env.example)). Parsing is separated
+Knobs live in [config.ts](../apps/cli/src/config.ts), parsed from the
+environment. Parsing is separated
 from `process.env` so tests pass an explicit env map.
 
 | Env var                                          | Default                         | Meaning                                             |
@@ -210,11 +210,11 @@ deps reports the "Knowledge base is not configured" message.
 ## Evals
 
 Retrieval quality is measured end-to-end against the **real** pipeline — no mocks.
-The RAG harness ([evals/harness/rag.ts](../evals/harness/rag.ts)) runs the app's
+The RAG harness ([apps/cli/evals/harness/rag.ts](../apps/cli/evals/harness/rag.ts)) runs the app's
 actual `Agent` with the real store-backed tools over a fixed corpus in an
 isolated `eval-<suiteId>` profile, and captures `retrievedContext` from the
 agent's genuine tool outputs. The scorers
-([evals/harness/scorers/rag-scorers.ts](../evals/harness/scorers/rag-scorers.ts))
+([apps/cli/evals/harness/scorers/rag-scorers.ts](../apps/cli/evals/harness/scorers/rag-scorers.ts))
 combine RAGAS-style metrics from `autoevals` (Faithfulness, Context Precision,
 Answer Relevancy, Context Relevancy) with hand-rolled file-level ones:
 
@@ -228,4 +228,4 @@ Answer Relevancy, Context Relevancy) with hand-rolled file-level ones:
   instead of hallucinating?
 
 So a change to chunking, reranking, or the cutoff is provable as _tighter context
-without dropping what the answer needs_. See the [evals suite](../evals/suites/rag-eval.eval.ts).
+without dropping what the answer needs_. See the [evals suite](../apps/cli/evals/suites/rag-eval.eval.ts).

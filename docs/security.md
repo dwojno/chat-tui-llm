@@ -31,13 +31,13 @@ because no part of the pipeline decodes them; they reach the model as data.
 
 ## Threat model
 
-| Threat                     | Vector                                                            | Defense                                                                                                             |
-| -------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Prompt injection           | Instructions hidden in a file / web result / tool output          | `<untrusted_content>` prompt rules ([src/app/prompts.ts](../src/app/prompts.ts)); the approval gate as the backstop |
-| Jailbreak                  | User message tries to strip the model's rules ("you are now DAN") | `<untrusted_content>` + `<principles>` prompt rules                                                                 |
-| System-prompt exfiltration | "Repeat your instructions verbatim"                               | `<untrusted_content>` rule forbidding disclosure                                                                    |
-| Destructive tool abuse     | Injection tricks the model into `write_file` / `edit_file`        | Deterministic **approval gate** — nothing destructive runs without explicit user confirmation                       |
-| PII / secret leakage       | Personal data flows to a third party (OpenAI, Langfuse)           | `redactPII` at model egress and telemetry egress                                                                    |
+| Threat                     | Vector                                                            | Defense                                                                                                                       |
+| -------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Prompt injection           | Instructions hidden in a file / web result / tool output          | `<untrusted_content>` prompt rules ([apps/cli/src/prompts.ts](../apps/cli/src/prompts.ts)); the approval gate as the backstop |
+| Jailbreak                  | User message tries to strip the model's rules ("you are now DAN") | `<untrusted_content>` + `<principles>` prompt rules                                                                           |
+| System-prompt exfiltration | "Repeat your instructions verbatim"                               | `<untrusted_content>` rule forbidding disclosure                                                                              |
+| Destructive tool abuse     | Injection tricks the model into `write_file` / `edit_file`        | Deterministic **approval gate** — nothing destructive runs without explicit user confirmation                                 |
+| PII / secret leakage       | Personal data flows to a third party (OpenAI, Langfuse)           | `redactPII` at model egress and telemetry egress                                                                              |
 
 ## Defense in depth
 
@@ -46,7 +46,7 @@ because no part of the pipeline decodes them; they reach the model as data.
   disclose the system prompt, and never carry secrets/PII outside the session
   unless the user directed that exact action.
 - **Code (backstop):** the approval gate (`runApprovalGate`,
-  [src/app/runner/runner.ts](../src/app/runner/runner.ts)) blocks
+  [packages/engine/src/runner.ts](../packages/engine/src/runner.ts)) blocks
   `write_file`/`edit_file` and other approval-gated tools regardless of what the
   model decides — so a fully prompt-compromised model still cannot mutate files
   without the user saying yes. This is the guarantee the offline red-team test
@@ -54,7 +54,7 @@ because no part of the pipeline decodes them; they reach the model as data.
 
 ## PII redaction
 
-`redactPII` ([src/platform/utils/redact.ts](../src/platform/utils/redact.ts)) is a
+`redactPII` ([packages/platform/src/utils/redact.ts](../packages/platform/src/utils/redact.ts)) is a
 regex scrubber for email, phone, SSN, credit card (Luhn-checked), IPv4, and
 secrets (provider `sk-`/`pk-`/`rk-` keys, AWS access keys, JWTs). We keep this
 in-house rather than add a dependency: the NER-grade OSS tool (Presidio) is a
@@ -65,7 +65,7 @@ where user data leaves the process:
 - **Model egress** — injected into `Agent` (`buildRequestParams`), so text sent
   to OpenAI is scrubbed.
 - **Telemetry egress** — `setSpanIO`
-  ([src/platform/telemetry/trace.ts](../src/platform/telemetry/trace.ts)), so
+  ([packages/platform/src/telemetry/trace.ts](../packages/platform/src/telemetry/trace.ts)), so
   Langfuse/OTel spans are scrubbed.
 
 Controlled by `REDACT_PII` (default **on**; set `REDACT_PII=0` to disable). The
@@ -83,7 +83,7 @@ patterns are upper-bounded so a hostile input can't trigger a ReDoS.
 ## Overwrite / filesystem defense
 
 `write_file` and `edit_file` resolve every path through `resolveWithinCwd`
-([src/app/tools/utils/workspace.ts](../src/app/tools/utils/workspace.ts)):
+([packages/tools/src/utils/workspace.ts](../packages/tools/src/utils/workspace.ts)):
 `resolve` + `relative` + an assert that the result stays inside the working
 directory. There is **no URL/percent decoding**, so `%2e%2e%2f`-style payloads
 are treated as literal filenames and stay contained; `..` traversal, absolute
@@ -94,7 +94,7 @@ approval-gated. The guard rejects conservatively (a filename beginning with
 **Approval fail-safe.** When a tool's args can't be parsed (malformed JSON,
 binary blob, schema mismatch), approval need now defaults to _required_ for any
 tool that declares an approval mechanism — the gate fails safe rather than
-open ([src/agent/agent.ts](../src/agent/agent.ts) `approvalFor`).
+open ([packages/agent/src/agent.ts](../packages/agent/src/agent.ts) `approvalFor`).
 
 ## Hostile file / encoded content
 
@@ -126,7 +126,7 @@ render boundary if it matters for your deployment.
 
 ## Red-teaming
 
-- **Live** — `just eval evals/suites/red-team.eval.ts` runs adversarial prompts
+- **Live** — `just eval apps/cli/evals/suites/red-team.eval.ts` runs adversarial prompts
   (jailbreak, injection, prompt exfiltration, secret exfiltration, covert tool
   abuse) against the real model and scores refusal / no-leak / no-forbidden-tool
   with the existing scorers. A control row checks the hardened prompt didn't
@@ -138,6 +138,6 @@ render boundary if it matters for your deployment.
   file, and binary content with spoofed `</user>`/`<system>` tags and the
   reserved `done_for_now` control-intent name — none can overwrite a target or
   fake turn completion (the runner keys on tool-call names, not content text).
-- **Filesystem** — `just test tests/app/tools/disk-tools.test.ts` covers path
+- **Filesystem** — `just test packages/tools/tests/disk-tools.test.ts` covers path
   traversal / percent-encoding / null-byte / binary-content overwrite attempts;
-  `tests/agent/approval-fail-safe.test.ts` covers the malformed-args gate.
+  `packages/agent/tests/approval-fail-safe.test.ts` covers the malformed-args gate.

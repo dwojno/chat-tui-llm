@@ -15,7 +15,8 @@ If these files don't exist, **proceed silently**. Don't flag their absence; don'
 /
 ├── CONTEXT.md
 ├── docs/adr/
-└── src/
+├── apps/
+└── packages/
 ```
 
 ## Use the glossary's vocabulary

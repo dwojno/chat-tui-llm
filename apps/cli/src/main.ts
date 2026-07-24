@@ -1,22 +1,24 @@
 import { OpenAI } from "openai";
 import type { z } from "zod";
 import { Agent, EventBus, type ToolDefinition } from "@chat/agent";
-import { parseCliArgs } from "@/platform/cli/args";
-import { runRepl } from "@/app/input/repl";
-import { buildChatContext } from "@/app/session/switch";
-import { envConfig } from "@/platform/config";
+import { parseCliArgs } from "@/args";
+import { runRepl } from "@/input/repl";
+import { buildChatContext } from "@/session/switch";
 import {
   DB_PATH,
+  FORK_MODEL,
+  HANDOFF_MODEL,
   KEEP_LAST_TURNS,
+  loadConfig,
   OPENAI_MAX_RETRIES,
   OPENAI_TIMEOUT_MS,
-} from "@/platform/cli/config";
-import { FORK_MODEL, HANDOFF_MODEL, TEMPERATURE } from "@/app/config";
-import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
+  TEMPERATURE,
+} from "@/config";
+import { SYSTEM_INSTRUCTIONS } from "@/prompts";
 import { createAgentTools } from "@chat/tools";
 import { connectMcpServers, type McpConnection } from "@chat/tools/mcp";
-import { Session } from "@/app/session/session";
-import { createRagDeps, LocalStore, type OpenStoreOptions, type Store } from "@/store";
+import { Session } from "@/session/session";
+import { createRagDeps, LocalStore, type OpenStoreOptions, type Store } from "@/backend";
 import { Model } from "@chat/platform/model";
 import { traceToolExecution } from "@chat/platform/telemetry";
 import { redactPII } from "@chat/platform/utils/redact";
@@ -39,6 +41,7 @@ async function connectProfileMcp(store: Store): Promise<McpConnection> {
 export async function run(deps: RunDeps = {}): Promise<void> {
   const interactive = process.stdin.isTTY === true;
   const cli = parseCliArgs();
+  const envConfig = loadConfig();
 
   const openai =
     deps.openai ??

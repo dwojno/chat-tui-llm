@@ -19,7 +19,8 @@ _Avoid_: agent, framework, app, runner-as-cli.
 **App** (`apps/*`):
 A deployable entry point that wires the packages together for one host — `apps/cli` (Ink TUI) now,
 `apps/web` (multi-tenant) next. Owns its UI, session wiring, composition root, and its concrete
-Store implementation.
+Store implementation. The CLI keeps these directly under `apps/cli/src/`, with SQLite and RAG
+implementation details under `apps/cli/src/backend/`.
 _Avoid_: client, frontend, service.
 
 **Package** (`packages/*`):

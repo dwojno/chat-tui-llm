@@ -17,12 +17,12 @@ Requires a real `OPENAI_API_KEY` — loaded from `.env` via `setupFiles` in
 
 ## What's covered
 
-The tests live in [`suites/`](../evals/suites/); the reusable machinery lives in
-[`harness/`](../evals/harness/); the runner config is [`evalite.config.ts`](../evalite.config.ts)
+The CLI app owns the tests in [`suites/`](../apps/cli/evals/suites/); the reusable machinery lives in
+[`harness/`](../apps/cli/evals/harness/); the workspace runner config is [`evalite.config.ts`](../evalite.config.ts)
 at the repo root.
 
 ```
-evals/
+apps/cli/evals/
   harness/        the machinery (imported via `../harness`)
     probe.ts      the task: one model turn → observable result
     scorers/      scorers that grade a result against `Expected`
@@ -47,14 +47,14 @@ evals/
 `suites/rag-eval.eval.ts` is unlike the others: it is a **true end-to-end test
 with no mocks**. Each run resets its own isolated Qdrant collection + MinIO
 bucket (`kb_eval-rag`), ingests the corpus in
-[`rag-corpus/`](../evals/harness/rag-corpus/) through the app's production `store.sources`
+[`rag-corpus/`](../apps/cli/evals/harness/rag-corpus/) through the app's production `store.sources`
 pipeline, then runs the **actual `runAgentLoop`** (with the real
 store-backed RAG tools) once per query. `retrievedContext` is captured from the
 agent's genuine `search_knowledge_base` / `read_source` / `grep_files` tool
 outputs, so the RAGAS-style scorers (from
 [autoevals](https://github.com/braintrustdata/autoevals)) grade what the system
 actually retrieved and generated. The harness lives alongside the other eval
-machinery in [`harness/`](../evals/harness/) (`rag.ts`, `scorers/rag-scorers.ts`, `infra.ts`).
+machinery in [`harness/`](../apps/cli/evals/harness/) (`rag.ts`, `scorers/rag-scorers.ts`, `infra.ts`).
 
 `suites/redundancy.eval.ts` reuses the same harness under the real `RAG_FORK_INSTRUCTIONS`
 prompt: it runs the full loop over the real index and the `No redundant calls` scorer fails
@@ -63,7 +63,7 @@ showed. Redundancy is a whole-run property, so unlike the single-turn probe suit
 the real loop and services.
 
 ```bash
-cp .env.example .env      # set OPENAI_API_KEY (defaults point at localhost)
+echo "OPENAI_API_KEY=sk-..." > .env
 just eval-rag             # starts Qdrant, then ingests + runs the suite
 ```
 
@@ -101,14 +101,14 @@ answer needs** — re-run with `RAG_RERANK_ENABLED=false` for a pure-RRF baselin
 Evalite's model is `data → task → scorers`:
 
 - **`data`** — the rows. Each is `{ input, expected }`. `input` is a
-  [`ProbeSpec`](../evals/harness/probe.ts) (prompt + optional context/schema); `expected`
-  is an [`Expected`](../evals/harness/scorers/common.ts) describing what a good answer does.
-- **`task`** — [`probePrompt`](../evals/harness/probe.ts) runs _one_ model turn against
+  [`ProbeSpec`](../apps/cli/evals/harness/probe.ts) (prompt + optional context/schema); `expected`
+  is an [`Expected`](../apps/cli/evals/harness/scorers/common.ts) describing what a good answer does.
+- **`task`** — [`probePrompt`](../apps/cli/evals/harness/probe.ts) runs _one_ model turn against
   the real system prompt + tools and returns the observable surface (`text`,
   `toolCalls`, `parsed`). It does **not** execute tools or run the loop, so it
   captures the model's _decision_ — exactly what routing evals score.
-- **`scorers`** — one file each under [`harness/scorers/`](../evals/harness/scorers/),
-  shared bits in [`common.ts`](../evals/harness/scorers/common.ts). The deterministic
+- **`scorers`** — one file each under [`harness/scorers/`](../apps/cli/evals/harness/scorers/),
+  shared bits in [`common.ts`](../apps/cli/evals/harness/scorers/common.ts). The deterministic
   checks (`routing`, `toolArgument`, `conciseArg`, `avoidsTools`,
   `mentionsRequired`, `avoidsForbidden`, `matchesSchema`, `withinWordLimit`)
   inspect structured tool-call data or free text. The LLM judge (`judged`)
@@ -134,7 +134,7 @@ Append a row to the relevant eval's `data`:
 }
 ```
 
-Add a whole new suite by creating `evals/suites/<name>.eval.ts` — evalite discovers
+Add a whole new suite by creating `apps/cli/evals/suites/<name>.eval.ts` — evalite discovers
 any `*.eval.ts` file automatically.
 
 ## A note on non-determinism

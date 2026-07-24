@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { afterAll, describe, expect, it } from "vitest";
-import { mcpCommand } from "@/app/commands/mcp";
-import type { Session } from "@/app/session/session";
+import { mcpCommand } from "@/commands/mcp";
+import type { Session } from "@/session/session";
 import { connectMcpServers, type McpConnection } from "@chat/tools/mcp";
-import type { Store } from "@/store";
+import type { Store } from "@/backend";
 import type { ChatHandle } from "@/ui/chat";
 import { createMemoryStore } from "@tests/helpers/mock-openai";
 

@@ -16,15 +16,15 @@ vi.mock("ink", () => ({
   useInput: () => {},
 }));
 
-import { processLine } from "@/app/input/repl";
-import type { CommandContext } from "@/app/commands/types";
+import { processLine } from "@/input/repl";
+import type { CommandContext } from "@/commands/types";
 import { Model } from "@chat/platform/model";
 import { Agent } from "@chat/agent/agent";
 import { EventBus } from "@chat/agent/events/bus";
-import { FORK_MODEL, HANDOFF_MODEL } from "@/app/config";
-import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
+import { FORK_MODEL, HANDOFF_MODEL } from "@/config";
+import { SYSTEM_INSTRUCTIONS } from "@/prompts";
 import { createAgentTools } from "@chat/tools";
-import { Session } from "@/app/session/session";
+import { Session } from "@/session/session";
 import { renderChat, type ChatHandle, type Message } from "@/ui/chat";
 import {
   createMemoryStore,

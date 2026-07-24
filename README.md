@@ -72,7 +72,7 @@ log into one XML-tagged `<user>` message — four blocks, in a fixed order:
 
 - **Every event becomes one block.** A tool call renders as `<get_weather>`, its result as
   `<get_weather_result>`, a failure as `<error>` — the log's event types map straight to
-  tags. [`app/runner/thread/reducer.ts`](src/app/runner/thread/reducer.ts)
+  tags. [`packages/engine/src/thread/reducer.ts`](packages/engine/src/thread/reducer.ts)
 - **Ordering _is_ the cache strategy.** `<events>` is append-only, oldest → newest, with
   resolved errors pruned — a prefix that stays byte-identical turn to turn. Memories,
   scratchpad, and `next_step` form a volatile tail, so a `/remember` or a scratchpad edit
@@ -89,7 +89,7 @@ SSE. See [docs/agent-loop.md](docs/agent-loop.md) for the full mechanics.
 Two pure primitives, no retained state — the loop lives in the host, readable top to bottom:
 
 ```ts
-// src/agent — the entire core. No loop, no state, no config/prompt imports.
+// packages/agent — the entire core. No loop, no state, no config/prompt imports.
 step(input)        →  assistant text | tool calls     // ONE model call, streams deltas
 executeTool(call)  →  result                          // ONE dispatch
 
@@ -104,14 +104,14 @@ while (!done && steps++ < MAX_TOOL_STEPS) {
 
 - **Pure-function agent** — `step()` and `executeTool()` are pure functions of their injected
   deps; the core imports nothing outward and keeps nothing between turns.
-  [`agent/agent.ts`](src/agent/agent.ts)
+  [`packages/agent/src/agent.ts`](packages/agent/src/agent.ts)
 - **The log is the state** — the append-only `AgentEvent` log _is_ the turn state, so a run is
   resumable by construction (pause/resume + trigger-anywhere are clean seams).
-  [`app/runner/thread/events.ts`](src/app/runner/thread/events.ts)
+  [`packages/agent/src/events/agent-event.ts`](packages/agent/src/events/agent-event.ts)
 - **Own the control flow** — `runAgentLoop` keeps **native** tool-calling (several tools per
   turn, in parallel; token-streamed answers) and layers in reserved control intents
   (`done_for_now`, `request_more_information`) it interprets by name.
-  [`app/runner/runner.ts`](src/app/runner/runner.ts)
+  [`packages/engine/src/runner.ts`](packages/engine/src/runner.ts)
 
 ### Context that manages itself
 
@@ -123,7 +123,7 @@ turns:  1  2  3  4  5 … 26 27 28 29 30   (newest)
 
 - **Context-window management** — older turns fold into a rolling summary and drop out; the
   last 4 stay verbatim. Owned by the session, not the agent.
-  [`app/tokens/summarizer.ts`](src/app/tokens/summarizer.ts)
+  [`packages/engine/src/tokens/summarizer.ts`](packages/engine/src/tokens/summarizer.ts)
 
 ### Self-healing tool use
 
@@ -135,7 +135,7 @@ tool throws ─▶ compact <error> event ─▶ fed back to the model ─▶ it 
 ```
 
 - A failure never crashes the turn — it becomes context the model can recover from, with a
-  hard backstop on repeated errors. [`app/runner/runner.ts`](src/app/runner/runner.ts)
+  hard backstop on repeated errors. [`packages/engine/src/runner.ts`](packages/engine/src/runner.ts)
 
 ### Sub-agent delegation
 
@@ -151,7 +151,7 @@ orchestrator
 
 - **Ephemeral child agents** run in parallel and hand back a compressed structured digest;
   their tool activity streams back live under a model-chosen label.
-  [`app/tools/delegation/`](src/app/tools/delegation/)
+  [`packages/tools/src/delegation/`](packages/tools/src/delegation/)
 
 ### Knowledge base (RAG)
 
@@ -164,7 +164,7 @@ query ─▶ dense + sparse search ─▶ RRF fuse ─▶ LLM rerank ─▶ whol
 
 - **Hybrid retrieval, reranked** — dense + sparse vectors fused via RRF, then an LLM reranker
   keeps only on-topic passages. Lives entirely in the `sources` store domain; the core stays
-  RAG-agnostic. [`store/sources/`](src/store/sources/)
+  RAG-agnostic. [`apps/cli/src/backend/sources/`](apps/cli/src/backend/sources/)
 
 ### Observability & tests
 
@@ -180,9 +180,9 @@ turn ───────────────────── tokens · c
 - **Observability** — OpenTelemetry (GenAI semantic conventions) → OTLP; the full
   turn → LLM-call → tool → fork span tree with token/cost. Off by default, vendor-neutral.
   [docs/observability.md](docs/observability.md)
-- **Structured output**, **prompt evals** against the live model ([evals/](evals/)), and a
+- **Structured output**, **prompt evals** against the live model ([apps/cli/evals/](apps/cli/evals/)), and a
   fast **offline test suite** (model mocked; unit + e2e) covering the loop, tool failures,
-  delegation, and the reducer. [tests/](tests/)
+  delegation, and the reducer. [apps/cli/tests/](apps/cli/tests/)
 
 ## Quick start
 
@@ -224,23 +224,24 @@ context management above.
 
 ## Architecture
 
-Imports use the `@/*` alias (→ `src/*`), so an import path mirrors this tree.
-Three core PILLARS + a MIDDLE integrator (`app/`) + leaf INFRA (`platform/`):
+Reusable modules live under `packages/`; the self-contained terminal app lives under
+`apps/cli`. The CLI uses `@/*` for its own source and `@chat/*` across package seams:
 
 ```
-src/
-  agent/       PILLAR — PURE core: Agent.step()/executeTool() + tool/event contracts. No loop, no state.
-  store/       PILLAR — store facade → profile / conversation / memory / sources (RAG); db/ backs it.
-  ui/          PILLAR — Ink TUI, driven by an EventBus subscription.
-  app/         MIDDLE — integrator + configurator that wires the pillars into a working agent:
-    runner/      the caller-owned loop (runner.ts) + reducer (thread/: events, reducer, window, convert)
-    session/     Session (state + persistence), context switch, usage
-    tools/       tool implementations — weather, web-search, disk, rag, delegation, control intents
-    commands/    user-intent handlers · input/ REPL loop · context/ memory block · tokens/ summarizer
-    config.ts prompts.ts   app constants + orchestrator system prompt
-  platform/    INFRA — telemetry · utils · cli boot (leaf, used everywhere)
-  main.ts cli.ts   composition root + entry
-tests/   evals/   docs/
+packages/
+  agent/       pure core
+  engine/      loop, reducer, windowing, scratchpad
+  tools/       reusable tool implementations
+  platform/    model adapter, telemetry, utilities
+  store/       persistence contract
+apps/cli/
+  src/
+    backend/   SQLite LocalStore + RAG infrastructure
+    commands/ context/ input/ session/ ui/
+    args.ts config.ts prompts.ts shutdown.ts main.ts cli.ts
+  tests/
+  evals/
+docs/
 ```
 
 Dig deeper:

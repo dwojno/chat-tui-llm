@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { matchFileMentionToken, type FileSuggestion } from "../file-suggestions";
-import type { SlashCommandInfo } from "@/app/commands/registry";
+import type { SlashCommandInfo } from "@/commands/registry";
 import {
   activeSuggestions,
   isExactSlashCommand,

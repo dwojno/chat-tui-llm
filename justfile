@@ -55,13 +55,13 @@ eval *args: qdrant
 eval-watch: qdrant
     pnpm exec evalite watch
 eval-rag: qdrant
-    pnpm exec evalite run evals/suites/rag-eval.eval.ts
+    pnpm exec evalite run apps/cli/evals/suites/rag-eval.eval.ts
 
 # --- integration ---
 
 # Real RAG tools against real Qdrant + OpenAI (reranker off for determinism).
 integration: qdrant
-    RAG_INTEGRATION=1 RAG_RERANK_ENABLED=false pnpm exec vitest run apps/cli/tests/store/rag packages/tools/tests/rag-tools.integration.test.ts
+    RAG_INTEGRATION=1 RAG_RERANK_ENABLED=false pnpm exec vitest run apps/cli/tests/backend/rag packages/tools/tests/rag-tools.integration.test.ts
 
 # --- e2e (PTY-driven real TUI; streams the live frames to the console) ---
 # One config (vitest.e2e.config.ts); the recipes narrow it via a CLI filename

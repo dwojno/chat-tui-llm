@@ -4,7 +4,7 @@ import { createAgentTools } from "@chat/tools";
 import { DELEGATE_TASK_NAME } from "@chat/tools/delegation/delegate-task";
 import { DELEGATE_TASKS_NAME } from "@chat/tools/delegation/delegate-tasks";
 import { WEB_SEARCH_TOOL_NAME } from "@chat/tools/web-search";
-import type { Store } from "@/store";
+import type { Store } from "@/backend";
 import { createMemoryStore } from "@tests/helpers/mock-openai";
 
 const createTools = (store: Store) =>

@@ -1,7 +1,7 @@
 import type { OpenAI } from "openai";
 import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
 import type { ForkResult } from "@chat/tools/delegation/fork-result";
-import { LocalStore, type RagDeps, type Store } from "@/store";
+import { LocalStore, type RagDeps, type Store } from "@/backend";
 
 export type MockHandoff = string | Partial<ForkResult>;
 

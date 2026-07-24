@@ -14,7 +14,7 @@ it disagrees with another doc, the source wins.
 ## The one lever
 
 The three themes are not three mechanisms — they are one. Each turn, the reducer
-([`app/runner/thread/reducer.ts`](../src/app/runner/thread/reducer.ts)) folds the owned
+([`packages/engine/src/thread/reducer.ts`](../packages/engine/src/thread/reducer.ts)) folds the owned
 `AgentEvent` log into **one packed `<user>` message**, in a fixed, deterministic order:
 
 ```
@@ -48,10 +48,10 @@ turns:  1  2  3  4  5 … 26 27 28 29 30   (newest)
         summary + recent turns  =  a stable, cacheable prompt prefix
 ```
 
-- **Eviction is summarization.** After a turn, `maintainWindow` ([`app/session/session.ts`](../src/app/session/session.ts))
+- **Eviction is summarization.** After a turn, `maintainWindow` ([`apps/cli/src/session/session.ts`](../apps/cli/src/session/session.ts))
   reads the un-summarized tail (`afterLastSummary()`); if it holds more than `KEEP_LAST_TURNS`
   (**4**) user turns, the whole tail is folded into one new `summary` segment via `summarize`
-  ([`app/tokens/summarizer.ts`](../src/app/tokens/summarizer.ts)) and **appended**.
+  ([`packages/engine/src/tokens/summarizer.ts`](../packages/engine/src/tokens/summarizer.ts)) and **appended**.
 - **Segments are never rewritten.** Each `kind = 'summary'` row covers the slice between it and
   the previous summary. `forModel()` returns **every summary segment plus the messages after the
   last one**, so evicted turns are always represented, never lost, and the view survives a
@@ -105,11 +105,11 @@ Everything here reduces **input tokens** — the dominant, repeated cost of an a
   | Eval probes         | `gpt-4o-mini`              | `EVAL_PROBE_MODEL`   |
 
 - **Usage is real, never estimated.** Token counts come from the model response via the
-  [`Model`](../src/platform/model/index.ts) adapter (`Model.fromOpenAI` / later
+  [`Model`](../packages/platform/src/model/index.ts) adapter (`Model.fromOpenAI` / later
   `fromAnthropic`). Each call harvests `{ inputTokens, cachedInputTokens, outputTokens, model, kind }`
   into `usage_record` when a session binds `withUsageRecorder`. Totals are `SUM()` over that
   table — not estimated, not on transcript rows. → [database.md](database.md).
-- **Pricing** lives in [`platform/telemetry/pricing.ts`](../src/platform/telemetry/pricing.ts),
+- **Pricing** lives in [`packages/platform/src/telemetry/pricing.ts`](../packages/platform/src/telemetry/pricing.ts),
   USD per **1M** tokens. `estimateCost` charges `uncachedInput = max(0, input − cached)` at the
   input rate, cached tokens at the (much lower) cached rate, and output at the output rate:
 
@@ -125,7 +125,7 @@ Everything here reduces **input tokens** — the dominant, repeated cost of an a
 
 ### The exit report — proof of the savings
 
-On exit, [`app/session/usage.ts`](../src/app/session/usage.ts) prints a **Context report** that
+On exit, [`apps/cli/src/session/usage.ts`](../apps/cli/src/session/usage.ts) prints a **Context report** that
 contrasts what was actually sent against a naive "re-send everything every turn" baseline:
 
 ```
@@ -152,7 +152,7 @@ The math compares like with like:
   only their digests do.
 
 Both estimates are reconstructed at read time in
-[`store/conversation/helpers.ts`](../src/store/conversation/helpers.ts) `usageFromItems`, never
+[`apps/cli/src/backend/conversation/helpers.ts`](../apps/cli/src/backend/conversation/helpers.ts) `usageFromItems`, never
 stored. One-turn conversations without summaries should report approximately zero saved.
 
 A live one-line usage bar (`↑ in (cached) · ↓ out · total · N turns`) shows the running totals
@@ -163,17 +163,17 @@ during the session.
 ## Constants, in one table
 
 The quick reference the scattered docs never gave. Values from
-[`app/config.ts`](../src/app/config.ts), [`platform/cli/config.ts`](../src/platform/cli/config.ts),
-and [`tools/delegation/delegate-tasks.ts`](../src/app/tools/delegation/delegate-tasks.ts).
+[`apps/cli/src/config.ts`](../apps/cli/src/config.ts) and
+[`packages/tools/src/delegation/delegate-tasks.ts`](../packages/tools/src/delegation/delegate-tasks.ts).
 
 | Constant                 | Value      | Role                                                | Source                   |
 | ------------------------ | ---------- | --------------------------------------------------- | ------------------------ |
-| `KEEP_LAST_TURNS`        | 4          | turns kept verbatim before summarization            | `platform/cli/config.ts` |
-| `MAX_TOOL_STEPS`         | 8          | tool iterations per turn                            | `app/config.ts`          |
-| `MAX_CONSECUTIVE_ERRORS` | 3          | abort after N back-to-back tool errors              | `app/config.ts`          |
+| `KEEP_LAST_TURNS`        | 4          | turns kept verbatim before summarization            | `apps/cli/src/config.ts` |
+| `MAX_TOOL_STEPS`         | 8          | tool iterations per turn                            | `apps/cli/src/config.ts` |
+| `MAX_CONSECUTIVE_ERRORS` | 3          | abort after N back-to-back tool errors              | `apps/cli/src/config.ts` |
 | `MAX_PARALLEL_TASKS`     | 6          | `delegate_tasks` fan-out cap                        | `delegate-tasks.ts`      |
-| `TEMPERATURE`            | 0.7        | non-reasoning turns only (summarizer uses 0.2)      | `app/config.ts`          |
-| `DEFAULT_CACHE_KEY`      | `chat-cli` | base of the per-process `chat-cli:${pid}` cache key | `app/config.ts`          |
+| `TEMPERATURE`            | 0.7        | non-reasoning turns only (summarizer uses 0.2)      | `apps/cli/src/config.ts` |
+| `DEFAULT_CACHE_KEY`      | `chat-cli` | base of the per-process `chat-cli:${pid}` cache key | `apps/cli/src/config.ts` |
 
 Temperature is sent only on non-reasoning turns; `buildRequestParams` omits it for reasoning
 models (the `gpt-5` family and `o`-series), which reject the param.
