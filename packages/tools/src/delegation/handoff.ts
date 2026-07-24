@@ -1,7 +1,6 @@
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { zodTextFormat } from "openai/helpers/zod";
 import type { Model } from "@chat/agent";
-import { HANDOFF_MODEL } from "@/app/config";
 import { renderItemsText } from "@chat/agent/conversation/items";
 import { ForkResultSchema, type ForkResult } from "./fork-result";
 
@@ -43,11 +42,19 @@ export interface HandoffResult {
   result: ForkResult;
 }
 
-export async function compressHandoff(
-  model: Model,
-  childItems: readonly ResponseInputItem[],
-  childSummary: string,
-): Promise<HandoffResult> {
+export interface CompressHandoffArgs {
+  model: Model;
+  handoffModel: string;
+  childItems: readonly ResponseInputItem[];
+  childSummary: string;
+}
+
+export async function compressHandoff({
+  model,
+  handoffModel,
+  childItems,
+  childSummary,
+}: CompressHandoffArgs): Promise<HandoffResult> {
   const transcript = renderItemsText([...childItems]);
   const input = [
     childSummary ? `Prior child summary:\n${childSummary}\n` : "",
@@ -57,7 +64,7 @@ export async function compressHandoff(
     .join("\n");
 
   const response = await model.complete({
-    model: HANDOFF_MODEL,
+    model: handoffModel,
     operation: "handoff",
     instructions: HANDOFF_INSTRUCTIONS,
     input,

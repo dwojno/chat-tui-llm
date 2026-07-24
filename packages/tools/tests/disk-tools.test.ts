@@ -2,10 +2,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { editFileTool } from "@/app/tools/edit-file";
-import { readFileTool } from "@/app/tools/read-file";
-import { writeFileTool } from "@/app/tools/write-file";
-import { resolveWithinCwd } from "@/app/tools/utils/workspace";
+import { editFileTool } from "@chat/tools/edit-file";
+import { readFileTool } from "@chat/tools/read-file";
+import { writeFileTool } from "@chat/tools/write-file";
+import { resolveWithinCwd } from "@chat/tools/utils/workspace";
 
 let dir: string;
 let cwd: string;

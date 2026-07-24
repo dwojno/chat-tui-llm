@@ -11,11 +11,13 @@ function mockFetch(impl: () => unknown) {
   return fetchMock;
 }
 
-// The tool reads the eager `envConfig` const, materialized when the config module
-// is first imported — so each test stubs env first, then loads the tool fresh.
 async function loadTool(): Promise<WebSearchTool> {
   vi.resetModules();
-  return (await import("@/app/tools/web-search")).webSearchTool as WebSearchTool;
+  const { createWebSearchTool } = await import("@chat/tools/web-search");
+  return createWebSearchTool({
+    maxResults: Number(process.env.WEB_SEARCH_MAX_RESULTS || 5),
+    ...(process.env.TAVILY_API_KEY ? { tavilyApiKey: process.env.TAVILY_API_KEY } : {}),
+  });
 }
 
 beforeEach(() => {

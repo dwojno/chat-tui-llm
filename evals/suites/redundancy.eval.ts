@@ -1,5 +1,5 @@
 import { evalite } from "evalite";
-import { RAG_FORK_INSTRUCTIONS } from "@/app/tools/prompts/rag-fork";
+import { RAG_FORK_INSTRUCTIONS } from "@chat/tools/prompts/rag-fork";
 import { createRagHarness, type RagResult } from "../harness/rag";
 import { noRedundantCalls } from "../harness/scorers/redundancy";
 import type { RagExpected, RagInput } from "../harness/scorers/rag-scorers";

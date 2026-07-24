@@ -1,13 +1,15 @@
 import { zodTextFormat } from "openai/helpers/zod";
 import type { ResponseInputItem, ResponseUsage } from "openai/resources/responses/responses.mjs";
 import type { ZodType } from "zod";
-import { EVAL_PROBE_MODEL } from "@/app/config";
+import { EVAL_PROBE_MODEL, HANDOFF_MODEL } from "@/app/config";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
 import { buildContextBlock } from "@/app/context/context";
 import { getFunctionCalls } from "@chat/agent/conversation/items";
 import type { OpenAITool } from "@chat/agent/tools/types";
-import { mainToolSchemas } from "@/app/tools";
+import { createMainToolSchemas } from "@chat/tools";
 import { openai } from "./client";
+
+const mainToolSchemas = createMainToolSchemas(HANDOFF_MODEL);
 
 export interface ProbeToolCall {
   name: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { askUserTool } from "@/app/tools/ask-user";
+import { askUserTool } from "@chat/tools/ask-user";
 import { EventBus } from "@chat/agent/events/bus";
 import {
   CLARIFICATION_UNANSWERED_OUTPUT,

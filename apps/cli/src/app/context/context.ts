@@ -1,11 +1,10 @@
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
+import { keyMemories } from "@chat/agent/conversation/memories";
+
+export { keyMemories } from "@chat/agent/conversation/memories";
 
 export interface ContextInput {
   memories: readonly string[];
-}
-
-export function keyMemories(memories: readonly string[]): { key: string; text: string }[] {
-  return memories.map((text, index) => ({ key: `M${index + 1}`, text }));
 }
 
 export function buildContextBlock({ memories }: ContextInput): ResponseInputItem[] {

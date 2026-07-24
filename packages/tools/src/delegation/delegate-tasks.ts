@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { ToolRunContext } from "@chat/agent/conversation/turn";
 import type { ToolDefinition } from "@chat/agent/tools/types";
 import { DELEGATE_TASK_NAME, runFork } from "./delegate-task";
 import { profileArg } from "./profiles";
@@ -46,35 +45,27 @@ export function parseDelegateTasksArgs(argsJson: string): DelegateTasksArgs {
   return parameters.parse(JSON.parse(argsJson));
 }
 
-async function execute({ tasks }: DelegateTasksArgs, ctx?: ToolRunContext): Promise<string> {
-  if (!ctx) throw new Error(`${DELEGATE_TASKS_NAME} requires a tool context`);
-
-  const forkResults = await Promise.all(
-    tasks.map((t) =>
-      runFork(ctx, {
-        title: t.title,
-        task: t.task,
-        relevantMemoryKeys: t.relevantMemoryKeys,
-        profile: t.profile,
-      }),
-    ),
-  );
-  return JSON.stringify(forkResults);
+export function createDelegateTasksTool(handoffModel: string): ToolDefinition<typeof parameters> {
+  return {
+    name: DELEGATE_TASKS_NAME,
+    label: "Delegating",
+    description:
+      "Fan out several INDEPENDENT sub-tasks to parallel sub-agents in one call. " +
+      `Provide a \`tasks\` array (1–${MAX_PARALLEL_TASKS}), each with a short ` +
+      "`title`, a self-contained `task` brief, the `relevantMemoryKeys` it needs " +
+      "(or null), and an optional `profile` selecting the specialist for that " +
+      "sub-task. Returns a JSON array of fork_result digests in task order. " +
+      "Use for parallel research/comparison; use delegate_task for a single " +
+      "sub-task and answer simple lookups directly.",
+    parameters,
+    execute: async ({ tasks }, ctx) => {
+      if (!ctx) throw new Error(`${DELEGATE_TASKS_NAME} requires a tool context`);
+      const forkResults = await Promise.all(
+        tasks.map((task) => runFork({ ctx, handoffModel, ...task })),
+      );
+      return JSON.stringify(forkResults);
+    },
+    summarize: ({ tasks }) => tasks.map((t) => t.title).join(", "),
+    requiresApproval: true,
+  };
 }
-
-export const delegateTasksTool: ToolDefinition<typeof parameters> = {
-  name: DELEGATE_TASKS_NAME,
-  label: "Delegating",
-  description:
-    "Fan out several INDEPENDENT sub-tasks to parallel sub-agents in one call. " +
-    `Provide a \`tasks\` array (1–${MAX_PARALLEL_TASKS}), each with a short ` +
-    "`title`, a self-contained `task` brief, the `relevantMemoryKeys` it needs " +
-    "(or null), and an optional `profile` selecting the specialist for that " +
-    "sub-task. Returns a JSON array of fork_result digests in task order. " +
-    "Use for parallel research/comparison; use delegate_task for a single " +
-    "sub-task and answer simple lookups directly.",
-  parameters,
-  execute,
-  summarize: ({ tasks }) => tasks.map((t) => t.title).join(", "),
-  requiresApproval: true,
-};

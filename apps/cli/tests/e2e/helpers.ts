@@ -5,10 +5,11 @@ import type { OpenAI } from "openai";
 import { Model } from "@chat/platform/model";
 import { Agent } from "@chat/agent/agent";
 import { EventBus } from "@chat/agent/events/bus";
+import { FORK_MODEL, HANDOFF_MODEL } from "@/app/config";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
 import { processLine } from "@/app/input/repl";
 import type { CommandContext } from "@/app/commands/types";
-import { createAgentTools } from "@/app/tools";
+import { createAgentTools } from "@chat/tools";
 import { Session } from "@/app/session/session";
 import { LocalStore, type Store } from "@/store";
 import { renderChat, type ChatHandle, type Message } from "@/ui/chat";
@@ -42,7 +43,12 @@ export async function createE2EHarness(opts?: {
   const store = opts?.store ?? (await createMemoryStore());
   const mock = opts?.client ? null : createMockOpenAI(opts?.turns ?? [], opts?.compressions ?? []);
   const client = opts?.client ?? mock!.client;
-  const { tools, forkProfiles } = createAgentTools(store);
+  const { tools, forkProfiles } = createAgentTools({
+    store,
+    forkModel: FORK_MODEL,
+    handoffModel: HANDOFF_MODEL,
+    webSearch: { maxResults: 5 },
+  });
   const bus = new EventBus();
   const agent = new Agent({
     model: Model.fromOpenAI(client),

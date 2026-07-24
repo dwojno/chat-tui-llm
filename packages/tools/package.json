@@ -1,0 +1,21 @@
+{
+  "name": "@chat/tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./mcp": "./src/mcp/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@chat/agent": "workspace:*",
+    "@chat/engine": "workspace:*",
+    "@chat/platform": "workspace:*",
+    "@chat/store": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "cockatiel": "4.0.0",
+    "openai": "6.45.0",
+    "zod": "4.4.3"
+  }
+}

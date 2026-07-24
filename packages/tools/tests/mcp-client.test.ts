@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { mcpToolToDefinition } from "@/app/tools/mcp/client";
+import { mcpToolToDefinition } from "@chat/tools/mcp/client";
 import { toOpenAITool } from "@chat/agent/tools/types";
 
 const tool = {

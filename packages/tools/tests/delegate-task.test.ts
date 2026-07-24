@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  createDelegateTaskTool,
   DELEGATE_TASK_NAME,
-  delegateTaskTool,
   parseDelegateTaskArgs,
   selectMemories,
-} from "@/app/tools/delegation/delegate-task";
+} from "@chat/tools/delegation/delegate-task";
 import { toOpenAITool } from "@chat/agent/tools/types";
+
+const delegateTaskTool = createDelegateTaskTool("test-handoff-model");
 
 describe("parseDelegateTaskArgs", () => {
   it("parses a valid payload with memory keys and profile", () => {

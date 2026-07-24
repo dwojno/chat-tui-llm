@@ -1,13 +1,12 @@
 import { z } from "zod";
 import type { ToolDefinition } from "@chat/agent/tools/types";
-import type { Store } from "@/store";
+import type { Store } from "@chat/store";
 import { FORK_INSTRUCTIONS } from "../prompts/fork";
 import { RAG_FORK_INSTRUCTIONS } from "../prompts/rag-fork";
 import { WEB_FORK_INSTRUCTIONS } from "../prompts/web-fork";
 import { CODEBASE_FORK_INSTRUCTIONS } from "../prompts/codebase-fork";
 import { createRagTools } from "../rag";
 import { readFileTool } from "../read-file";
-import { webSearchTool } from "../web-search";
 
 export const FORK_PROFILE_NAMES = ["general", "rag_research", "web_research", "codebase"] as const;
 
@@ -16,7 +15,7 @@ export type ForkProfileName = (typeof FORK_PROFILE_NAMES)[number];
 interface ForkProfileMeta {
   description: string;
   instructions: string;
-  tools: (store: Store) => ToolDefinition<z.ZodType>[];
+  tools: (store: Store, webSearchTool: ToolDefinition<z.ZodType>) => ToolDefinition<z.ZodType>[];
 }
 
 export const FORK_PROFILE_META: Record<ForkProfileName, ForkProfileMeta> = {
@@ -24,7 +23,7 @@ export const FORK_PROFILE_META: Record<ForkProfileName, ForkProfileMeta> = {
     description:
       "quick, self-contained one-off tasks (a single fact) — the fallback when no specialist fits",
     instructions: FORK_INSTRUCTIONS,
-    tools: () => [webSearchTool],
+    tools: (_store, webSearchTool) => [webSearchTool],
   },
   rag_research: {
     description: "multi-hop retrieval over this profile's indexed knowledge base",
@@ -34,7 +33,7 @@ export const FORK_PROFILE_META: Record<ForkProfileName, ForkProfileMeta> = {
   web_research: {
     description: "thorough open-web research with cross-checked, cited sources",
     instructions: WEB_FORK_INSTRUCTIONS,
-    tools: () => [webSearchTool],
+    tools: (_store, webSearchTool) => [webSearchTool],
   },
   codebase: {
     description:

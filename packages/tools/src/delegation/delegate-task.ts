@@ -4,10 +4,10 @@ import type { ResponseInputItem } from "openai/resources/responses/responses.mjs
 import { z } from "zod";
 import { setSpanIO, withSpan } from "@chat/platform/telemetry";
 import { withForkUsage } from "@chat/platform/model";
-import { keyMemories } from "@/app/context/context";
 import { compressHandoff } from "./handoff";
 import type { ForkResult } from "./fork-result";
 import { DEFAULT_TURN_OPTIONS } from "@chat/agent/conversation/options";
+import { keyMemories } from "@chat/agent/conversation/memories";
 import type { ToolRunContext, TurnProfile } from "@chat/agent/conversation/turn";
 import { toOpenAITool, type ToolDefinition } from "@chat/agent/tools/types";
 import { profileArg, type ForkProfileName } from "./profiles";
@@ -45,7 +45,7 @@ export function selectMemories(
   keys: readonly string[] | null,
 ): string[] {
   if (!keys?.length) return [];
-  const byKey = new Map(keyMemories(memories).map((m) => [m.key, m.text]));
+  const byKey = new Map(keyMemories(memories).map(({ key, text }) => [key, text]));
   return keys.map((key) => byKey.get(key)).filter((text): text is string => text !== undefined);
 }
 
@@ -58,16 +58,22 @@ function buildForkBrief(memories: readonly string[], task: string): string {
 }
 
 export interface RunForkArgs {
+  ctx: ToolRunContext;
+  handoffModel: string;
   title: string;
   task: string;
   relevantMemoryKeys: readonly string[] | null;
   profile?: ForkProfileName | null;
 }
 
-export async function runFork(
-  ctx: ToolRunContext,
-  { title, task, relevantMemoryKeys, profile }: RunForkArgs,
-): Promise<ForkResult> {
+export async function runFork({
+  ctx,
+  handoffModel,
+  title,
+  task,
+  relevantMemoryKeys,
+  profile,
+}: RunForkArgs): Promise<ForkResult> {
   const memories = selectMemories(ctx.context.memories, relevantMemoryKeys);
   const brief = buildForkBrief(memories, task);
   const userMessage = {
@@ -105,7 +111,12 @@ export async function runFork(
         });
 
         const childItems = [userMessage, ...child.items];
-        const { result } = await compressHandoff(ctx.model, childItems, "");
+        const { result } = await compressHandoff({
+          model: ctx.model,
+          handoffModel,
+          childItems,
+          childSummary: "",
+        });
         forkSpan.setAttribute("chat.fork.confidence", result.confidence);
         setSpanIO(forkSpan, { output: JSON.stringify(result) });
         return result;
@@ -113,31 +124,35 @@ export async function runFork(
   );
 }
 
-async function execute(
-  { title, task, relevantMemoryKeys, profile }: DelegateTaskArgs,
-  ctx?: ToolRunContext,
-): Promise<string> {
-  if (!ctx) throw new Error(`${DELEGATE_TASK_NAME} requires a tool context`);
-  const result = await runFork(ctx, { title, task, relevantMemoryKeys, profile });
-  return JSON.stringify(result satisfies ForkResult);
+export function createDelegateTaskTool(handoffModel: string): ToolDefinition<typeof parameters> {
+  return {
+    name: DELEGATE_TASK_NAME,
+    label: "Delegating",
+    description:
+      "Delegate a self-contained sub-task to a focused sub-agent. Provide a " +
+      "short `title` for display, a self-contained `task` brief, and the " +
+      "`relevantMemoryKeys` the sub-task needs (or null). Use for " +
+      "multi-step research, exploratory work, or tasks that need several tool " +
+      "calls. Call it several times in one response to fan out independent " +
+      "sub-tasks to parallel sub-agents. Do not use for simple one-shot lookups " +
+      "(e.g. a single fact check).",
+    parameters,
+    execute: async ({ title, task, relevantMemoryKeys, profile }, ctx) => {
+      if (!ctx) throw new Error(`${DELEGATE_TASK_NAME} requires a tool context`);
+      const result = await runFork({
+        ctx,
+        handoffModel,
+        title,
+        task,
+        relevantMemoryKeys,
+        profile,
+      });
+      return JSON.stringify(result satisfies ForkResult);
+    },
+    summarize: ({ title }) => title,
+    approvalPolicy: ({ task, relevantMemoryKeys }) =>
+      !relevantMemoryKeys?.length && task.length > 600
+        ? { required: true, reason: "Broad delegation with no referenced memories.", risk: "low" }
+        : false,
+  };
 }
-
-export const delegateTaskTool: ToolDefinition<typeof parameters> = {
-  name: DELEGATE_TASK_NAME,
-  label: "Delegating",
-  description:
-    "Delegate a self-contained sub-task to a focused sub-agent. Provide a " +
-    "short `title` for display, a self-contained `task` brief, and the " +
-    "`relevantMemoryKeys` the sub-task needs (or null). Use for " +
-    "multi-step research, exploratory work, or tasks that need several tool " +
-    "calls. Call it several times in one response to fan out independent " +
-    "sub-tasks to parallel sub-agents. Do not use for simple one-shot lookups " +
-    "(e.g. a single fact check).",
-  parameters,
-  execute,
-  summarize: ({ title }) => title,
-  approvalPolicy: ({ task, relevantMemoryKeys }) =>
-    !relevantMemoryKeys?.length && task.length > 600
-      ? { required: true, reason: "Broad delegation with no referenced memories.", risk: "low" }
-      : false,
-};

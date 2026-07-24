@@ -2,9 +2,13 @@ import { z } from "zod";
 import { isBrokenCircuitError } from "cockatiel";
 import type { ToolDefinition } from "@chat/agent/tools/types";
 import { createResiliencePolicy } from "@chat/platform/utils/resilience";
-import { envConfig } from "@/platform/config";
 
 export const WEB_SEARCH_TOOL_NAME = "web_search" as const;
+
+export interface WebSearchConfig {
+  maxResults: number;
+  tavilyApiKey?: string;
+}
 
 const parameters = z.object({
   query: z.string().min(1).describe("What to search for"),
@@ -81,25 +85,27 @@ function webSearchError(error: unknown): string {
   return `web_search error: ${error instanceof Error ? error.message : String(error)}`;
 }
 
-async function execute({ query }: z.infer<typeof parameters>): Promise<string> {
-  const { maxResults: limit, tavilyApiKey: apiKey } = envConfig.tools.webSearch;
-  if (!apiKey) {
-    return "web_search error: TAVILY_API_KEY is not set; cannot search the web.";
-  }
-  try {
-    return await policy.execute(() => tavilySearch(query, apiKey, limit));
-  } catch (error) {
-    return webSearchError(error);
-  }
+export function createWebSearchTool({
+  maxResults,
+  tavilyApiKey,
+}: WebSearchConfig): ToolDefinition<typeof parameters> {
+  return {
+    name: WEB_SEARCH_TOOL_NAME,
+    label: "Searching the web",
+    description:
+      "Search the web for information on a topic. Returns a list of result " +
+      "titles and snippets — use it for research, facts, and background.",
+    parameters,
+    execute: async ({ query }) => {
+      if (!tavilyApiKey) {
+        return "web_search error: TAVILY_API_KEY is not set; cannot search the web.";
+      }
+      try {
+        return await policy.execute(() => tavilySearch(query, tavilyApiKey, maxResults));
+      } catch (error) {
+        return webSearchError(error);
+      }
+    },
+    summarize: ({ query }) => query,
+  };
 }
-
-export const webSearchTool: ToolDefinition<typeof parameters> = {
-  name: WEB_SEARCH_TOOL_NAME,
-  label: "Searching the web",
-  description:
-    "Search the web for information on a topic. Returns a list of result " +
-    "titles and snippets — use it for research, facts, and background.",
-  parameters,
-  execute,
-  summarize: ({ query }) => query,
-};

@@ -21,8 +21,9 @@ import type { CommandContext } from "@/app/commands/types";
 import { Model } from "@chat/platform/model";
 import { Agent } from "@chat/agent/agent";
 import { EventBus } from "@chat/agent/events/bus";
+import { FORK_MODEL, HANDOFF_MODEL } from "@/app/config";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
-import { createAgentTools } from "@/app/tools";
+import { createAgentTools } from "@chat/tools";
 import { Session } from "@/app/session/session";
 import { renderChat, type ChatHandle, type Message } from "@/ui/chat";
 import {
@@ -46,7 +47,12 @@ interface Harness {
 
 async function setup(client: OpenAI): Promise<Harness> {
   const store = await createMemoryStore();
-  const { tools, forkProfiles } = createAgentTools(store);
+  const { tools, forkProfiles } = createAgentTools({
+    store,
+    forkModel: FORK_MODEL,
+    handoffModel: HANDOFF_MODEL,
+    webSearch: { maxResults: 5 },
+  });
   const bus = new EventBus();
   const agent = new Agent({
     model: Model.fromOpenAI(client),

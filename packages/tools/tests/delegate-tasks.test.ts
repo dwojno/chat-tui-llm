@@ -2,18 +2,20 @@ import { describe, expect, it } from "vitest";
 import { toOpenAITool, type ForkProfiles } from "@chat/agent/tools/types";
 import type { ToolRunContext } from "@chat/agent/conversation/turn";
 import { EventBus } from "@chat/agent/events/bus";
-import { FORK_MODEL } from "@/app/config";
-import { FORK_INSTRUCTIONS } from "@/app/tools/prompts/fork";
+import { FORK_INSTRUCTIONS } from "@chat/tools/prompts/fork";
 import {
+  createDelegateTasksTool,
   DELEGATE_TASKS_NAME,
-  delegateTasksTool,
   parseDelegateTasksArgs,
-} from "@/app/tools/delegation/delegate-tasks";
-import type { ForkResult } from "@/app/tools/delegation/fork-result";
+} from "@chat/tools/delegation/delegate-tasks";
+import type { ForkResult } from "@chat/tools/delegation/fork-result";
 import { eventsToInputItems, inputItemsToEvents, runAgentLoop } from "@chat/engine";
 import { Model } from "@chat/platform/model";
 import { createMockOpenAI, type MockHandoff, type MockTurn } from "@tests/helpers/mock-openai";
 import { testAgent } from "@tests/helpers/agent";
+
+const FORK_MODEL = "test-fork-model";
+const delegateTasksTool = createDelegateTasksTool("test-handoff-model");
 
 const forkProfiles: ForkProfiles = {
   general: { instructions: FORK_INSTRUCTIONS, tools: [], model: FORK_MODEL },

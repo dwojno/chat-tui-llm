@@ -1,6 +1,7 @@
 import { evalite } from "evalite";
-import { askUserTool } from "@/app/tools/ask-user";
-import { mainToolSchemas } from "@/app/tools";
+import { HANDOFF_MODEL } from "@/app/config";
+import { askUserTool } from "@chat/tools/ask-user";
+import { createMainToolSchemas } from "@chat/tools";
 import { toOpenAITool } from "@chat/agent/tools/types";
 import {
   judged,
@@ -11,7 +12,7 @@ import {
   type ProbeSpec,
 } from "../harness";
 
-const TOOLS = [...mainToolSchemas, toOpenAITool(askUserTool)];
+const TOOLS = [...createMainToolSchemas(HANDOFF_MODEL), toOpenAITool(askUserTool)];
 
 const SEEKS_CLARIFICATION =
   "The user's request is ambiguous or missing information needed to act (e.g. no " +

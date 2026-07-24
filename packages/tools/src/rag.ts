@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import type { ToolDefinition } from "@chat/agent/tools/types";
-import type { Store } from "@/store";
+import type { Store } from "@chat/store";
 import { createGrepFilesTool } from "./grep-files";
 import { createListSourcesTool } from "./list-sources";
 import { createReadSourceTool } from "./read-source";

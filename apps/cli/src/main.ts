@@ -11,10 +11,10 @@ import {
   OPENAI_MAX_RETRIES,
   OPENAI_TIMEOUT_MS,
 } from "@/platform/cli/config";
-import { TEMPERATURE } from "@/app/config";
+import { FORK_MODEL, HANDOFF_MODEL, TEMPERATURE } from "@/app/config";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
-import { createAgentTools } from "@/app/tools";
-import { connectMcpServers, type McpConnection } from "@/app/tools/mcp";
+import { createAgentTools } from "@chat/tools";
+import { connectMcpServers, type McpConnection } from "@chat/tools/mcp";
 import { Session } from "@/app/session/session";
 import { createRagDeps, LocalStore, type OpenStoreOptions, type Store } from "@/store";
 import { Model } from "@chat/platform/model";
@@ -56,7 +56,19 @@ export async function run(deps: RunDeps = {}): Promise<void> {
   const mcp: McpConnection = !deps.disableMcp
     ? await connectProfileMcp(store)
     : { tools: [], close: async () => {} };
-  const { tools, forkProfiles } = createAgentTools(store, mcp.tools, deps.extraTools);
+  const { tools, forkProfiles } = createAgentTools({
+    store,
+    forkModel: FORK_MODEL,
+    handoffModel: HANDOFF_MODEL,
+    webSearch: {
+      maxResults: envConfig.tools.webSearch.maxResults,
+      ...(envConfig.tools.webSearch.tavilyApiKey
+        ? { tavilyApiKey: envConfig.tools.webSearch.tavilyApiKey }
+        : {}),
+    },
+    mcpTools: mcp.tools,
+    ...(deps.extraTools ? { extraTools: deps.extraTools } : {}),
+  });
   const bus = new EventBus();
   const agent = new Agent({
     model,

@@ -17,6 +17,9 @@ importers:
       '@chat/platform':
         specifier: workspace:*
         version: link:packages/platform
+      '@chat/tools':
+        specifier: workspace:*
+        version: link:packages/tools
       '@types/node':
         specifier: 24.13.2
         version: 24.13.2
@@ -62,9 +65,9 @@ importers:
       '@chat/store':
         specifier: workspace:*
         version: link:../../packages/store
-      '@modelcontextprotocol/sdk':
-        specifier: 1.29.0
-        version: 1.29.0(zod@4.4.3)
+      '@chat/tools':
+        specifier: workspace:*
+        version: link:../../packages/tools
       '@opentelemetry/api':
         specifier: 1.9.1
         version: 1.9.1
@@ -74,9 +77,6 @@ importers:
       better-sqlite3:
         specifier: 12.11.1
         version: 12.11.1
-      cockatiel:
-        specifier: 4.0.0
-        version: 4.0.0
       dotenv:
         specifier: 17.4.2
         version: 17.4.2
@@ -216,6 +216,33 @@ importers:
       '@chat/platform':
         specifier: workspace:*
         version: link:../platform
+
+  packages/tools:
+    dependencies:
+      '@chat/agent':
+        specifier: workspace:*
+        version: link:../agent
+      '@chat/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@chat/platform':
+        specifier: workspace:*
+        version: link:../platform
+      '@chat/store':
+        specifier: workspace:*
+        version: link:../store
+      '@modelcontextprotocol/sdk':
+        specifier: 1.29.0
+        version: 1.29.0(zod@4.4.3)
+      cockatiel:
+        specifier: 4.0.0
+        version: 4.0.0
+      openai:
+        specifier: 6.45.0
+        version: 6.45.0(@aws-sdk/credential-provider-node@3.972.71)(@smithy/signature-v4@5.6.9)(ws@8.21.1)(zod@4.4.3)
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
 
 packages:
 

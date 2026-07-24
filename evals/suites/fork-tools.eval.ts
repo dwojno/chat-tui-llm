@@ -1,7 +1,8 @@
 import { evalite } from "evalite";
-import { FORK_INSTRUCTIONS } from "@/app/tools/prompts/fork";
-import { forkToolSchemas } from "@/app/tools";
-import { WEB_SEARCH_TOOL_NAME } from "@/app/tools/web-search";
+import { envConfig } from "@/platform/config";
+import { FORK_INSTRUCTIONS } from "@chat/tools/prompts/fork";
+import { createForkToolSchemas } from "@chat/tools";
+import { WEB_SEARCH_TOOL_NAME } from "@chat/tools/web-search";
 import {
   avoidsTools,
   probePrompt,
@@ -11,6 +12,13 @@ import {
   type ProbeResult,
   type ProbeSpec,
 } from "../harness";
+
+const forkToolSchemas = createForkToolSchemas({
+  maxResults: envConfig.tools.webSearch.maxResults,
+  ...(envConfig.tools.webSearch.tavilyApiKey
+    ? { tavilyApiKey: envConfig.tools.webSearch.tavilyApiKey }
+    : {}),
+});
 
 evalite<ProbeSpec, ProbeResult, Expected>("fork tool routing", {
   data: () => [

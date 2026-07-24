@@ -61,7 +61,7 @@ eval-rag: qdrant
 
 # Real RAG tools against real Qdrant + OpenAI (reranker off for determinism).
 integration: qdrant
-    RAG_INTEGRATION=1 RAG_RERANK_ENABLED=false pnpm exec vitest run apps/cli/tests/store/rag apps/cli/tests/app/tools/rag-tools.integration.test.ts
+    RAG_INTEGRATION=1 RAG_RERANK_ENABLED=false pnpm exec vitest run apps/cli/tests/store/rag packages/tools/tests/rag-tools.integration.test.ts
 
 # --- e2e (PTY-driven real TUI; streams the live frames to the console) ---
 # One config (vitest.e2e.config.ts); the recipes narrow it via a CLI filename

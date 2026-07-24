@@ -7,11 +7,17 @@ import { EVAL_MAX_RETRIES } from "./client";
 import { Agent } from "@chat/agent/agent";
 import { EventBus } from "@chat/agent/events/bus";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
-import { EVAL_PROBE_MODEL, MAX_TOOL_STEPS, MAX_CONSECUTIVE_ERRORS } from "@/app/config";
+import {
+  EVAL_PROBE_MODEL,
+  FORK_MODEL,
+  HANDOFF_MODEL,
+  MAX_TOOL_STEPS,
+  MAX_CONSECUTIVE_ERRORS,
+} from "@/app/config";
 import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "@chat/agent/conversation/options";
 import { eventsToInputItems, runAgentLoop } from "@chat/engine";
-import { createAgentTools } from "@/app/tools";
-import { createRagTools } from "@/app/tools/rag";
+import { createAgentTools } from "@chat/tools";
+import { createRagTools } from "@chat/tools/rag";
 import { createRagDeps, LocalStore, type IndexResult, type Store } from "@/store";
 import { loadConfig } from "@/platform/config";
 import { Model } from "@chat/platform/model";
@@ -72,13 +78,21 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
   const wire = (): Promise<Wired> =>
     (wiredPromise ??= (async () => {
       await ensureInfra();
-      const { rag } = loadConfig(process.env);
+      const { rag, tools } = loadConfig(process.env);
       const store = await LocalStore.open(":memory:", {
         rag: createRagDeps(openai, rag),
       });
       const profile = await store.profile.create(`eval-${opts.suiteId}`);
       await store.profile.switchTo(profile.id);
-      const { forkProfiles } = createAgentTools(store);
+      const { forkProfiles } = createAgentTools({
+        store,
+        forkModel: FORK_MODEL,
+        handoffModel: HANDOFF_MODEL,
+        webSearch: {
+          maxResults: tools.webSearch.maxResults,
+          ...(tools.webSearch.tavilyApiKey ? { tavilyApiKey: tools.webSearch.tavilyApiKey } : {}),
+        },
+      });
       const agent = new Agent({
         model: Model.fromOpenAI(openai),
         temperature: 0.7,

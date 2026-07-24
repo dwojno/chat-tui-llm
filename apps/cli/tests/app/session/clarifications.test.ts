@@ -5,7 +5,7 @@ import type {
   ClarificationResponse,
 } from "@chat/agent/humanLayer/clarification";
 import type { ToolDefinition } from "@chat/agent/tools/types";
-import { askUserTool } from "@/app/tools/ask-user";
+import { askUserTool } from "@chat/tools/ask-user";
 import { DEFAULT_TURN_OPTIONS } from "@chat/agent/conversation/options";
 import { createMemoryStore, createMockOpenAI } from "@tests/helpers/mock-openai";
 import { testSession } from "@tests/helpers/agent";

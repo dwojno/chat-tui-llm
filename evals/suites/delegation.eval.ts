@@ -1,5 +1,5 @@
 import { evalite } from "evalite";
-import { DELEGATE_TASK_NAME } from "@/app/tools/delegation/delegate-task";
+import { DELEGATE_TASK_NAME } from "@chat/tools/delegation/delegate-task";
 import {
   conciseArg,
   probePrompt,

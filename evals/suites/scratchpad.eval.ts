@@ -1,7 +1,7 @@
 import { evalite } from "evalite";
 import type { z } from "zod";
 import { toOpenAITool, type ToolDefinition } from "@chat/agent/tools/types";
-import { updateScratchpadTool, webSearchTool } from "@/app/tools";
+import { createWebSearchTool, updateScratchpadTool } from "@chat/tools";
 import {
   avoidsTools,
   probePrompt,
@@ -14,6 +14,7 @@ import {
 const SCRATCHPAD = "update_scratchpad";
 const WEB = "web_search";
 
+const webSearchTool = createWebSearchTool({ maxResults: 5 });
 const TOOLS = ([webSearchTool, updateScratchpadTool] as ToolDefinition<z.ZodType>[]).map(
   toOpenAITool,
 );
