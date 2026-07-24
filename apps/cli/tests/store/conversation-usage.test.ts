@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AgentEvent } from "@/app/runner/thread/events";
+import type { AgentEvent } from "@chat/agent";
 import { buildMessage } from "@/app/runner/thread/reducer";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
 import { estimateTokens } from "@/app/tokens";

@@ -4,8 +4,8 @@ import type { ZodType } from "zod";
 import { EVAL_PROBE_MODEL } from "@/app/config";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
 import { buildContextBlock } from "@/app/context/context";
-import { getFunctionCalls } from "@/agent/conversation/items";
-import type { OpenAITool } from "@/agent/tools/types";
+import { getFunctionCalls } from "@chat/agent/conversation/items";
+import type { OpenAITool } from "@chat/agent/tools/types";
 import { mainToolSchemas } from "@/app/tools";
 import { openai } from "./client";
 

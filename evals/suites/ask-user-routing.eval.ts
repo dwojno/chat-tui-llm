@@ -1,7 +1,7 @@
 import { evalite } from "evalite";
 import { askUserTool } from "@/app/tools/ask-user";
 import { mainToolSchemas } from "@/app/tools";
-import { toOpenAITool } from "@/agent/tools/types";
+import { toOpenAITool } from "@chat/agent/tools/types";
 import {
   judged,
   probePrompt,

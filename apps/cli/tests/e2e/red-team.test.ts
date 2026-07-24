@@ -16,7 +16,7 @@ vi.mock("ink", () => ({
   useInput: () => {},
 }));
 
-import type { ApprovalDecision, ApprovalRequest } from "@/agent/humanLayer/approval";
+import type { ApprovalDecision, ApprovalRequest } from "@chat/agent/humanLayer/approval";
 import { READ_FILE_NAME } from "@/app/tools/read-file";
 import { WRITE_FILE_NAME } from "@/app/tools/write-file";
 import { createE2EHarness } from "./helpers";

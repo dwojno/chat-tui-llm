@@ -5,7 +5,7 @@ import type {
 } from "openai/resources/responses/responses.mjs";
 import type { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
-import type { Model } from "@/platform/model";
+import type { Model } from "./model";
 import type { EventBus } from "./events/bus";
 import type { TurnOptions } from "./conversation/options";
 import { describeToolCall, executeToolCall, toolLabel } from "./tools";
@@ -14,13 +14,19 @@ import type { ClarificationGate } from "./humanLayer/clarification";
 import { toOpenAITool, type ForkProfiles, type ToolDefinition } from "./tools/types";
 import { getFunctionCalls } from "./conversation/items";
 import type { RunTurn, ToolRunContext, TurnContext, TurnProfile } from "./conversation/turn";
-import { setSpanIO, withSpan } from "@/platform/telemetry";
 
 function isReasoningModel(model: string): boolean {
   return (/^o\d/.test(model) || model.startsWith("gpt-5")) && !model.includes("chat");
 }
 
 export type { TurnContext } from "./conversation/turn";
+
+export type TraceToolExecution = (args: {
+  name: string;
+  attributes: Record<string, string>;
+  input: unknown;
+  run: (setOutput: (output: unknown) => void) => Promise<string>;
+}) => Promise<string>;
 
 export interface AgentDeps {
   model: Model;
@@ -30,6 +36,7 @@ export interface AgentDeps {
   tools?: ToolDefinition<z.ZodType>[];
   forkProfiles?: ForkProfiles;
   redact?: (text: string) => string;
+  traceToolExecution?: TraceToolExecution;
 }
 
 export interface StepArgs {
@@ -62,12 +69,14 @@ export class Agent {
   private readonly forkProfiles: ForkProfiles;
   private readonly defaultProfile: TurnProfile;
   private readonly redact?: (text: string) => string;
+  private readonly traceToolExecution?: TraceToolExecution;
 
   constructor(deps: AgentDeps) {
     const tools = deps.tools ?? [];
     this.model = deps.model;
     this.temperature = deps.temperature;
     if (deps.redact) this.redact = deps.redact;
+    if (deps.traceToolExecution) this.traceToolExecution = deps.traceToolExecution;
     this.forkProfiles = deps.forkProfiles ?? {};
     const forkTools = Object.values(this.forkProfiles).flatMap((profile) => profile.tools);
     this.registry = dedupeByName([...tools, ...forkTools]);
@@ -106,21 +115,26 @@ export class Agent {
     deps: ToolExecDeps,
   ): Promise<string> {
     const ctx = this.toolContext(deps);
-    return withSpan(
-      `execute_tool ${name}`,
-      { attributes: { "gen_ai.tool.name": name }, input: args },
-      async (span) => {
-        try {
-          const result = await executeToolCall(this.registry, name, args, ctx);
-          setSpanIO(span, { output: result });
-          return result;
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          setSpanIO(span, { output: `Error: ${message}` });
-          return `Error: ${message}`;
-        }
-      },
-    );
+    const run = async (setOutput: (output: unknown) => void): Promise<string> => {
+      try {
+        const result = await executeToolCall(this.registry, name, args, ctx);
+        setOutput(result);
+        return result;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const result = `Error: ${message}`;
+        setOutput(result);
+        return result;
+      }
+    };
+    return this.traceToolExecution
+      ? this.traceToolExecution({
+          name: `execute_tool ${name}`,
+          attributes: { "gen_ai.tool.name": name },
+          input: args,
+          run,
+        })
+      : run(() => {});
   }
 
   toolMeta({ name, arguments: args }: { name: string; arguments: string }): {

@@ -4,7 +4,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { z } from "zod";
-import type { ToolDefinition } from "@/agent/tools/types";
+import type { ToolDefinition } from "@chat/agent/tools/types";
 import type { McpServerConfig } from "./types";
 
 export interface McpConnection {

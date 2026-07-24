@@ -1,4 +1,4 @@
-import type { TurnOptions } from "@/agent/conversation/options";
+import type { TurnOptions } from "@chat/agent/conversation/options";
 import type { StructuredResponse } from "./schemas";
 
 export function formatAssistantContent(

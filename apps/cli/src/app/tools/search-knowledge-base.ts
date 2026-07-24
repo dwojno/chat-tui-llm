@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ToolDefinition } from "@/agent/tools/types";
+import type { ToolDefinition } from "@chat/agent/tools/types";
 import type { Store } from "@/store";
 
 export const SEARCH_KNOWLEDGE_BASE_NAME = "search_knowledge_base" as const;

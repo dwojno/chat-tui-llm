@@ -1,13 +1,13 @@
-import type { AgentEvent } from "@/app/runner/thread/events";
+import type { AgentEvent } from "@chat/agent";
 import { context, type Span, trace } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { configureTelemetry, contextWithSpan, withSpan } from "@/platform/telemetry";
-import { DEFAULT_TURN_OPTIONS } from "@/agent/conversation/options";
-import type { ToolDefinition } from "@/agent/tools/types";
-import { EventBus } from "@/agent/events/bus";
+import { DEFAULT_TURN_OPTIONS } from "@chat/agent/conversation/options";
+import type { ToolDefinition } from "@chat/agent/tools/types";
+import { EventBus } from "@chat/agent/events/bus";
 import { runAgentLoop } from "@/app/runner/runner";
 import { createMemoryStore, createMockOpenAI, type MockTurn } from "@tests/helpers/mock-openai";
 import { testAgent, testSession } from "@tests/helpers/agent";

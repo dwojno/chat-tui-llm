@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ToolDefinition } from "@/agent/tools/types";
+import type { ToolDefinition } from "@chat/agent/tools/types";
 
 // Deterministic, offline tool the e2e turns drive (mock model calls it by name).
 // Lives in tests, not prod: the real app ships no fake tools.

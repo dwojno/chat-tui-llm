@@ -1,7 +1,7 @@
 import { z } from "zod";
-import type { ToolRunContext } from "@/agent/conversation/turn";
-import type { ToolDefinition } from "@/agent/tools/types";
-import { CLARIFICATION_UNANSWERED_OUTPUT } from "@/agent/humanLayer/clarification";
+import type { ToolRunContext } from "@chat/agent/conversation/turn";
+import type { ToolDefinition } from "@chat/agent/tools/types";
+import { CLARIFICATION_UNANSWERED_OUTPUT } from "@chat/agent/humanLayer/clarification";
 
 export const ASK_USER_NAME = "ask_user" as const;
 

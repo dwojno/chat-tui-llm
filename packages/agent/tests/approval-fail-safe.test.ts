@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { Model } from "@/platform/model";
-import { Agent } from "@/agent/agent";
-import type { ToolDefinition } from "@/agent/tools/types";
-import { WRITE_FILE_NAME, writeFileTool } from "@/app/tools/write-file";
-import { createMockOpenAI } from "@tests/helpers/mock-openai";
+import { Agent, type Model, type ToolDefinition } from "@chat/agent";
+
+const GUARDED_TOOL_NAME = "write_file";
+const guarded: ToolDefinition<z.ZodType> = {
+  name: GUARDED_TOOL_NAME,
+  label: "Write file",
+  description: "writes a file",
+  parameters: z.object({ path: z.string(), content: z.string() }),
+  execute: async () => "ok",
+  requiresApproval: true,
+};
 
 const readOnly: ToolDefinition<z.ZodType> = {
   name: "safe_lookup",
@@ -14,12 +20,18 @@ const readOnly: ToolDefinition<z.ZodType> = {
   execute: async () => "ok",
 };
 
+const model: Model = {
+  complete: async () => {
+    throw new Error("not used");
+  },
+};
+
 const agent = new Agent({
-  model: Model.fromOpenAI(createMockOpenAI().client),
+  model,
   temperature: 0.7,
   cacheKey: "chat-cli:test",
   instructions: "system",
-  tools: [writeFileTool as ToolDefinition<z.ZodType>, readOnly],
+  tools: [guarded, readOnly],
 });
 
 const required = (name: string, args: string): boolean =>
@@ -27,19 +39,19 @@ const required = (name: string, args: string): boolean =>
 
 describe("approval fail-safe on unparseable / adversarial args", () => {
   it("gates an approval-capable tool when args are malformed JSON", () => {
-    expect(required(WRITE_FILE_NAME, "{not valid json")).toBe(true);
+    expect(required(GUARDED_TOOL_NAME, "{not valid json")).toBe(true);
   });
 
   it("gates it when args are valid JSON but fail the schema", () => {
-    expect(required(WRITE_FILE_NAME, '{"path":123}')).toBe(true);
+    expect(required(GUARDED_TOOL_NAME, '{"path":123}')).toBe(true);
   });
 
   it("gates it on a binary/control-byte args blob", () => {
-    expect(required(WRITE_FILE_NAME, "\x00\x01\xff\x1b[2J")).toBe(true);
+    expect(required(GUARDED_TOOL_NAME, "\x00\x01\xff\x1b[2J")).toBe(true);
   });
 
   it("still gates well-formed destructive args", () => {
-    expect(required(WRITE_FILE_NAME, '{"path":"x.txt","content":"y"}')).toBe(true);
+    expect(required(GUARDED_TOOL_NAME, '{"path":"x.txt","content":"y"}')).toBe(true);
   });
 
   it("does not gate a read-only tool when its args are malformed", () => {

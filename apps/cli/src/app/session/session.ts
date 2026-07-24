@@ -1,13 +1,17 @@
-import type { Agent, TurnContext } from "@/agent";
-import type { EventBus } from "@/agent/events/bus";
-import type { ApprovalDecision, ApprovalGate, ApprovalRequest } from "@/agent/humanLayer/approval";
+import type { Agent, TurnContext } from "@chat/agent";
+import type { EventBus } from "@chat/agent/events/bus";
+import type {
+  ApprovalDecision,
+  ApprovalGate,
+  ApprovalRequest,
+} from "@chat/agent/humanLayer/approval";
 import type {
   ClarificationGate,
   ClarificationRequest,
   ClarificationResponse,
-} from "@/agent/humanLayer/clarification";
-import type { TurnOptions } from "@/agent/conversation";
-import type { AgentEvent } from "@/app/runner/thread/events";
+} from "@chat/agent/humanLayer/clarification";
+import type { TurnOptions } from "@chat/agent/conversation";
+import type { AgentEvent } from "@chat/agent";
 import { countUserTurns } from "@/app/runner/thread/window";
 import type { Span } from "@opentelemetry/api";
 import { summarize } from "@/app/tokens";

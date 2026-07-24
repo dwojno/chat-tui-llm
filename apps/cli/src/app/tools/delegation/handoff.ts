@@ -1,8 +1,8 @@
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { zodTextFormat } from "openai/helpers/zod";
+import type { Model } from "@chat/agent";
 import { HANDOFF_MODEL } from "@/app/config";
-import type { Model } from "@/platform/model";
-import { renderItemsText } from "@/agent/conversation/items";
+import { renderItemsText } from "@chat/agent/conversation/items";
 import { ForkResultSchema, type ForkResult } from "./fork-result";
 
 const HANDOFF_INSTRUCTIONS =

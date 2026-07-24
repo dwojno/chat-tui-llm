@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ToolDefinition } from "@/agent/tools/types";
+import type { ToolDefinition } from "@chat/agent/tools/types";
 import type { ReadRange, Store } from "@/store";
 
 export const READ_SOURCE_NAME = "read_source" as const;

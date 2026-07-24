@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { sql } from "drizzle-orm";
-import type { AgentEvent } from "@/app/runner/thread/events";
+import type { AgentEvent } from "@chat/agent";
 import { buildMessage } from "@/app/runner/thread/reducer";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
 import { estimateTokens } from "@/app/tokens";

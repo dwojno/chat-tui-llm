@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { toOpenAITool, type ForkProfiles } from "@/agent/tools/types";
-import type { ToolRunContext } from "@/agent/conversation/turn";
-import { EventBus } from "@/agent/events/bus";
+import { toOpenAITool, type ForkProfiles } from "@chat/agent/tools/types";
+import type { ToolRunContext } from "@chat/agent/conversation/turn";
+import { EventBus } from "@chat/agent/events/bus";
 import { FORK_MODEL } from "@/app/config";
 import { FORK_INSTRUCTIONS } from "@/app/tools/prompts/fork";
 import {

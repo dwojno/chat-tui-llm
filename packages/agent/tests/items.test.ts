@@ -1,12 +1,22 @@
 import { describe, expect, it } from "vitest";
 import assert from "node:assert";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
-import { getFunctionCalls, renderItemsText } from "@/agent/conversation/items";
-import { assistantMessage, functionCall } from "@tests/helpers/mock-openai";
+import { getFunctionCalls, renderItemsText } from "@chat/agent/conversation/items";
 
 const user = (content: string): ResponseInputItem => ({
   role: "user",
   content,
+});
+const assistantMessage = (text: string) => ({
+  type: "message",
+  role: "assistant",
+  content: [{ type: "output_text", text }],
+});
+const functionCall = (name: string, args: unknown, callId = "c1") => ({
+  type: "function_call",
+  call_id: callId,
+  name,
+  arguments: JSON.stringify(args),
 });
 const toolOutput = (output: string): ResponseInputItem => ({
   type: "function_call_output",

@@ -5,7 +5,7 @@ import {
   parseDelegateTaskArgs,
   selectMemories,
 } from "@/app/tools/delegation/delegate-task";
-import { toOpenAITool } from "@/agent/tools/types";
+import { toOpenAITool } from "@chat/agent/tools/types";
 
 describe("parseDelegateTaskArgs", () => {
   it("parses a valid payload with memory keys and profile", () => {

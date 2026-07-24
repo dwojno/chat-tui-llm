@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { mcpToolToDefinition } from "@/app/tools/mcp/client";
-import { toOpenAITool } from "@/agent/tools/types";
+import { toOpenAITool } from "@chat/agent/tools/types";
 
 const tool = {
   name: "browser_navigate",

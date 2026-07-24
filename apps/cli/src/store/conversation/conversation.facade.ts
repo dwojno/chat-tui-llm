@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@/app/runner/thread/events";
+import type { AgentEvent } from "@chat/agent";
 import type { UsageTotals } from "@/app/session/usage";
 import type { UsageRecord } from "@/platform/model";
 import type { StoreContext } from "../context";

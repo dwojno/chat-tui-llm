@@ -1,6 +1,6 @@
 import { OpenAI } from "openai";
 import type { z } from "zod";
-import type { ToolDefinition } from "@/agent/tools/types";
+import { Agent, EventBus, type ToolDefinition } from "@chat/agent";
 import { parseCliArgs } from "@/platform/cli/args";
 import { runRepl } from "@/app/input/repl";
 import { buildChatContext } from "@/app/session/switch";
@@ -11,8 +11,6 @@ import {
   OPENAI_MAX_RETRIES,
   OPENAI_TIMEOUT_MS,
 } from "@/platform/cli/config";
-import { Agent } from "@/agent/agent";
-import { EventBus } from "@/agent/events/bus";
 import { TEMPERATURE } from "@/app/config";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
 import { createAgentTools } from "@/app/tools";
@@ -20,6 +18,7 @@ import { connectMcpServers, type McpConnection } from "@/app/tools/mcp";
 import { Session } from "@/app/session/session";
 import { createRagDeps, LocalStore, type OpenStoreOptions, type Store } from "@/store";
 import { Model } from "@/platform/model";
+import { traceToolExecution } from "@/platform/telemetry";
 import { redactPII } from "@/platform/utils/redact";
 import { renderChat } from "@/ui/chat";
 import { messagesFromTranscript } from "@/ui/history";
@@ -66,6 +65,7 @@ export async function run(deps: RunDeps = {}): Promise<void> {
     instructions: SYSTEM_INSTRUCTIONS,
     tools,
     forkProfiles,
+    traceToolExecution,
     ...(envConfig.security.redactPii ? { redact: redactPII } : {}),
   });
   const session = await Session.create(agent, model, store, KEEP_LAST_TURNS, bus);

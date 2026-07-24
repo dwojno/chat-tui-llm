@@ -1,32 +1,56 @@
 import { describe, expect, it } from "vitest";
+import assert from "node:assert";
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
-import { Model } from "@/platform/model";
-import { Agent } from "@/agent/agent";
-import { EventBus } from "@/agent/events/bus";
-import { DEFAULT_TURN_OPTIONS } from "@/agent/conversation/options";
-import { redactPII } from "@/platform/utils/redact";
-import { createMockOpenAI } from "@tests/helpers/mock-openai";
+import { Agent, DEFAULT_TURN_OPTIONS, EventBus, type Model, type ModelRequest } from "@chat/agent";
 
 const message: ResponseInputItem[] = [{ role: "user", content: "email me at jane@example.com" }];
 
-function inputOf(params: unknown): string {
-  return JSON.stringify((params as { input: unknown }).input);
-}
-
-describe("Agent model-input redaction", () => {
-  it("scrubs PII from the input sent to the model when a redactor is injected", async () => {
-    const mock = createMockOpenAI([{ text: "ok" }]);
-    const agent = new Agent({
-      model: Model.fromOpenAI(mock.client),
+function createAgent(redact?: (text: string) => string): {
+  agent: Agent;
+  calls: ModelRequest[];
+} {
+  const calls: ModelRequest[] = [];
+  const model: Model = {
+    complete: async (request) => {
+      calls.push(request);
+      return {
+        outputText: "ok",
+        outputParsed: null,
+        output: [],
+        status: "completed",
+        usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
+      };
+    },
+  };
+  return {
+    agent: new Agent({
+      model,
       temperature: 0.7,
       cacheKey: "chat-cli:test",
       instructions: "system",
-      redact: redactPII,
-    });
+      ...(redact ? { redact } : {}),
+    }),
+    calls,
+  };
+}
+
+function inputOf(request: ModelRequest | undefined): string {
+  assert(request !== undefined);
+  return JSON.stringify(request.input);
+}
+
+const redactPII = (text: string): string =>
+  text
+    .replaceAll(/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, "[REDACTED_EMAIL]")
+    .replaceAll(/\b\d{3}-\d{3}-\d{4}\b/g, "[REDACTED_PHONE]");
+
+describe("Agent model-input redaction", () => {
+  it("scrubs PII from the input sent to the model when a redactor is injected", async () => {
+    const { agent, calls } = createAgent(redactPII);
 
     await agent.step({ messages: message, options: DEFAULT_TURN_OPTIONS, bus: new EventBus() });
 
-    const sent = inputOf(mock.calls.stream[0]);
+    const sent = inputOf(calls[0]);
     expect(sent).toContain("[REDACTED_EMAIL]");
     expect(sent).not.toContain("jane@example.com");
   });
@@ -49,18 +73,11 @@ describe("Agent model-input redaction", () => {
       { role: "user", content: "email me at jane@example.com" },
     ] as unknown as ResponseInputItem[];
 
-    const mock = createMockOpenAI([{ text: "ok" }]);
-    const agent = new Agent({
-      model: Model.fromOpenAI(mock.client),
-      temperature: 0.7,
-      cacheKey: "chat-cli:test",
-      instructions: "system",
-      redact: redactPII,
-    });
+    const { agent, calls } = createAgent(redactPII);
 
     await agent.step({ messages: items, options: DEFAULT_TURN_OPTIONS, bus: new EventBus() });
 
-    const sent = inputOf(mock.calls.stream[0]);
+    const sent = inputOf(calls[0]);
     // Structural fields (ids, call_id, name, encrypted reasoning) must round-trip intact —
     // corrupting them makes the next turn fail with a 400 "Invalid input[n].id".
     expect(sent).toContain("rs_1234567890abcdef");
@@ -75,16 +92,10 @@ describe("Agent model-input redaction", () => {
   });
 
   it("leaves the input untouched when no redactor is injected", async () => {
-    const mock = createMockOpenAI([{ text: "ok" }]);
-    const agent = new Agent({
-      model: Model.fromOpenAI(mock.client),
-      temperature: 0.7,
-      cacheKey: "chat-cli:test",
-      instructions: "system",
-    });
+    const { agent, calls } = createAgent();
 
     await agent.step({ messages: message, options: DEFAULT_TURN_OPTIONS, bus: new EventBus() });
 
-    expect(inputOf(mock.calls.stream[0])).toContain("jane@example.com");
+    expect(inputOf(calls[0])).toContain("jane@example.com");
   });
 });

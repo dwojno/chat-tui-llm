@@ -1,4 +1,4 @@
-import { DEFAULT_TURN_OPTIONS } from "@/agent/conversation/options";
+import { DEFAULT_TURN_OPTIONS } from "@chat/agent/conversation/options";
 import { ResponseSchema } from "@/app/tools/schemas";
 import type { Command } from "./types";
 

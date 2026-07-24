@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { z } from "zod";
-import type { ToolDefinition } from "@/agent/tools/types";
+import type { ToolDefinition } from "@chat/agent/tools/types";
 import { resolveWithinCwd } from "./utils/workspace";
 
 export const WRITE_FILE_NAME = "write_file" as const;

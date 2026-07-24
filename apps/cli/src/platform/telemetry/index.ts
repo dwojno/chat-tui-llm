@@ -11,6 +11,7 @@ export {
   setSpanIO,
   startSpan,
   TELEMETRY_SCOPE,
+  traceToolExecution,
   withLlmSpan,
   withSpan,
   type LlmSpanData,

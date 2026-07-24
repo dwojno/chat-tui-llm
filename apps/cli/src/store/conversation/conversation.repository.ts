@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, exists, gt, inArray, ne, not, or, sql, type SQL } from "drizzle-orm";
-import type { AgentEvent, AgentEventType } from "@/app/runner/thread/events";
+import type { AgentEvent, AgentEventType } from "@chat/agent";
 import type { UsageRecord } from "@/platform/model";
 import type { SqliteDb } from "@/store/db/db";
 import { conversation, conversationItem, usageRecord } from "@/store/db/schema";

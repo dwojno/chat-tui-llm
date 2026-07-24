@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import assert from "node:assert";
 import { messagesFromTranscript } from "@/ui/history";
-import type { AgentEvent } from "@/app/runner/thread/events";
+import type { AgentEvent } from "@chat/agent";
 
 describe("messagesFromTranscript", () => {
   it("returns nothing for an empty transcript", () => {

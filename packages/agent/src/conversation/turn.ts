@@ -1,5 +1,5 @@
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
-import type { Model } from "@/platform/model";
+import type { Model } from "../model";
 import type { EventBus } from "../events/bus";
 import type { ForkProfiles, OpenAITool } from "../tools/types";
 import type { ApprovalGate } from "../humanLayer/approval";

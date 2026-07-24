@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { z } from "zod";
-import type { ClarificationRequest, ClarificationResponse } from "@/agent/humanLayer/clarification";
-import type { ToolDefinition } from "@/agent/tools/types";
+import type {
+  ClarificationRequest,
+  ClarificationResponse,
+} from "@chat/agent/humanLayer/clarification";
+import type { ToolDefinition } from "@chat/agent/tools/types";
 import { askUserTool } from "@/app/tools/ask-user";
-import { DEFAULT_TURN_OPTIONS } from "@/agent/conversation/options";
+import { DEFAULT_TURN_OPTIONS } from "@chat/agent/conversation/options";
 import { createMemoryStore, createMockOpenAI } from "@tests/helpers/mock-openai";
 import { testSession } from "@tests/helpers/agent";
 

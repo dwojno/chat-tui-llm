@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ToolDefinition } from "@/agent/tools/types";
+import type { ToolDefinition } from "@chat/agent/tools/types";
 import type { Store } from "@/store";
 
 export const LIST_SOURCES_NAME = "list_files" as const;

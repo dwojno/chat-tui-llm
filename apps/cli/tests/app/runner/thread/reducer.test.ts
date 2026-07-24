@@ -7,7 +7,7 @@ import {
   scratchpadResetOps,
   threadToPrompt,
 } from "@/app/runner/thread/reducer";
-import type { AgentEvent } from "@/app/runner/thread/events";
+import type { AgentEvent } from "@chat/agent";
 
 const contentOf = (msg: ReturnType<typeof buildMessage>): string =>
   String((msg[0] as { content: string }).content);

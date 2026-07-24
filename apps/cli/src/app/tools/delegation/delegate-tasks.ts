@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { ToolRunContext } from "@/agent/conversation/turn";
-import type { ToolDefinition } from "@/agent/tools/types";
+import type { ToolRunContext } from "@chat/agent/conversation/turn";
+import type { ToolDefinition } from "@chat/agent/tools/types";
 import { DELEGATE_TASK_NAME, runFork } from "./delegate-task";
 import { profileArg } from "./profiles";
 

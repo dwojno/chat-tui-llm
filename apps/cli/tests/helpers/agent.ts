@@ -1,8 +1,9 @@
 import type { OpenAI } from "openai";
-import { Agent, type AgentDeps } from "@/agent/agent";
-import { EventBus } from "@/agent/events/bus";
+import { Agent, type AgentDeps } from "@chat/agent/agent";
+import { EventBus } from "@chat/agent/events/bus";
 import { Session } from "@/app/session/session";
 import { Model } from "@/platform/model";
+import { traceToolExecution } from "@/platform/telemetry";
 import type { Store } from "@/store";
 
 export function testModel(openai: OpenAI): Model {
@@ -15,6 +16,7 @@ export function testAgent(openai: OpenAI, extra: Partial<AgentDeps> = {}): Agent
     temperature: 0.7,
     cacheKey: "chat-cli:test",
     instructions: "system",
+    traceToolExecution,
     ...extra,
   });
 }

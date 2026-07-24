@@ -1,6 +1,6 @@
 import { evalite } from "evalite";
 import { summarize } from "@/app/tokens/summarizer";
-import type { AgentEvent } from "@/app/runner/thread/events";
+import type { AgentEvent } from "@chat/agent";
 import { Model } from "@/platform/model";
 import {
   judged,

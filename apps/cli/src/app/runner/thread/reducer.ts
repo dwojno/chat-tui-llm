@@ -1,6 +1,6 @@
 import type { ResponseInputItem } from "openai/resources/responses/responses.mjs";
 import { keyMemories } from "@/app/context/context";
-import type { AgentEvent } from "./events";
+import type { AgentEvent } from "@chat/agent";
 import { toYaml } from "./yaml";
 
 export interface ReduceInput {

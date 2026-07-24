@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { ToolRunContext } from "@/agent/conversation/turn";
-import type { ToolDefinition } from "@/agent/tools/types";
+import type { ToolRunContext } from "@chat/agent/conversation/turn";
+import type { ToolDefinition } from "@chat/agent/tools/types";
 import type { GrepMatch, GrepOptions, Store } from "@/store";
 
 export const GREP_FILES_NAME = "grep_files" as const;

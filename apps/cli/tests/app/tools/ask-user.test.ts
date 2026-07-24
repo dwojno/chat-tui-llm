@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { askUserTool } from "@/app/tools/ask-user";
-import { EventBus } from "@/agent/events/bus";
+import { EventBus } from "@chat/agent/events/bus";
 import {
   CLARIFICATION_UNANSWERED_OUTPUT,
   type ClarificationRequest,
-} from "@/agent/humanLayer/clarification";
-import type { ToolRunContext } from "@/agent/conversation/turn";
+} from "@chat/agent/humanLayer/clarification";
+import type { ToolRunContext } from "@chat/agent/conversation/turn";
 
 function ctxWith(answer: string | null) {
   const requestClarification = vi.fn(async (_request: ClarificationRequest) => ({ answer }));

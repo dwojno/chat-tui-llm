@@ -1,6 +1,6 @@
 import type { z } from "zod";
-import { toOpenAITool, type ForkProfiles, type ToolDefinition } from "@/agent/tools/types";
-import type { OpenAITool } from "@/agent/tools/types";
+import { toOpenAITool, type ForkProfiles, type ToolDefinition } from "@chat/agent/tools/types";
+import type { OpenAITool } from "@chat/agent/tools/types";
 import { FORK_MODEL } from "@/app/config";
 import type { Store } from "@/store";
 import { askUserTool } from "./ask-user";

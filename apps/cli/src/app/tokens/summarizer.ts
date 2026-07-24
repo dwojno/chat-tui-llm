@@ -1,5 +1,5 @@
 import { SUMMARIZER_MODEL } from "@/app/config";
-import type { AgentEvent } from "@/app/runner/thread/events";
+import type { AgentEvent } from "@chat/agent";
 import { threadToPrompt } from "@/app/runner/thread/reducer";
 import type { Model } from "@/platform/model";
 

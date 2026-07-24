@@ -7,9 +7,9 @@ import { withForkUsage } from "@/platform/model";
 import { keyMemories } from "@/app/context/context";
 import { compressHandoff } from "./handoff";
 import type { ForkResult } from "./fork-result";
-import { DEFAULT_TURN_OPTIONS } from "@/agent/conversation/options";
-import type { ToolRunContext, TurnProfile } from "@/agent/conversation/turn";
-import { toOpenAITool, type ToolDefinition } from "@/agent/tools/types";
+import { DEFAULT_TURN_OPTIONS } from "@chat/agent/conversation/options";
+import type { ToolRunContext, TurnProfile } from "@chat/agent/conversation/turn";
+import { toOpenAITool, type ToolDefinition } from "@chat/agent/tools/types";
 import { profileArg, type ForkProfileName } from "./profiles";
 
 export const DELEGATE_TASK_NAME = "delegate_task" as const;

@@ -1,4 +1,4 @@
-import { DEFAULT_TURN_OPTIONS } from "@/agent/conversation/options";
+import { DEFAULT_TURN_OPTIONS } from "@chat/agent/conversation/options";
 import { exitCommand } from "./exit";
 import { conversationCommand } from "./conversation";
 import { jsonCommand } from "./json";

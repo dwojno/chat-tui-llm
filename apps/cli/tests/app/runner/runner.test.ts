@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/agent/tools", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/agent/tools")>();
+vi.mock("@chat/agent/tools", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@chat/agent/tools")>();
   return {
     ...actual,
     executeToolCall: vi.fn(async () => "TOOL_RESULT"),
@@ -9,16 +9,16 @@ vi.mock("@/agent/tools", async (importOriginal) => {
 });
 
 import { z } from "zod";
-import { executeToolCall } from "@/agent/tools";
-import type { ToolDefinition } from "@/agent/tools/types";
-import type { TurnEvent } from "@/agent/events/events";
-import { EventBus } from "@/agent/events/bus";
-import type { TurnContext, TurnProfile } from "@/agent/conversation/turn";
-import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "@/agent/conversation/options";
+import { executeToolCall } from "@chat/agent/tools";
+import type { ToolDefinition } from "@chat/agent/tools/types";
+import type { TurnEvent } from "@chat/agent/events/events";
+import { EventBus } from "@chat/agent/events/bus";
+import type { TurnContext, TurnProfile } from "@chat/agent/conversation/turn";
+import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "@chat/agent/conversation/options";
 import { Model } from "@/platform/model";
-import { Agent } from "@/agent/agent";
+import { Agent } from "@chat/agent/agent";
 import { runAgentLoop } from "@/app/runner/runner";
-import type { AgentEvent } from "@/app/runner/thread/events";
+import type { AgentEvent } from "@chat/agent";
 import { createMockOpenAI, type MockTurn } from "@tests/helpers/mock-openai";
 import assert from "node:assert";
 

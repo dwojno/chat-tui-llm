@@ -1,16 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { Model } from "@/platform/model";
-import { Agent } from "@/agent/agent";
-import { EventBus } from "@/agent/events/bus";
-import { APPROVAL_DENIED_OUTPUT } from "@/agent/humanLayer/approval";
-import type { ApprovalDecision, ApprovalRequest } from "@/agent/humanLayer/approval";
-import type { ToolDefinition } from "@/agent/tools/types";
-import type { TurnContext } from "@/agent/conversation/turn";
-import type { TurnEvent } from "@/agent/events/events";
-import { DEFAULT_TURN_OPTIONS } from "@/agent/conversation/options";
+import { Agent } from "@chat/agent/agent";
+import { EventBus } from "@chat/agent/events/bus";
+import { APPROVAL_DENIED_OUTPUT } from "@chat/agent/humanLayer/approval";
+import type { ApprovalDecision, ApprovalRequest } from "@chat/agent/humanLayer/approval";
+import type { ToolDefinition } from "@chat/agent/tools/types";
+import type { TurnContext } from "@chat/agent/conversation/turn";
+import type { TurnEvent } from "@chat/agent/events/events";
+import { DEFAULT_TURN_OPTIONS } from "@chat/agent/conversation/options";
 import { runAgentLoop } from "@/app/runner/runner";
-import type { AgentEvent } from "@/app/runner/thread/events";
+import type { AgentEvent } from "@chat/agent";
 import { createMockOpenAI, type MockTurn } from "@tests/helpers/mock-openai";
 
 const userMessage = (content: string): AgentEvent => ({ type: "user_message", content });

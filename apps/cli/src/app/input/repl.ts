@@ -1,6 +1,6 @@
 import { writeSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
-import type { EventBus } from "@/agent/events/bus";
+import type { EventBus } from "@chat/agent/events/bus";
 import { runCommand } from "@/app/commands/registry";
 import type { CommandContext } from "@/app/commands/types";
 import { resolveFileMentions } from "./file-mentions";

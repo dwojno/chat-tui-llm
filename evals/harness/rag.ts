@@ -4,11 +4,11 @@ import { basename, join } from "node:path";
 import { OpenAI } from "openai";
 import { ensureInfra } from "./infra";
 import { EVAL_MAX_RETRIES } from "./client";
-import { Agent } from "@/agent/agent";
-import { EventBus } from "@/agent/events/bus";
+import { Agent } from "@chat/agent/agent";
+import { EventBus } from "@chat/agent/events/bus";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
 import { EVAL_PROBE_MODEL, MAX_TOOL_STEPS, MAX_CONSECUTIVE_ERRORS } from "@/app/config";
-import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "@/agent/conversation/options";
+import { DEFAULT_TURN_OPTIONS, type TurnOptions } from "@chat/agent/conversation/options";
 import { runAgentLoop } from "@/app/runner/runner";
 import { eventsToInputItems } from "@/app/runner/thread/convert";
 import { createAgentTools } from "@/app/tools";
@@ -16,6 +16,7 @@ import { createRagTools } from "@/app/tools/rag";
 import { createRagDeps, LocalStore, type IndexResult, type Store } from "@/store";
 import { loadConfig } from "@/platform/config";
 import { Model } from "@/platform/model";
+import { traceToolExecution } from "@/platform/telemetry";
 
 const KB_TOOLS = new Set(["search_knowledge_base", "read_source", "grep_files"]);
 
@@ -86,6 +87,7 @@ export function createRagHarness(opts: RagHarnessOptions): RagHarness {
         forkProfiles,
         cacheKey: `eval-${opts.suiteId}`,
         instructions: opts.instructions ?? `${SYSTEM_INSTRUCTIONS}\n${CITATION_DIRECTIVE}`,
+        traceToolExecution,
       });
       return { store, agent, profileId: store.profileId };
     })());

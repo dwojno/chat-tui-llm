@@ -6,7 +6,7 @@ import {
   toolCallToEvent,
   TOOL_ERROR_PREFIX,
 } from "@/app/runner/thread/convert";
-import type { AgentEvent } from "@/app/runner/thread/events";
+import type { AgentEvent } from "@chat/agent";
 
 describe("toolCallToEvent", () => {
   it("maps a native call to a tool_call event with parsed args", () => {

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { OpenAI } from "openai";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createRagTools } from "@/app/tools/rag";
-import type { ToolRunContext } from "@/agent/conversation/turn";
+import type { ToolRunContext } from "@chat/agent/conversation/turn";
 import { createRagDeps, LocalStore, type Store } from "@/store";
 import { loadConfig } from "@/platform/config";
 import { drain } from "@/platform/utils/async-gen";

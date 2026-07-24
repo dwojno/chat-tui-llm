@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { z } from "zod";
-import type { ToolDefinition } from "@/agent/tools/types";
+import type { ToolDefinition } from "@chat/agent/tools/types";
 import { resolveWithinCwd } from "./utils/workspace";
 
 export const EDIT_FILE_NAME = "edit_file" as const;

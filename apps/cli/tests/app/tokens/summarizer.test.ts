@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { OpenAI } from "openai";
 import { summarize } from "@/app/tokens/summarizer";
-import type { AgentEvent } from "@/app/runner/thread/events";
+import type { AgentEvent } from "@chat/agent";
 import { Model } from "@/platform/model";
 import { usage } from "@tests/helpers/mock-openai";
 

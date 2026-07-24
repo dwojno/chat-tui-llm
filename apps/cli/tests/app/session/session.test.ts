@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { Model } from "@/platform/model";
-import { Agent } from "@/agent/agent";
-import { EventBus } from "@/agent/events/bus";
-import type { TurnEvent } from "@/agent/events/events";
+import { Agent } from "@chat/agent/agent";
+import { EventBus } from "@chat/agent/events/bus";
+import type { TurnEvent } from "@chat/agent/events/events";
 import { ORCHESTRATOR_MODEL, TEMPERATURE } from "@/app/config";
-import { DEFAULT_TURN_OPTIONS } from "@/agent/conversation/options";
+import { DEFAULT_TURN_OPTIONS } from "@chat/agent/conversation/options";
 import { Session } from "@/app/session/session";
 import type { Store } from "@/store";
 import { createMemoryStore, createMockOpenAI, type MockTurn } from "@tests/helpers/mock-openai";

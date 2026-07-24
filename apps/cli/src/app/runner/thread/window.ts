@@ -1,4 +1,4 @@
-import type { AgentEvent } from "./events";
+import type { AgentEvent } from "@chat/agent";
 
 export function countUserTurns(events: readonly AgentEvent[]): number {
   return events.filter((event) => event.type === "user_message").length;

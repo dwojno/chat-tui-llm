@@ -19,8 +19,8 @@ vi.mock("ink", () => ({
 import { processLine } from "@/app/input/repl";
 import type { CommandContext } from "@/app/commands/types";
 import { Model } from "@/platform/model";
-import { Agent } from "@/agent/agent";
-import { EventBus } from "@/agent/events/bus";
+import { Agent } from "@chat/agent/agent";
+import { EventBus } from "@chat/agent/events/bus";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
 import { createAgentTools } from "@/app/tools";
 import { Session } from "@/app/session/session";

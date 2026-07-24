@@ -9,6 +9,7 @@ import {
   type SpanKind,
 } from "@opentelemetry/api";
 import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
+import type { TraceToolExecution } from "@chat/agent";
 import { redactPII } from "@/platform/utils/redact";
 import { estimateCost } from "./pricing";
 
@@ -155,6 +156,9 @@ export function setSpanIO(span: Span, io: { input?: unknown; output?: unknown })
   if (io.output !== undefined && io.output !== null)
     span.setAttribute(LANGFUSE_OUTPUT, formatIO(io.output));
 }
+
+export const traceToolExecution: TraceToolExecution = ({ name, attributes, input, run }) =>
+  withSpan(name, { attributes, input }, (span) => run((output) => setSpanIO(span, { output })));
 
 export async function withLlmSpan<T>(
   name: string,

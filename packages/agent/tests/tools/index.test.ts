@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { describeToolCall, executeToolCall, toolLabel } from "@/agent/tools";
-import type { ToolDefinition } from "@/agent/tools/types";
+import { describeToolCall, executeToolCall, toolLabel } from "@chat/agent/tools";
+import type { ToolDefinition } from "@chat/agent/tools/types";
 
 const params = z.object({ city: z.string() });
 const fakeTool: ToolDefinition<typeof params> = {

@@ -1,4 +1,4 @@
-import { DEFAULT_TURN_OPTIONS } from "@/agent/conversation/options";
+import { DEFAULT_TURN_OPTIONS } from "@chat/agent/conversation/options";
 import type { Command } from "./types";
 
 const PREFIX = "/json ";

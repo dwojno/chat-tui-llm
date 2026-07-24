@@ -1,6 +1,6 @@
 import { evalite } from "evalite";
 import type { z } from "zod";
-import { toOpenAITool, type ToolDefinition } from "@/agent/tools/types";
+import { toOpenAITool, type ToolDefinition } from "@chat/agent/tools/types";
 import { updateScratchpadTool, webSearchTool } from "@/app/tools";
 import {
   avoidsTools,

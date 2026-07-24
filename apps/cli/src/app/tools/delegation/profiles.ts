@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ToolDefinition } from "@/agent/tools/types";
+import type { ToolDefinition } from "@chat/agent/tools/types";
 import type { Store } from "@/store";
 import { FORK_INSTRUCTIONS } from "../prompts/fork";
 import { RAG_FORK_INSTRUCTIONS } from "../prompts/rag-fork";

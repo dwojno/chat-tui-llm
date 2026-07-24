@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import type { TurnEvent } from "@/agent/events/events";
-import type { ApprovalDecision, ApprovalRequest } from "@/agent/humanLayer/approval";
-import type { ToolDefinition } from "@/agent/tools/types";
-import type { ToolRunContext } from "@/agent/conversation/turn";
-import { DEFAULT_TURN_OPTIONS } from "@/agent/conversation/options";
+import type { TurnEvent } from "@chat/agent/events/events";
+import type { ApprovalDecision, ApprovalRequest } from "@chat/agent/humanLayer/approval";
+import type { ToolDefinition } from "@chat/agent/tools/types";
+import type { ToolRunContext } from "@chat/agent/conversation/turn";
+import { DEFAULT_TURN_OPTIONS } from "@chat/agent/conversation/options";
 import { createMemoryStore, createMockOpenAI } from "@tests/helpers/mock-openai";
 import { testSession } from "@tests/helpers/agent";
 

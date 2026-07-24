@@ -2,7 +2,7 @@ import type {
   ResponseFunctionToolCall,
   ResponseInputItem,
 } from "openai/resources/responses/responses.mjs";
-import type { AgentEvent } from "./events";
+import type { AgentEvent } from "@chat/agent";
 
 export const TOOL_ERROR_PREFIX = "Error: ";
 

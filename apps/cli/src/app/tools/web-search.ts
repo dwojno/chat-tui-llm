@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isBrokenCircuitError } from "cockatiel";
-import type { ToolDefinition } from "@/agent/tools/types";
+import type { ToolDefinition } from "@chat/agent/tools/types";
 import { createResiliencePolicy } from "@/platform/utils/resilience";
 import { envConfig } from "@/platform/config";
 
