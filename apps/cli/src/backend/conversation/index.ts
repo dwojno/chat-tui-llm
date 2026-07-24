@@ -1,9 +1,1 @@
-export { ConversationFacade, HistoryQuery } from "./conversation.facade";
-export type {
-  Conversation,
-  ConversationItemInsert,
-  ConversationQuery,
-  HistoryQueryConfig,
-  ItemKind,
-  StoredItemRow,
-} from "@chat/store";
+export { ConversationFacade } from "./conversation.facade";

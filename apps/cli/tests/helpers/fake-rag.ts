@@ -9,13 +9,13 @@ import type { RankedHit, RerankCandidate, Reranker } from "@/backend/sources/rag
 
 const EMBED_DIM = 64;
 
-export class IdentityReranker implements Reranker {
+class IdentityReranker implements Reranker {
   async rerank(_query: string, candidates: RerankCandidate[], topK: number): Promise<RankedHit[]> {
     return candidates.slice(0, topK).map((candidate) => ({ index: candidate.index, relevance: 1 }));
   }
 }
 
-export class DeterministicEmbedder implements DenseEmbedder {
+class DeterministicEmbedder implements DenseEmbedder {
   async embed(texts: string[]): Promise<number[][]> {
     return texts.map((text) => {
       const vector = Array.from({ length: EMBED_DIM }, () => 0);
@@ -33,7 +33,7 @@ export class DeterministicEmbedder implements DenseEmbedder {
   }
 }
 
-export class FakeObjectStore implements BlobStore {
+class FakeObjectStore implements BlobStore {
   readonly buckets = new Map<string, Map<string, string>>();
 
   private bucket(profileId: string): Map<string, string> {
@@ -79,7 +79,7 @@ export class FakeObjectStore implements BlobStore {
   }
 }
 
-export class FakeVectorIndex implements VectorIndex {
+class FakeVectorIndex implements VectorIndex {
   readonly collections = new Map<string, VectorPoint[]>();
 
   private points(profileId: string): VectorPoint[] {

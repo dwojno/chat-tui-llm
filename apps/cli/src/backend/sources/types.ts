@@ -1,9 +1,1 @@
-export type {
-  GrepMatch,
-  GrepOptions,
-  IndexResult,
-  ReadRange,
-  SearchHit,
-  SearchOptions,
-  SourceProgress,
-} from "@chat/store";
+export type { GrepMatch, GrepOptions, ReadRange, SearchHit, SourceProgress } from "@chat/store";

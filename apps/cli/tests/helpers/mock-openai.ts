@@ -31,7 +31,7 @@ export function usage(overrides: Partial<ResponseUsage> = {}): ResponseUsage {
   } as ResponseUsage;
 }
 
-export function assistantMessage(text: string) {
+function assistantMessage(text: string) {
   return {
     type: "message",
     id: nextId("msg"),
@@ -41,7 +41,7 @@ export function assistantMessage(text: string) {
   };
 }
 
-export function functionCall(
+function functionCall(
   name: string,
   args: string | Record<string, unknown> = {},
   callId = nextId("call"),

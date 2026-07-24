@@ -166,14 +166,13 @@ The quick reference the scattered docs never gave. Values from
 [`apps/cli/src/config.ts`](../apps/cli/src/config.ts) and
 [`packages/tools/src/delegation/delegate-tasks.ts`](../packages/tools/src/delegation/delegate-tasks.ts).
 
-| Constant                 | Value      | Role                                                | Source                   |
-| ------------------------ | ---------- | --------------------------------------------------- | ------------------------ |
-| `KEEP_LAST_TURNS`        | 4          | turns kept verbatim before summarization            | `apps/cli/src/config.ts` |
-| `MAX_TOOL_STEPS`         | 8          | tool iterations per turn                            | `apps/cli/src/config.ts` |
-| `MAX_CONSECUTIVE_ERRORS` | 3          | abort after N back-to-back tool errors              | `apps/cli/src/config.ts` |
-| `MAX_PARALLEL_TASKS`     | 6          | `delegate_tasks` fan-out cap                        | `delegate-tasks.ts`      |
-| `TEMPERATURE`            | 0.7        | non-reasoning turns only (summarizer uses 0.2)      | `apps/cli/src/config.ts` |
-| `DEFAULT_CACHE_KEY`      | `chat-cli` | base of the per-process `chat-cli:${pid}` cache key | `apps/cli/src/config.ts` |
+| Constant                 | Value | Role                                           | Source                   |
+| ------------------------ | ----- | ---------------------------------------------- | ------------------------ |
+| `KEEP_LAST_TURNS`        | 4     | turns kept verbatim before summarization       | `apps/cli/src/config.ts` |
+| `MAX_TOOL_STEPS`         | 8     | tool iterations per turn                       | `apps/cli/src/config.ts` |
+| `MAX_CONSECUTIVE_ERRORS` | 3     | abort after N back-to-back tool errors         | `apps/cli/src/config.ts` |
+| `MAX_PARALLEL_TASKS`     | 6     | `delegate_tasks` fan-out cap                   | `delegate-tasks.ts`      |
+| `TEMPERATURE`            | 0.7   | non-reasoning turns only (summarizer uses 0.2) | `apps/cli/src/config.ts` |
 
 Temperature is sent only on non-reasoning turns; `buildRequestParams` omits it for reasoning
 models (the `gpt-5` family and `o`-series), which reject the param.

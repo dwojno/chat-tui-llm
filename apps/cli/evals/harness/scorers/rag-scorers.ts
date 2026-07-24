@@ -31,7 +31,7 @@ const toScore = (result: { score: number | null; metadata?: unknown }) => ({
 
 const auth = () => ({ client: openai(), model: JUDGE_MODEL });
 
-export const faithfulness: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
+const faithfulness: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Faithfulness",
   description: "answer claims are supported by the retrieved context (no hallucination)",
   scorer: async ({ input, output }) => {
@@ -47,7 +47,7 @@ export const faithfulness: RagScorer = createScorer<RagInput, RagResult, RagExpe
   },
 });
 
-export const answerRelevancy: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
+const answerRelevancy: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Answer Relevancy",
   description: "the answer is relevant and complete for the question",
   scorer: async ({ input, output, expected }) => {
@@ -63,7 +63,7 @@ export const answerRelevancy: RagScorer = createScorer<RagInput, RagResult, RagE
   },
 });
 
-export const contextRelevancy: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
+const contextRelevancy: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Context Relevancy",
   description: "the retrieved chunks are relevant to the question",
   scorer: async ({ input, output, expected }) => {
@@ -80,7 +80,7 @@ export const contextRelevancy: RagScorer = createScorer<RagInput, RagResult, Rag
   },
 });
 
-export const contextPrecision: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
+const contextPrecision: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Context Precision",
   description: "retrieved context supports the ground-truth answer (needs groundTruth)",
   scorer: async ({ input, output, expected }) => {
@@ -102,7 +102,7 @@ const InsufficientVerdict = z.object({
   rationale: z.string(),
 });
 
-export const admitsInsufficient: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
+const admitsInsufficient: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Admits Insufficient",
   description: "on an unanswerable query, the answer says the context is insufficient",
   scorer: async ({ output, expected }) => {
@@ -139,7 +139,7 @@ const precision = (wanted: string[], have: string[]): number => {
   return have.filter((id) => gold.has(id)).length / have.length;
 };
 
-export const contextRecall: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
+const contextRecall: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Context Recall",
   description: "gold source files that the agent actually retrieved (retriever quality)",
   scorer: ({ output, expected }) => {
@@ -157,7 +157,7 @@ export const contextRecall: RagScorer = createScorer<RagInput, RagResult, RagExp
   },
 });
 
-export const retrievalPrecision: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
+const retrievalPrecision: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Retrieval Precision",
   description: "retrieved source files that were actually gold (penalises over-retrieval)",
   scorer: ({ output, expected }) => {
@@ -176,7 +176,7 @@ export const retrievalPrecision: RagScorer = createScorer<RagInput, RagResult, R
   },
 });
 
-export const retrievalF1: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
+const retrievalF1: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Retrieval F1",
   description: "harmonic mean of retrieval precision and recall",
   scorer: ({ output, expected }) => {
@@ -190,7 +190,7 @@ export const retrievalF1: RagScorer = createScorer<RagInput, RagResult, RagExpec
   },
 });
 
-export const citationRecall: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
+const citationRecall: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Citation Recall",
   description: "gold source files that the agent cited in its answer",
   scorer: ({ output, expected }) => {
@@ -204,7 +204,7 @@ export const citationRecall: RagScorer = createScorer<RagInput, RagResult, RagEx
   },
 });
 
-export const citationGrounding: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
+const citationGrounding: RagScorer = createScorer<RagInput, RagResult, RagExpected>({
   name: "Citation Grounding",
   description: "every cited file was actually retrieved (no fabricated citations)",
   scorer: ({ output }) => {

@@ -6,7 +6,7 @@ import type { RagExpected, RagInput } from "../harness/scorers/rag-scorers";
 
 const harness = createRagHarness({
   suiteId: "redundancy",
-  corpusDir: "apps/cli/evals/harness/rag-corpus",
+  corpusDir: "evals/harness/rag-corpus",
   instructions: RAG_FORK_INSTRUCTIONS,
 });
 

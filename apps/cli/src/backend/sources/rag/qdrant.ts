@@ -3,7 +3,7 @@ import { QdrantClient } from "@qdrant/js-client-rest";
 import { createResiliencePolicy, type ResiliencePolicy } from "@chat/platform/utils/resilience";
 import type { RagConfig } from "@/config";
 
-export const DENSE_VECTOR_SIZE = 1536;
+const DENSE_VECTOR_SIZE = 1536;
 
 export interface ChunkPayload {
   path: string;
@@ -43,7 +43,7 @@ export interface VectorIndex {
 const DENSE = "dense";
 const SPARSE = "sparse";
 
-export function pointId(seed: string): string {
+function pointId(seed: string): string {
   const hex = createHash("md5").update(seed).digest("hex");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 }

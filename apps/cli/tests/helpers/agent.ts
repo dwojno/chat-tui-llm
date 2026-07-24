@@ -6,7 +6,7 @@ import { Model } from "@chat/platform/model";
 import { traceToolExecution } from "@chat/platform/telemetry";
 import type { Store } from "@/backend";
 
-export function testModel(openai: OpenAI): Model {
+function testModel(openai: OpenAI): Model {
   return Model.fromOpenAI(openai);
 }
 

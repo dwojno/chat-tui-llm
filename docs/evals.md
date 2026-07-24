@@ -13,13 +13,13 @@ just eval-watch    # watch + UI at http://localhost:3006
 ```
 
 Requires a real `OPENAI_API_KEY` — loaded from `.env` via `setupFiles` in
-[evalite.config.ts](../evalite.config.ts).
+[evalite.config.ts](../apps/cli/evalite.config.ts).
 
 ## What's covered
 
 The CLI app owns the tests in [`suites/`](../apps/cli/evals/suites/); the reusable machinery lives in
-[`harness/`](../apps/cli/evals/harness/); the workspace runner config is [`evalite.config.ts`](../evalite.config.ts)
-at the repo root.
+[`harness/`](../apps/cli/evals/harness/); the runner config is [`evalite.config.ts`](../apps/cli/evalite.config.ts)
+next to the CLI package.
 
 ```
 apps/cli/evals/

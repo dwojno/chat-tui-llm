@@ -11,7 +11,7 @@ import { openai } from "./client";
 
 const mainToolSchemas = createMainToolSchemas(HANDOFF_MODEL);
 
-export interface ProbeToolCall {
+interface ProbeToolCall {
   name: string;
   arguments: string;
   args: Record<string, unknown>;

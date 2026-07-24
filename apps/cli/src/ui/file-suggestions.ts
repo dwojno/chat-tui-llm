@@ -65,7 +65,7 @@ export function buildFileIndex(root: string): FileIndex {
   return { files, shallow };
 }
 
-export function getFileIndex(root: string): FileIndex {
+function getFileIndex(root: string): FileIndex {
   if (cachedRoot !== root || cachedIndex === null) {
     cachedRoot = root;
     cachedIndex = buildFileIndex(root);

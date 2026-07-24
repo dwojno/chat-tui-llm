@@ -13,9 +13,7 @@
     "@chat/platform": "workspace:*",
     "@chat/tools": "workspace:*",
     "@types/node": "24.13.2",
-    "autoevals": "0.3.0",
-    "evalite": "0.19.0",
-    "openai": "6.45.0",
+    "knip": "6.29.0",
     "oxfmt": "0.58.0",
     "oxlint": "1.73.0",
     "typescript": "6.0.3",
@@ -28,5 +26,26 @@
       "esbuild",
       "better-sqlite3"
     ]
+  },
+  "knip": {
+    "workspaces": {
+      ".": {
+        "entry": [
+          "vitest.e2e.config.ts"
+        ]
+      },
+      "apps/cli": {
+        "entry": [
+          "evalite.config.ts",
+          "evals/harness/infra-setup.ts",
+          "evals/suites/**/*.eval.ts",
+          "tests/**/*.test.{ts,tsx}",
+          "tests/e2e/full/**/*.e2e.ts",
+          "tests/e2e/full/**/*.e2e-full.ts",
+          "tests/e2e/full/launch.ts",
+          "tests/setup.ts"
+        ]
+      }
+    }
   }
 }

@@ -7,7 +7,7 @@ export interface ChatContextBar {
   conversationLabel: string;
 }
 
-export function ContextBar({ context }: { context: ChatContextBar }): React.JSX.Element {
+function ContextBar({ context }: { context: ChatContextBar }): React.JSX.Element {
   return (
     <Box flexDirection="column" marginTop={1}>
       <Text dimColor>Profile: {context.profileLabel}</Text>

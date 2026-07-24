@@ -1,36 +1,12 @@
-import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
 import type { UsageTotals } from "@chat/store";
 
 export type { UsageTotals } from "@chat/store";
 
 export type UsageSnapshot = Omit<UsageTotals, "baselineInput" | "managedInput">;
 
-export const EMPTY_USAGE: UsageTotals = {
-  actualInput: 0,
-  cachedInput: 0,
-  output: 0,
-  summarizer: 0,
-  forkInput: 0,
-  managedInput: 0,
-  baselineInput: 0,
-  turns: 0,
-};
-
 const formatNumber = (value: number): string => value.toLocaleString("en-US");
 const formatPercent = (part: number, whole: number): string =>
   whole > 0 ? `${Math.round((part / whole) * 100)}%` : "0%";
-
-export function addResponseUsage(totals: UsageTotals, usage: ResponseUsage | undefined): void {
-  if (!usage) return;
-  totals.actualInput += usage.input_tokens;
-  totals.cachedInput += usage.input_tokens_details?.cached_tokens ?? 0;
-  totals.output += usage.output_tokens;
-}
-
-export function addSummarizerUsage(totals: UsageTotals, usage: ResponseUsage | undefined): void {
-  if (!usage) return;
-  totals.summarizer += usage.total_tokens;
-}
 
 export function usageSnapshot(totals: UsageTotals): UsageSnapshot {
   const { actualInput, cachedInput, output, summarizer, forkInput, turns } = totals;

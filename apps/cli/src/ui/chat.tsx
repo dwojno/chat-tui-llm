@@ -16,7 +16,7 @@ import type {
   ClarificationResponse,
 } from "@chat/agent/humanLayer/clarification";
 
-export type { Message, Step, Role } from "./types";
+export type { Message } from "./types";
 export type { ChatContextBar } from "./components/usage-bar";
 
 type OverlayState =

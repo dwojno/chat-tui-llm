@@ -117,8 +117,8 @@ function truncate(text: string): string {
 
 const LANGFUSE_INPUT = "langfuse.observation.input";
 const LANGFUSE_OUTPUT = "langfuse.observation.output";
-export const LANGFUSE_OBSERVATION_TYPE = "langfuse.observation.type";
-export const LANGFUSE_MODEL_NAME = "langfuse.observation.model.name";
+const LANGFUSE_OBSERVATION_TYPE = "langfuse.observation.type";
+const LANGFUSE_MODEL_NAME = "langfuse.observation.model.name";
 const LANGFUSE_COMPLETION_START_TIME = "langfuse.observation.completion_start_time";
 
 export function recordCompletionStart(span: Span, at: Date): void {

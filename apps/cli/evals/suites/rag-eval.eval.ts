@@ -5,10 +5,10 @@ import { ragScorers, type RagExpected, type RagInput } from "../harness/scorers/
 
 const harness = createRagHarness({
   suiteId: "rag",
-  corpusDir: "apps/cli/evals/harness/rag-corpus",
+  corpusDir: "evals/harness/rag-corpus",
 });
 
-const DATASET_PATH = "apps/cli/evals/harness/rag-dataset.json";
+const DATASET_PATH = "evals/harness/rag-dataset.json";
 
 interface DatasetExample {
   id: string;

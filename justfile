@@ -17,13 +17,15 @@ format:
     pnpm exec oxfmt .
 format-check:
     pnpm exec oxfmt --check .
+knip:
+    pnpm exec knip --include files,exports,types
 test *args:
     pnpm exec vitest run {{ args }}
 test-watch:
     pnpm exec vitest
 
-# Typecheck + lint + format-check + test — the pre-commit gate.
-check: typecheck lint format-check test
+# Typecheck + lint + format-check + dead-code check + test — the pre-commit gate.
+check: typecheck lint format-check knip test
 
 # --- db ---
 
@@ -51,11 +53,11 @@ qdrant:
 # --- evals (need a real OPENAI_API_KEY) ---
 
 eval *args: qdrant
-    pnpm exec evalite run {{ args }}
+    pnpm --dir apps/cli exec evalite run {{ args }}
 eval-watch: qdrant
-    pnpm exec evalite watch
+    pnpm --dir apps/cli exec evalite watch
 eval-rag: qdrant
-    pnpm exec evalite run apps/cli/evals/suites/rag-eval.eval.ts
+    pnpm --dir apps/cli exec evalite run evals/suites/rag-eval.eval.ts
 
 # --- integration ---
 

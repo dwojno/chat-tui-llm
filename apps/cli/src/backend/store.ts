@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { Store } from "@chat/store";
 import { openDatabase, type SqliteDb } from "@/backend/db/db";
 import { ConversationFacade } from "./conversation";
@@ -102,8 +101,4 @@ export class LocalStore implements Store {
 
     return new LocalStore(ctx, facades);
   }
-}
-
-export function uniqueProfileName(prefix: string): string {
-  return `${prefix}-${randomUUID().slice(0, 8)}`;
 }

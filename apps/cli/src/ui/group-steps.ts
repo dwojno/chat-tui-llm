@@ -1,8 +1,8 @@
 import type { Step } from "./types";
 
-export type SoloStep = { type: "solo"; step: Step; flatIndex: number };
+type SoloStep = { type: "solo"; step: Step; flatIndex: number };
 
-export type GroupedSteps = {
+type GroupedSteps = {
   type: "group";
   parent: Step;
   parentFlatIndex: number;

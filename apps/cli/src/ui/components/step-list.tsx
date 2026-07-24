@@ -59,13 +59,7 @@ export function CollapsibleStepList({
   return <StepList steps={steps} active={active} />;
 }
 
-export function StepList({
-  steps,
-  active,
-}: {
-  steps: Step[];
-  active: boolean;
-}): React.JSX.Element | null {
+function StepList({ steps, active }: { steps: Step[]; active: boolean }): React.JSX.Element | null {
   if (steps.length === 0) return null;
 
   const display = buildStepDisplay(steps);

@@ -11,7 +11,7 @@ import {
 import { harvestUsage } from "./usage-recorder";
 import type { ModelRequest, ModelResponse, ModelUsage } from "@chat/agent";
 
-export function toModelUsage(usage: ResponseUsage | undefined): ModelUsage {
+function toModelUsage(usage: ResponseUsage | undefined): ModelUsage {
   return {
     inputTokens: usage?.input_tokens ?? 0,
     cachedInputTokens: usage?.input_tokens_details?.cached_tokens ?? 0,
