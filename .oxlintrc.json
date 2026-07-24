@@ -27,7 +27,13 @@
   "ignorePatterns": ["node_modules", "dist", ".chat-state", "**/*.d.ts", "demo.tape"],
   "overrides": [
     {
-      "files": ["tests/**/*.ts", "tests/**/*.tsx", "evals/**/*.ts"],
+      "files": [
+        "apps/*/tests/**/*.ts",
+        "apps/*/tests/**/*.tsx",
+        "packages/*/tests/**/*.ts",
+        "packages/*/tests/**/*.tsx",
+        "evals/**/*.ts"
+      ],
       "plugins": ["vitest"],
       "env": { "vitest": true },
       "rules": {

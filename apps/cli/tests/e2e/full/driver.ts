@@ -33,7 +33,7 @@ const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 
 export function spawnTui(opts: SpawnTuiOptions): Tui {
   let buffer = "";
-  const child = pty.spawn("pnpm", ["exec", "tsx", "tests/e2e/full/launch.ts"], {
+  const child = pty.spawn("pnpm", ["exec", "tsx", "apps/cli/tests/e2e/full/launch.ts"], {
     name: "xterm-color",
     cols: opts.cols ?? 100,
     rows: opts.rows ?? 40,

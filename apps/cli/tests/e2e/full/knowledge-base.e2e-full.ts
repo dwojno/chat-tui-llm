@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { spawnTui, type Tui } from "./driver";
 
 const newStateDir = (): string => mkdtempSync(join(tmpdir(), "tui-live-"));
-const HANDBOOK = "tests/fixtures/rag-corpus/handbook.md";
+const HANDBOOK = "apps/cli/tests/fixtures/rag-corpus/handbook.md";
 const STEP = { timeout: 180_000 };
 
 describe("TUI e2e (LIVE): grounded support conversation over the Nimbus handbook", () => {

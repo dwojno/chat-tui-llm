@@ -127,7 +127,7 @@ describe("E2E: happy paths", () => {
   it("injects resolved @file paths for the model while keeping @refs in the transcript", async () => {
     const mock = createMockOpenAI([{ text: "summarized" }]);
     const h = await setup(mock.client);
-    const fixture = "tests/fixtures/small.txt";
+    const fixture = "apps/cli/tests/fixtures/small.txt";
 
     await h.run(`summarize @${fixture}`);
 

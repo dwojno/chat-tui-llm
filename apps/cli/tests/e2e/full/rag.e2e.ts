@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { afterEach, describe, it } from "vitest";
 import { spawnTui, type Tui } from "./driver";
 
-const turns = (name: string): string => join(process.cwd(), "tests/e2e/full/turns", name);
+const turns = (name: string): string => join(process.cwd(), "apps/cli/tests/e2e/full/turns", name);
 const newStateDir = (): string => mkdtempSync(join(tmpdir(), "tui-"));
-const HANDBOOK = "tests/fixtures/rag-corpus/handbook.md";
+const HANDBOOK = "apps/cli/tests/fixtures/rag-corpus/handbook.md";
 
 describe("TUI e2e: RAG ingestion against real Qdrant", () => {
   let tui: Tui;

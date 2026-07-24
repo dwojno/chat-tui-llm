@@ -5,6 +5,6 @@ export default defineConfig({
   schema: "./src/store/db/schema.ts",
   out: "./src/store/db/migrations",
   dbCredentials: {
-    url: ".chat-state/chat.db",
+    url: "../../.chat-state/chat.db",
   },
 });

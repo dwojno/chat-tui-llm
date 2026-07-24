@@ -11,7 +11,7 @@ import { loadConfig } from "@/platform/config";
 import { drain } from "@/platform/utils/async-gen";
 
 const RUN = process.env.RAG_INTEGRATION === "1";
-const CORPUS = "tests/fixtures/rag-corpus";
+const CORPUS = "apps/cli/tests/fixtures/rag-corpus";
 const TEST_TIMEOUT = 60_000;
 
 type LooseTool = {

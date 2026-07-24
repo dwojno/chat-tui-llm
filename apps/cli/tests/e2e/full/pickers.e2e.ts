@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, it } from "vitest";
 import { spawnTui, KEY, type Tui } from "./driver";
 
-const turns = (name: string): string => join(process.cwd(), "tests/e2e/full/turns", name);
+const turns = (name: string): string => join(process.cwd(), "apps/cli/tests/e2e/full/turns", name);
 const newStateDir = (): string => mkdtempSync(join(tmpdir(), "tui-"));
 
 describe("TUI e2e: picker + prompt overlays", () => {

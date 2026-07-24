@@ -4,14 +4,14 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   resolve: {
     alias: {
-      "@tests": path.resolve(__dirname, "tests"),
-      "@": path.resolve(__dirname, "src"),
+      "@tests": path.resolve(__dirname, "apps/cli/tests"),
+      "@": path.resolve(__dirname, "apps/cli/src"),
     },
   },
   test: {
-    include: ["tests/e2e/full/**/*.e2e.ts", "tests/e2e/full/**/*.e2e-full.ts"],
+    include: ["apps/cli/tests/e2e/full/**/*.e2e.ts", "apps/cli/tests/e2e/full/**/*.e2e-full.ts"],
     environment: "node",
-    setupFiles: ["tests/setup.ts"],
+    setupFiles: ["apps/cli/tests/setup.ts"],
     testTimeout: 300_000,
     hookTimeout: 300_000,
     fileParallelism: false,

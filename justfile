@@ -6,7 +6,7 @@ default:
 # --- dev loop ---
 
 start:
-    pnpm exec tsx src/cli.ts
+    pnpm --filter chat-cli start
 typecheck:
     pnpm exec tsc --noEmit
 lint *args:
@@ -28,11 +28,11 @@ check: typecheck lint format-check test
 # --- db ---
 
 db-generate *args:
-    pnpm exec drizzle-kit generate {{ args }}
+    pnpm --dir apps/cli exec drizzle-kit generate {{ args }}
 db-studio:
-    pnpm exec drizzle-kit studio
+    pnpm --dir apps/cli exec drizzle-kit studio
 db-migrate:
-    pnpm exec drizzle-kit migrate
+    pnpm --dir apps/cli exec drizzle-kit migrate
 
 # --- infra (docker compose; --wait blocks on healthchecks) ---
 
@@ -61,7 +61,7 @@ eval-rag: qdrant
 
 # Real RAG tools against real Qdrant + OpenAI (reranker off for determinism).
 integration: qdrant
-    RAG_INTEGRATION=1 RAG_RERANK_ENABLED=false pnpm exec vitest run tests/store/rag tests/app/tools/rag-tools.integration.test.ts
+    RAG_INTEGRATION=1 RAG_RERANK_ENABLED=false pnpm exec vitest run apps/cli/tests/store/rag apps/cli/tests/app/tools/rag-tools.integration.test.ts
 
 # --- e2e (PTY-driven real TUI; streams the live frames to the console) ---
 # One config (vitest.e2e.config.ts); the recipes narrow it via a CLI filename
