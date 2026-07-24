@@ -4,13 +4,14 @@ import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-tr
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { configureTelemetry, contextWithSpan, withSpan } from "@chat/platform/telemetry";
+import { configureTelemetry, withSpan } from "@chat/platform/telemetry";
 import { DEFAULT_TURN_OPTIONS } from "@chat/agent/conversation/options";
 import type { ToolDefinition } from "@chat/agent/tools/types";
 import { EventBus } from "@chat/agent/events/bus";
 import { runAgentLoop } from "@chat/engine";
 import { createMemoryStore, createMockOpenAI, type MockTurn } from "@tests/helpers/mock-openai";
 import { testAgent, testSession } from "@tests/helpers/agent";
+import { contextWithSpan } from "../../../../../packages/platform/src/telemetry/trace";
 
 const exporter = new InMemorySpanExporter();
 let provider: NodeTracerProvider;

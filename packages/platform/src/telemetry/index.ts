@@ -1,6 +1,5 @@
 export {
   configureTelemetry,
-  contextWithSpan,
   endSpan,
   GEN_AI,
   getTracer,

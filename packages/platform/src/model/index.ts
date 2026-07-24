@@ -21,10 +21,6 @@ export class Model {
     return new Model((request) => openAiComplete(client, request));
   }
 
-  static fromAnthropic(_client: unknown): Model {
-    throw new Error("Model.fromAnthropic is not implemented yet");
-  }
-
   complete(request: ModelRequest): Promise<ModelResponse> {
     return this.completeImpl(request);
   }
