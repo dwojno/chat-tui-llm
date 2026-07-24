@@ -5,8 +5,8 @@ import { buildMessage } from "@/app/runner/thread/reducer";
 import { SYSTEM_INSTRUCTIONS } from "@/app/prompts";
 import { estimateTokens } from "@/app/tokens";
 import type { UsageRecord } from "@chat/platform/model";
+import type { UsageTotals } from "@chat/store";
 import { conversation, conversationItem } from "@/store/db/schema";
-import { type UsageTotals } from "@/app/session/usage";
 
 interface StoredItem {
   kind: string;

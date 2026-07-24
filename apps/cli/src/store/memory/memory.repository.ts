@@ -1,16 +1,9 @@
 import assert from "node:assert/strict";
 import { eq, inArray } from "drizzle-orm";
+import type { Memory, MemoryQuery as MemoryQueryContract } from "@chat/store";
 import type { SqliteDb } from "@/store/db/db";
 import { memory } from "@/store/db/schema";
 import { asArray, type OneOrMany } from "../helpers";
-
-export type Memory = {
-  id: number;
-  profileId: string;
-  category: string;
-  text: string;
-  createdAt: number;
-};
 
 const memoryShape = {
   id: memory.id,
@@ -20,7 +13,7 @@ const memoryShape = {
   createdAt: memory.createdAt,
 };
 
-export class MemoryQuery {
+export class MemoryQuery implements MemoryQueryContract {
   private qb;
 
   constructor(private readonly db: SqliteDb) {

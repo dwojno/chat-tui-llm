@@ -6,4 +6,4 @@ export type {
   HistoryQueryConfig,
   ItemKind,
   StoredItemRow,
-} from "./conversation.repository";
+} from "@chat/store";

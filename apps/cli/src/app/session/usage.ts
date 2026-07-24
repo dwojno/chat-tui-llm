@@ -1,15 +1,7 @@
 import type { ResponseUsage } from "openai/resources/responses/responses.mjs";
+import type { UsageTotals } from "@chat/store";
 
-export interface UsageTotals {
-  actualInput: number;
-  cachedInput: number;
-  output: number;
-  summarizer: number;
-  forkInput: number;
-  managedInput: number;
-  baselineInput: number;
-  turns: number;
-}
+export type { UsageTotals } from "@chat/store";
 
 export type UsageSnapshot = Omit<UsageTotals, "baselineInput" | "managedInput">;
 

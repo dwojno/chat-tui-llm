@@ -1,7 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, exists, gt, inArray, ne, not, or, sql, type SQL } from "drizzle-orm";
-import type { AgentEvent, AgentEventType } from "@chat/agent";
+import type { AgentEvent } from "@chat/agent";
 import type { UsageRecord } from "@chat/platform/model";
+import type {
+  Conversation,
+  ConversationItemInsert,
+  ConversationItemQuery as ConversationItemQueryContract,
+  ConversationQuery as ConversationQueryContract,
+  HistoryQueryConfig,
+  StoredItemRow,
+} from "@chat/store";
 import type { SqliteDb } from "@/store/db/db";
 import { conversation, conversationItem, usageRecord } from "@/store/db/schema";
 import {
@@ -13,32 +21,7 @@ import {
 } from "./helpers";
 import { asArray, type OneOrMany } from "../helpers";
 
-export type ItemKind = AgentEventType | "summary";
-
-export type ConversationItemInsert = {
-  kind: ItemKind;
-  turnIndex: number | null;
-  payload: AgentEvent | { content: string };
-};
-
-export type Conversation = {
-  id: string;
-  profileId: string;
-  title: string;
-  createdAt: number;
-  lastActivityAt: number | null;
-};
-
-export type StoredItemRow = {
-  id: number;
-  conversationId: string;
-  kind: string;
-  turnIndex: number | null;
-  payload: string;
-  createdAt: number;
-};
-
-export class ConversationQuery {
+export class ConversationQuery implements ConversationQueryContract {
   private readonly base;
   private readonly filters: SQL[] = [];
   private ordered = false;
@@ -107,7 +90,7 @@ export class ConversationQuery {
   }
 }
 
-export class ConversationItemQuery {
+export class ConversationItemQuery implements ConversationItemQueryContract {
   private readonly base;
   private readonly filters: SQL[] = [];
   private desc = false;
@@ -166,12 +149,6 @@ export class ConversationItemQuery {
     return Promise.resolve(qb.get() ?? null);
   }
 }
-
-export type HistoryQueryConfig = {
-  conversationId?: string;
-  afterLastSummary: boolean;
-  forModel?: boolean;
-};
 
 export class ConversationRepository {
   constructor(private readonly db: SqliteDb) {}

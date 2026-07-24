@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Store } from "@chat/store";
 import { openDatabase, type SqliteDb } from "@/store/db/db";
 import { ConversationFacade } from "./conversation";
 import { ConversationRepository } from "./conversation/conversation.repository";
@@ -19,16 +20,6 @@ const IN_MEMORY = ":memory:";
 export interface OpenStoreOptions {
   conversationId?: string | undefined;
   rag?: RagDeps | undefined;
-}
-
-export interface Store {
-  readonly profileId: string;
-  readonly conversationId: string;
-  readonly profile: ProfileFacade;
-  readonly conversation: ConversationFacade;
-  readonly memory: MemoryFacade;
-  readonly sources: SourcesFacade;
-  readonly mcp: McpFacade;
 }
 
 interface StoreFacades {

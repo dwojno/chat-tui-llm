@@ -1,17 +1,19 @@
 import type { AgentEvent } from "@chat/agent";
-import type { UsageTotals } from "@/app/session/usage";
 import type { UsageRecord } from "@chat/platform/model";
+import type {
+  Conversation,
+  ConversationFacade as ConversationFacadeContract,
+  ConversationItemInsert,
+  ConversationQuery,
+  HistoryQuery as HistoryQueryContract,
+  HistoryQueryConfig,
+  UsageTotals,
+} from "@chat/store";
 import type { StoreContext } from "../context";
 import { asArray, type OneOrMany } from "../helpers";
-import {
-  ConversationRepository,
-  type Conversation,
-  type ConversationItemInsert,
-  type ConversationQuery,
-  type HistoryQueryConfig,
-} from "./conversation.repository";
+import { ConversationRepository } from "./conversation.repository";
 
-export class HistoryQuery {
+export class HistoryQuery implements HistoryQueryContract {
   private readonly config: HistoryQueryConfig = {
     afterLastSummary: false,
   };
@@ -45,7 +47,7 @@ export class HistoryQuery {
   }
 }
 
-export class ConversationFacade {
+export class ConversationFacade implements ConversationFacadeContract {
   constructor(
     private readonly repo: ConversationRepository,
     private readonly ctx: StoreContext,

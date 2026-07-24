@@ -1,7 +1,8 @@
+import type { McpFacade as McpFacadeContract, McpServer, McpServerInput } from "@chat/store";
 import type { OneOrMany } from "../helpers";
-import { McpRepository, type McpServer, type McpServerInput } from "./mcp.repository";
+import { McpRepository } from "./mcp.repository";
 
-export class McpFacade {
+export class McpFacade implements McpFacadeContract {
   constructor(private readonly repo: McpRepository) {}
 
   async list(profileId: string): Promise<McpServer[]> {

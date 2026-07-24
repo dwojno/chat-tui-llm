@@ -1,17 +1,18 @@
+import type {
+  Profile,
+  ProfileFacade as ProfileFacadeContract,
+  ProfilePatch,
+  ProfileQuery,
+} from "@chat/store";
 import type { OneOrMany } from "../helpers";
 import type { StoreContext } from "../context";
 import type { ConversationFacade } from "../conversation/conversation.facade";
 import { slugifyProfileId } from "./helpers";
-import {
-  ProfileRepository,
-  type Profile,
-  type ProfilePatch,
-  type ProfileQuery,
-} from "./profile.repository";
+import { ProfileRepository } from "./profile.repository";
 
 export { DEFAULT_PROFILE_ID } from "./profile.repository";
 
-export class ProfileFacade {
+export class ProfileFacade implements ProfileFacadeContract {
   constructor(
     private readonly repo: ProfileRepository,
     private readonly ctx: StoreContext,

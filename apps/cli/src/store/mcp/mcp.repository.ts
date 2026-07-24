@@ -1,31 +1,9 @@
 import assert from "node:assert/strict";
 import { and, eq, inArray } from "drizzle-orm";
+import type { McpServer, McpServerInput, McpTransport } from "@chat/store";
 import type { SqliteDb } from "@/store/db/db";
 import { mcpServer } from "@/store/db/schema";
 import { asArray, type OneOrMany } from "../helpers";
-
-export type McpTransport = "stdio" | "http";
-
-export type McpServer = {
-  id: number;
-  profileId: string;
-  label: string;
-  transport: McpTransport;
-  url: string | null;
-  command: string | null;
-  args: string[];
-  enabled: boolean;
-  createdAt: number;
-};
-
-export type McpServerInput = {
-  label: string;
-  transport: McpTransport;
-  url?: string | null;
-  command?: string | null;
-  args?: string[];
-  enabled?: boolean;
-};
 
 type McpServerRow = typeof mcpServer.$inferSelect;
 

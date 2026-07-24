@@ -1,21 +1,10 @@
 import { eq, inArray } from "drizzle-orm";
+import type { Profile, ProfilePatch, ProfileQuery as ProfileQueryContract } from "@chat/store";
 import type { SqliteDb } from "@/store/db/db";
 import { profile } from "@/store/db/schema";
 import { asArray, type OneOrMany } from "../helpers";
 
 export const DEFAULT_PROFILE_ID = "personal";
-
-export type Profile = {
-  id: string;
-  name: string;
-  model: string | null;
-  createdAt: number;
-};
-
-export type ProfilePatch = {
-  name?: string;
-  model?: string | null;
-};
 
 const profileShape = {
   id: profile.id,
@@ -24,7 +13,7 @@ const profileShape = {
   createdAt: profile.createdAt,
 };
 
-export class ProfileQuery {
+export class ProfileQuery implements ProfileQueryContract {
   private qb;
 
   constructor(private readonly db: SqliteDb) {

@@ -1,7 +1,8 @@
+import type { Memory, MemoryFacade as MemoryFacadeContract, MemoryQuery } from "@chat/store";
 import type { OneOrMany } from "../helpers";
-import { MemoryRepository, type Memory, type MemoryQuery } from "./memory.repository";
+import { MemoryRepository } from "./memory.repository";
 
-export class MemoryFacade {
+export class MemoryFacade implements MemoryFacadeContract {
   constructor(private readonly repo: MemoryRepository) {}
 
   query(): MemoryQuery {

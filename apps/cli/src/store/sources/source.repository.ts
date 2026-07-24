@@ -1,30 +1,9 @@
 import assert from "node:assert/strict";
 import { and, eq, inArray } from "drizzle-orm";
+import type { Source, SourceIndexPatch, SourceQuery as SourceQueryContract } from "@chat/store";
 import type { SqliteDb } from "@/store/db/db";
 import { source } from "@/store/db/schema";
 import { asArray, type OneOrMany } from "../helpers";
-
-export type SourceStatus = "pending" | "indexed" | "error";
-
-export type Source = {
-  id: number;
-  profileId: string;
-  path: string;
-  status: SourceStatus;
-  s3Key: string | null;
-  contentHash: string | null;
-  chunkCount: number | null;
-  indexedAt: number | null;
-  createdAt: number;
-};
-
-export type SourceIndexPatch = {
-  status: SourceStatus;
-  s3Key?: string | null;
-  contentHash?: string | null;
-  chunkCount?: number | null;
-  indexedAt?: number | null;
-};
 
 const sourceShape = {
   id: source.id,
@@ -38,7 +17,7 @@ const sourceShape = {
   createdAt: source.createdAt,
 };
 
-export class SourceQuery {
+export class SourceQuery implements SourceQueryContract {
   private qb;
 
   constructor(private readonly db: SqliteDb) {

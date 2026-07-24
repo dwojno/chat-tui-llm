@@ -53,6 +53,9 @@ importers:
       '@chat/platform':
         specifier: workspace:*
         version: link:../../packages/platform
+      '@chat/store':
+        specifier: workspace:*
+        version: link:../../packages/store
       '@modelcontextprotocol/sdk':
         specifier: 1.29.0
         version: 1.29.0(zod@4.4.3)
@@ -183,6 +186,15 @@ importers:
       openai:
         specifier: 6.45.0
         version: 6.45.0(@aws-sdk/credential-provider-node@3.972.71)(@smithy/signature-v4@5.6.9)(ws@8.21.1)(zod@4.4.3)
+
+  packages/store:
+    dependencies:
+      '@chat/agent':
+        specifier: workspace:*
+        version: link:../agent
+      '@chat/platform':
+        specifier: workspace:*
+        version: link:../platform
 
 packages:
 

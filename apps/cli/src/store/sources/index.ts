@@ -1,5 +1,4 @@
 export { SourcesFacade } from "./source.facade";
-export type { Source, SourceStatus } from "./source.repository";
 export type {
   GrepMatch,
   GrepOptions,
@@ -7,7 +6,9 @@ export type {
   ReadRange,
   SearchHit,
   SearchOptions,
+  Source,
   SourceProgress,
-} from "./types";
+  SourceStatus,
+} from "@chat/store";
 export type { RagConfig } from "@/platform/config";
 export { createRagDeps, type RagDeps } from "./rag/deps";

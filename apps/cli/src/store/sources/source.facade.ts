@@ -1,10 +1,6 @@
 import assert from "node:assert";
 import { readFile as fsReadFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { SourceRepository, type Source, type SourceQuery } from "./source.repository";
-import type { OneOrMany } from "../helpers";
-import type { RagDeps } from "./rag/deps";
-import type { RagEngine } from "./rag/engine";
 import type {
   GrepMatch,
   GrepOptions,
@@ -12,8 +8,15 @@ import type {
   ReadRange,
   SearchHit,
   SearchOptions,
+  Source,
   SourceProgress,
-} from "./types";
+  SourceQuery,
+  SourcesFacade as SourcesFacadeContract,
+} from "@chat/store";
+import { SourceRepository } from "./source.repository";
+import type { OneOrMany } from "../helpers";
+import type { RagDeps } from "./rag/deps";
+import type { RagEngine } from "./rag/engine";
 
 const NOT_CONFIGURED =
   "Knowledge base is not configured. Start Qdrant (docker compose up) and set " +
@@ -21,7 +24,7 @@ const NOT_CONFIGURED =
 
 const DEFAULT_SEARCH_LIMIT = 8;
 
-export class SourcesFacade {
+export class SourcesFacade implements SourcesFacadeContract {
   constructor(
     private readonly repo: SourceRepository,
     private readonly deps?: RagDeps,
