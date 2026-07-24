@@ -4,24 +4,33 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@opentelemetry/api':
+      specifier: 1.9.1
+      version: 1.9.1
+    '@types/node':
+      specifier: 24.13.2
+      version: 24.13.2
+    cockatiel:
+      specifier: 4.0.0
+      version: 4.0.0
+    openai:
+      specifier: 6.45.0
+      version: 6.45.0
+    vitest:
+      specifier: 4.1.10
+      version: 4.1.10
+    zod:
+      specifier: 4.4.3
+      version: 4.4.3
+
 importers:
 
   .:
     devDependencies:
-      '@chat/agent':
-        specifier: workspace:*
-        version: link:packages/agent
-      '@chat/engine':
-        specifier: workspace:*
-        version: link:packages/engine
-      '@chat/platform':
-        specifier: workspace:*
-        version: link:packages/platform
-      '@chat/tools':
-        specifier: workspace:*
-        version: link:packages/tools
       '@types/node':
-        specifier: 24.13.2
+        specifier: 'catalog:'
         version: 24.13.2
       knip:
         specifier: 6.29.0
@@ -36,10 +45,10 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
       vitest:
-        specifier: 4.1.10
+        specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(vite@8.1.5(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.5)(yaml@2.9.0))
       zod:
-        specifier: 4.4.3
+        specifier: 'catalog:'
         version: 4.4.3
 
   apps/cli:
@@ -63,7 +72,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/tools
       '@opentelemetry/api':
-        specifier: 1.9.1
+        specifier: 'catalog:'
         version: 1.9.1
       '@qdrant/js-client-rest':
         specifier: 1.18.0
@@ -90,7 +99,7 @@ importers:
         specifier: 6.2.0
         version: 6.2.0(marked@9.1.6)
       openai:
-        specifier: 6.45.0
+        specifier: 'catalog:'
         version: 6.45.0(@aws-sdk/credential-provider-node@3.972.71)(@smithy/signature-v4@5.6.9)(ws@8.21.1)(zod@4.4.3)
       react:
         specifier: 19.2.7
@@ -105,7 +114,7 @@ importers:
         specifier: 0.18.5
         version: 0.18.5
       zod:
-        specifier: 4.4.3
+        specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
       '@lydell/node-pty':
@@ -124,7 +133,7 @@ importers:
         specifier: 6.1.1
         version: 6.1.1
       '@types/node':
-        specifier: 24.13.2
+        specifier: 'catalog:'
         version: 24.13.2
       '@types/react':
         specifier: 19.2.17
@@ -148,16 +157,16 @@ importers:
         specifier: 4.22.5
         version: 4.22.5
       vitest:
-        specifier: 4.1.10
+        specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(vite@8.1.5(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.5)(yaml@2.9.0))
 
   packages/agent:
     dependencies:
       openai:
-        specifier: 6.45.0
+        specifier: 'catalog:'
         version: 6.45.0(@aws-sdk/credential-provider-node@3.972.71)(@smithy/signature-v4@5.6.9)(ws@8.21.1)(zod@4.4.3)
       zod:
-        specifier: 4.4.3
+        specifier: 'catalog:'
         version: 4.4.3
 
   packages/engine:
@@ -169,10 +178,10 @@ importers:
         specifier: workspace:*
         version: link:../platform
       openai:
-        specifier: 6.45.0
+        specifier: 'catalog:'
         version: 6.45.0(@aws-sdk/credential-provider-node@3.972.71)(@smithy/signature-v4@5.6.9)(ws@8.21.1)(zod@4.4.3)
       zod:
-        specifier: 4.4.3
+        specifier: 'catalog:'
         version: 4.4.3
 
   packages/platform:
@@ -181,7 +190,7 @@ importers:
         specifier: workspace:*
         version: link:../agent
       '@opentelemetry/api':
-        specifier: 1.9.1
+        specifier: 'catalog:'
         version: 1.9.1
       '@opentelemetry/exporter-metrics-otlp-http':
         specifier: 0.220.0
@@ -202,10 +211,10 @@ importers:
         specifier: 1.43.0
         version: 1.43.0
       cockatiel:
-        specifier: 4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       openai:
-        specifier: 6.45.0
+        specifier: 'catalog:'
         version: 6.45.0(@aws-sdk/credential-provider-node@3.972.71)(@smithy/signature-v4@5.6.9)(ws@8.21.1)(zod@4.4.3)
 
   packages/store:
@@ -232,13 +241,13 @@ importers:
         specifier: 1.29.0
         version: 1.29.0(zod@4.4.3)
       cockatiel:
-        specifier: 4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       openai:
-        specifier: 6.45.0
+        specifier: 'catalog:'
         version: 6.45.0(@aws-sdk/credential-provider-node@3.972.71)(@smithy/signature-v4@5.6.9)(ws@8.21.1)(zod@4.4.3)
       zod:
-        specifier: 4.4.3
+        specifier: 'catalog:'
         version: 4.4.3
 
 packages:

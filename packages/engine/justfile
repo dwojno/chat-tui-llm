@@ -1,0 +1,7 @@
+default:
+    @just --list
+
+test *args:
+    pnpm exec vitest run {{ args }}
+test-watch:
+    pnpm exec vitest

@@ -126,7 +126,7 @@ render boundary if it matters for your deployment.
 
 ## Red-teaming
 
-- **Live** — `just eval evals/suites/red-team.eval.ts` runs adversarial prompts
+- **Live** — `just eval evals/suites/red-team.eval.ts` (CLI suite) runs adversarial prompts
   (jailbreak, injection, prompt exfiltration, secret exfiltration, covert tool
   abuse) against the real model and scores refusal / no-leak / no-forbidden-tool
   with the existing scorers. A control row checks the hardened prompt didn't

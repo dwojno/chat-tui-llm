@@ -20,7 +20,7 @@ function toForkResult(entry: MockHandoff | undefined): ForkResult {
 let counter = 0;
 const nextId = (prefix: string): string => `${prefix}_${counter++}`;
 
-export function usage(overrides: Partial<ResponseUsage> = {}): ResponseUsage {
+function usage(overrides: Partial<ResponseUsage> = {}): ResponseUsage {
   return {
     input_tokens: 100,
     output_tokens: 50,

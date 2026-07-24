@@ -8,8 +8,8 @@ quiet about stored facts until asked, keep summaries short? Built on
 against the live model and scores what comes back.
 
 ```bash
-just eval          # run once (evalite run)
-just eval-watch    # watch + UI at http://localhost:3006
+just eval              # workspace suite group (→ CLI evalite run)
+just cli eval-watch    # watch + UI at http://localhost:3006
 ```
 
 Requires a real `OPENAI_API_KEY` — loaded from `.env` via `setupFiles` in
@@ -64,7 +64,7 @@ the real loop and services.
 
 ```bash
 echo "OPENAI_API_KEY=sk-..." > .env
-just eval-rag             # starts Qdrant, then ingests + runs the suite
+just cli eval-rag         # starts Qdrant, then ingests + runs the suite
 ```
 
 Everything is automatic and fully programmatic — there are no CLIs to run. The

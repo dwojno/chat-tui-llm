@@ -15,7 +15,7 @@
     "./tools/*": "./src/tools/*.ts"
   },
   "dependencies": {
-    "openai": "6.45.0",
-    "zod": "4.4.3"
+    "openai": "catalog:",
+    "zod": "catalog:"
   }
 }

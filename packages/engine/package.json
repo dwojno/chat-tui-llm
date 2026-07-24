@@ -15,7 +15,7 @@
   "dependencies": {
     "@chat/agent": "workspace:*",
     "@chat/platform": "workspace:*",
-    "openai": "6.45.0",
-    "zod": "4.4.3"
+    "openai": "catalog:",
+    "zod": "catalog:"
   }
 }

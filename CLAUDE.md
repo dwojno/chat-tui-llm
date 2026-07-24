@@ -28,15 +28,16 @@ Domain documentation uses a single-context layout. See `docs/agents/domain.md`.
 
 ## Commands
 
-`package.json` has only `start`; every other task is a `just` recipe (`just --list`).
+Root `just` is workspace-only (gates + suite groups + infra). Each app/package has its own
+justfile — run via `just <name> <recipe>` (e.g. `just cli start`, `just agent test`).
 
-- `pnpm start` — run the TUI (loads `.env`; entry `apps/cli/src/cli.ts` → `apps/cli/src/main.ts`)
-- `just check` — typecheck + lint + format-check + test — the pre-commit gate
-- `just test` / `just test-watch` — vitest; model is mocked, so the suite is offline (no API key)
-- `just typecheck` · `just lint` (`lint-fix`) · `just format` (`format-check`)
-- `just db-generate` — regenerate drizzle migrations after editing `schema.ts` (see Gotchas)
-- `just db-studio` — drizzle-kit studio · `just infra` — Qdrant + Langfuse stack
-- Needs a real `OPENAI_API_KEY`: `just eval` · `just integration` · `just e2e` / `just e2e-full`
+- `just check` — typecheck + lint + format-check + knip + unit test — the pre-commit gate
+- `just test` — unit tests in every app + package (delegates to each justfile)
+- `just typecheck` · `just lint` (`lint-fix`) · `just format` (`format-check`) · `just knip`
+- Suite groups (every member that has them): `just integration` · `just e2e` / `just e2e-full` · `just eval`
+- `just infra` — Qdrant + Langfuse stack · `just qdrant` — Qdrant only
+- CLI: `just cli start` · `just cli db-generate` / `db-studio` · `just cli eval-watch` / `eval-rag`
+- Packages: `just agent|engine|platform|tools|store test` (and `test-watch` where applicable)
 
 ## Architecture (map only — depth in `docs/`)
 
@@ -44,8 +45,8 @@ Monorepo: reusable libraries under `packages/` (`@chat/agent`, `@chat/engine`, `
 `@chat/platform`, `@chat/store` contract), deployable host under `apps/cli`. The CLI app owns its
 composition root (`main.ts`/`cli.ts`), session/commands/input/ui, unified `config.ts`, and the
 SQLite `LocalStore` implementation under `apps/cli/src/backend/`. Imports use `@/*` (→
-`apps/cli/src/*`) inside the CLI app and `@chat/*` across packages. The data flow and agent loop
-are in `docs/agent-loop.md`.
+`apps/cli/src/*`) **inside the CLI app only** (`apps/cli/tsconfig.json`) and `@chat/*` across packages.
+The data flow and agent loop are in `docs/agent-loop.md`.
 
 - **Dependencies point one way — inward on `@chat/agent`.** The core imports nothing from `ui/`,
   the store impl, or the CLI app. Config/prompt/loop constants (model, temperature, `MAX_TOOL_STEPS`)
@@ -78,7 +79,7 @@ are in `docs/agent-loop.md`.
 
 ## Gotchas / boundaries
 
-- **Migrations:** after editing `apps/cli/src/backend/db/schema.ts`, always regenerate with `just db-generate`
+- **Migrations:** after editing `apps/cli/src/backend/db/schema.ts`, always regenerate with `just cli db-generate`
   (the only way to add a migration). Never hand-write a migration SQL file or edit
   `migrations/meta/_journal.json`.
 - **Ask first:** adding any npm dep (especially an LLM/agent lib — threatens the frameworkless

@@ -194,7 +194,7 @@ pnpm start
 ```
 
 `just --list` shows every recipe — `just dev` (file-watch reload), `just typecheck`,
-`just test` (offline, no key), `just eval` (live model), `just check` (the pre-commit
+`just test` (offline unit suites), `just eval` (live model), `just check` (the pre-commit
 gate). The knowledge-base tools need Qdrant and a little more setup — see
 [docs/rag.md](docs/rag.md).
 

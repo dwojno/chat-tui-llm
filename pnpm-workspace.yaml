@@ -1,3 +1,13 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# Single source of truth for versions shared across manifests.
+# Reference with `"<dep>": "catalog:"` in each package.json.
+catalog:
+  "@opentelemetry/api": 1.9.1
+  "@types/node": 24.13.2
+  cockatiel: 4.0.0
+  openai: 6.45.0
+  vitest: 4.1.10
+  zod: 4.4.3

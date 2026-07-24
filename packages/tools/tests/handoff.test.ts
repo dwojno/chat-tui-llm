@@ -5,7 +5,7 @@ import type { ResponseInputItem } from "openai/resources/responses/responses.mjs
 import { compressHandoff } from "@chat/tools/delegation/handoff";
 import type { ForkResult } from "@chat/tools/delegation/fork-result";
 import { Model } from "@chat/platform/model";
-import { usage } from "@tests/helpers/mock-openai";
+import { usage } from "../../engine/tests/helpers/mock-openai";
 
 function fakeModel(parsed: ForkResult | null, outputText = "", status = "completed") {
   const parse = vi.fn(async (_params: unknown) => ({

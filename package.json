@@ -8,17 +8,16 @@
     "start": "pnpm --filter chat-cli start"
   },
   "devDependencies": {
-    "@chat/agent": "workspace:*",
-    "@chat/engine": "workspace:*",
-    "@chat/platform": "workspace:*",
-    "@chat/tools": "workspace:*",
-    "@types/node": "24.13.2",
+    "@types/node": "catalog:",
     "knip": "6.29.0",
     "oxfmt": "0.58.0",
     "oxlint": "1.73.0",
     "typescript": "6.0.3",
-    "vitest": "4.1.10",
-    "zod": "4.4.3"
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  },
+  "engines": {
+    "node": ">=22"
   },
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
@@ -31,12 +30,13 @@
     "workspaces": {
       ".": {
         "entry": [
-          "vitest.e2e.config.ts"
+          "vitest.shared.ts"
         ]
       },
       "apps/cli": {
         "entry": [
           "evalite.config.ts",
+          "vitest.e2e.config.ts",
           "evals/harness/infra-setup.ts",
           "evals/suites/**/*.eval.ts",
           "tests/**/*.test.{ts,tsx}",

@@ -1,0 +1,58 @@
+set dotenv-load
+set dotenv-path := "../../.env"
+
+root := parent_directory(parent_directory(justfile_directory()))
+
+default:
+    @just --list
+
+# --- app ---
+
+start:
+    pnpm start
+
+# --- tests (cwd = repo root: fixtures/e2e paths are root-relative) ---
+
+test *args:
+    cd {{ root }} && pnpm exec vitest run --config apps/cli/vitest.config.ts {{ args }}
+test-watch:
+    cd {{ root }} && pnpm exec vitest --config apps/cli/vitest.config.ts
+
+# --- db ---
+
+db-generate *args:
+    pnpm exec drizzle-kit generate {{ args }}
+db-studio:
+    pnpm exec drizzle-kit studio
+db-migrate:
+    pnpm exec drizzle-kit migrate
+
+# --- evals (need a real OPENAI_API_KEY) ---
+
+eval *args: qdrant
+    pnpm exec evalite run {{ args }}
+eval-watch: qdrant
+    pnpm exec evalite watch
+eval-rag: qdrant
+    pnpm exec evalite run evals/suites/rag-eval.eval.ts
+
+# --- integration ---
+
+# Real RAG tools against real Qdrant + OpenAI (reranker off for determinism).
+integration: qdrant
+    cd {{ root }} && RAG_INTEGRATION=1 RAG_RERANK_ENABLED=false pnpm exec vitest run --config apps/cli/vitest.config.ts apps/cli/tests/backend/rag apps/cli/tests/tools/rag-tools.integration.test.ts
+
+# --- e2e (PTY-driven real TUI; streams the live frames to the console) ---
+
+# Real TUI in a pseudo-terminal + real Qdrant, chat model mocked — deterministic.
+e2e *args: qdrant
+    cd {{ root }} && RAG_RERANK_ENABLED=false pnpm exec vitest run --config apps/cli/vitest.e2e.config.ts --testTimeout 120000 e2e.ts {{ args }}
+
+# Same PTY harness with the real chat model — the full flow.
+e2e-full *args: qdrant
+    cd {{ root }} && RAG_RERANK_ENABLED=false pnpm exec vitest run --config apps/cli/vitest.e2e.config.ts e2e-full.ts {{ args }}
+
+# --- local infra needed by eval/e2e/integration ---
+
+qdrant:
+    cd {{ root }} && docker compose up -d --wait qdrant

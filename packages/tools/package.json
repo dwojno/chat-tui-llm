@@ -14,8 +14,8 @@
     "@chat/platform": "workspace:*",
     "@chat/store": "workspace:*",
     "@modelcontextprotocol/sdk": "1.29.0",
-    "cockatiel": "4.0.0",
-    "openai": "6.45.0",
-    "zod": "4.4.3"
+    "cockatiel": "catalog:",
+    "openai": "catalog:",
+    "zod": "catalog:"
   }
 }

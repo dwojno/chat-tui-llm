@@ -14,14 +14,14 @@
   },
   "dependencies": {
     "@chat/agent": "workspace:*",
-    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/api": "catalog:",
     "@opentelemetry/exporter-metrics-otlp-http": "0.220.0",
     "@opentelemetry/exporter-trace-otlp-http": "0.220.0",
     "@opentelemetry/resources": "2.9.0",
     "@opentelemetry/sdk-metrics": "2.9.0",
     "@opentelemetry/sdk-node": "0.220.0",
     "@opentelemetry/semantic-conventions": "1.43.0",
-    "cockatiel": "4.0.0",
-    "openai": "6.45.0"
+    "cockatiel": "catalog:",
+    "openai": "catalog:"
   }
 }

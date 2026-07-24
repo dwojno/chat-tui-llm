@@ -1,20 +1,9 @@
 {
   "extends": "./tsconfig.base.json",
-  "compilerOptions": {
-    "paths": {
-      "@/*": ["./apps/cli/src/*"],
-      "@tests/*": ["./apps/cli/tests/*"]
-    }
-  },
   "include": [
-    "apps/*/src/**/*.ts",
-    "apps/*/src/**/*.tsx",
-    "apps/*/tests/**/*.ts",
-    "apps/*/tests/**/*.tsx",
     "packages/*/src/**/*.ts",
     "packages/*/src/**/*.tsx",
     "packages/*/tests/**/*.ts",
-    "packages/*/tests/**/*.tsx",
-    "apps/*/evals/**/*.ts"
+    "packages/*/tests/**/*.tsx"
   ]
 }
