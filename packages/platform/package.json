@@ -7,7 +7,6 @@
     "./model": "./src/model/index.ts",
     "./telemetry": "./src/telemetry/index.ts",
     "./telemetry/otel": "./src/telemetry/otel.ts",
-    "./telemetry/trace": "./src/telemetry/trace.ts",
     "./utils/async-gen": "./src/utils/async-gen.ts",
     "./utils/redact": "./src/utils/redact.ts",
     "./utils/resilience": "./src/utils/resilience.ts",
