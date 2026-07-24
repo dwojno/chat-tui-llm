@@ -3,12 +3,25 @@ set dotenv-load
 default:
     @just --list
 
-# --- dev loop ---
+# Package / app justfiles: `just agent test`, `just cli start`, …
+agent *args:
+    just --justfile packages/agent/justfile --working-directory packages/agent {{ args }}
+engine *args:
+    just --justfile packages/engine/justfile --working-directory packages/engine {{ args }}
+platform *args:
+    just --justfile packages/platform/justfile --working-directory packages/platform {{ args }}
+tools *args:
+    just --justfile packages/tools/justfile --working-directory packages/tools {{ args }}
+store *args:
+    just --justfile packages/store/justfile --working-directory packages/store {{ args }}
+cli *args:
+    just --justfile apps/cli/justfile --working-directory apps/cli {{ args }}
 
-start:
-    pnpm exec tsx src/cli.ts
+# --- workspace gates ---
+
 typecheck:
-    pnpm exec tsc --noEmit
+    pnpm exec tsc --noEmit -p tsconfig.json
+    pnpm exec tsc --noEmit -p apps/cli/tsconfig.json
 lint *args:
     pnpm exec oxlint {{ args }}
 lint-fix:
@@ -17,24 +30,31 @@ format:
     pnpm exec oxfmt .
 format-check:
     pnpm exec oxfmt --check .
+knip:
+    pnpm exec knip --include files,exports,types
+
+# Unit tests across every app + package in one vitest process (see vitest.config.ts).
+# For a single member use its justfile: `just agent test`, `just cli test`, …
 test *args:
     pnpm exec vitest run {{ args }}
-test-watch:
-    pnpm exec vitest
+test-watch *args:
+    pnpm exec vitest {{ args }}
 
-# Typecheck + lint + format-check + test — the pre-commit gate.
-check: typecheck lint format-check test
+# Typecheck + lint + format-check + dead-code check + unit tests — the pre-commit gate.
+check: typecheck lint format-check knip test
 
-# --- db ---
+# --- workspace suites (every app/package that has them) ---
 
-db-generate *args:
-    pnpm exec drizzle-kit generate {{ args }}
-db-studio:
-    pnpm exec drizzle-kit studio
-db-migrate:
-    pnpm exec drizzle-kit migrate
+integration:
+    just cli integration
+e2e *args:
+    just cli e2e {{ args }}
+e2e-full *args:
+    just cli e2e-full {{ args }}
+eval *args:
+    just cli eval {{ args }}
 
-# --- infra (docker compose; --wait blocks on healthchecks) ---
+# --- infra (docker compose at repo root) ---
 
 # Bring up the full stack (Qdrant + Langfuse) and wait until healthy.
 infra:
@@ -47,30 +67,3 @@ infra-clear:
 # Bring up only Qdrant (all the RAG pipeline needs) and wait until healthy.
 qdrant:
     docker compose up -d --wait qdrant
-
-# --- evals (need a real OPENAI_API_KEY) ---
-
-eval *args: qdrant
-    pnpm exec evalite run {{ args }}
-eval-watch: qdrant
-    pnpm exec evalite watch
-eval-rag: qdrant
-    pnpm exec evalite run evals/suites/rag-eval.eval.ts
-
-# --- integration ---
-
-# Real RAG tools against real Qdrant + OpenAI (reranker off for determinism).
-integration: qdrant
-    RAG_INTEGRATION=1 RAG_RERANK_ENABLED=false pnpm exec vitest run tests/store/rag tests/app/tools/rag-tools.integration.test.ts
-
-# --- e2e (PTY-driven real TUI; streams the live frames to the console) ---
-# One config (vitest.e2e.config.ts); the recipes narrow it via a CLI filename
-# filter and override the timeout on the CLI — no per-suite config files.
-
-# Real TUI in a pseudo-terminal + real Qdrant, chat model mocked — deterministic.
-e2e *args: qdrant
-    RAG_RERANK_ENABLED=false pnpm exec vitest run --config vitest.e2e.config.ts --testTimeout 120000 e2e.ts {{ args }}
-
-# Same PTY harness with the real chat model — the full flow.
-e2e-full *args: qdrant
-    RAG_RERANK_ENABLED=false pnpm exec vitest run --config vitest.e2e.config.ts e2e-full.ts {{ args }}

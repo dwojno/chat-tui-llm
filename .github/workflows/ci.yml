@@ -21,7 +21,7 @@ jobs:
           cache: pnpm
       - uses: extractions/setup-just@v3
       - run: pnpm install --frozen-lockfile
-      - run: just check # typecheck + lint + format-check + test, sequential
+      - run: just check # typecheck + lint + format-check + knip + test
 
   suites:
     runs-on: ubuntu-latest

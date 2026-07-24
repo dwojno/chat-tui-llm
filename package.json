@@ -1,59 +1,23 @@
 {
-  "name": "chat-cli",
+  "name": "chat-cli-workspace",
   "version": "1.0.0",
-  "description": "",
-  "keywords": [],
+  "private": true,
   "license": "ISC",
-  "author": "",
   "type": "module",
-  "main": "src/cli.ts",
   "scripts": {
-    "start": "tsx src/cli.ts"
-  },
-  "dependencies": {
-    "@aws-sdk/client-s3": "3.1083.0",
-    "@modelcontextprotocol/sdk": "1.29.0",
-    "@opentelemetry/api": "1.9.1",
-    "@opentelemetry/exporter-metrics-otlp-http": "0.220.0",
-    "@opentelemetry/exporter-trace-otlp-http": "0.220.0",
-    "@opentelemetry/resources": "2.9.0",
-    "@opentelemetry/sdk-metrics": "2.9.0",
-    "@opentelemetry/sdk-node": "0.220.0",
-    "@opentelemetry/semantic-conventions": "1.43.0",
-    "@qdrant/js-client-rest": "1.18.0",
-    "better-sqlite3": "12.11.1",
-    "cockatiel": "4.0.0",
-    "dotenv": "17.4.2",
-    "drizzle-orm": "0.45.2",
-    "ink": "7.1.0",
-    "mammoth": "1.12.0",
-    "marked": "9.1.6",
-    "marked-terminal": "6.2.0",
-    "openai": "6.45.0",
-    "react": "19.2.7",
-    "turndown": "7.2.4",
-    "unpdf": "1.6.2",
-    "xlsx": "0.18.5",
-    "zod": "4.4.3"
+    "start": "pnpm --filter chat-cli start"
   },
   "devDependencies": {
-    "@lydell/node-pty": "1.2.0-beta.12",
-    "@opentelemetry/sdk-trace-base": "2.9.0",
-    "@opentelemetry/sdk-trace-node": "2.9.0",
-    "@types/better-sqlite3": "7.6.13",
-    "@types/marked-terminal": "6.1.1",
-    "@types/node": "24.13.2",
-    "@types/react": "19.2.17",
-    "@types/turndown": "5.0.6",
-    "autoevals": "0.3.0",
-    "drizzle-kit": "0.31.10",
-    "evalite": "0.19.0",
-    "ink-testing-library": "4.0.0",
+    "@types/node": "catalog:",
+    "knip": "6.29.0",
     "oxfmt": "0.58.0",
     "oxlint": "1.73.0",
-    "tsx": "4.22.5",
     "typescript": "6.0.3",
-    "vitest": "4.1.10"
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  },
+  "engines": {
+    "node": ">=22"
   },
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
@@ -61,5 +25,27 @@
       "esbuild",
       "better-sqlite3"
     ]
+  },
+  "knip": {
+    "workspaces": {
+      ".": {
+        "entry": [
+          "vitest.shared.ts"
+        ]
+      },
+      "apps/cli": {
+        "entry": [
+          "evalite.config.ts",
+          "vitest.e2e.config.ts",
+          "evals/harness/infra-setup.ts",
+          "evals/suites/**/*.eval.ts",
+          "tests/**/*.test.{ts,tsx}",
+          "tests/e2e/full/**/*.e2e.ts",
+          "tests/e2e/full/**/*.e2e-full.ts",
+          "tests/e2e/full/launch.ts",
+          "tests/setup.ts"
+        ]
+      }
+    }
   }
 }

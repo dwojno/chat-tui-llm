@@ -1,0 +1,21 @@
+{
+  "name": "@chat/agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./agent": "./src/agent.ts",
+    "./conversation": "./src/conversation/index.ts",
+    "./conversation/*": "./src/conversation/*.ts",
+    "./events": "./src/events/index.ts",
+    "./events/*": "./src/events/*.ts",
+    "./humanLayer/*": "./src/humanLayer/*.ts",
+    "./tools": "./src/tools/index.ts",
+    "./tools/*": "./src/tools/*.ts"
+  },
+  "dependencies": {
+    "openai": "catalog:",
+    "zod": "catalog:"
+  }
+}

@@ -1,15 +1,15 @@
 # Persistence: SQLite + Drizzle
 
-chat-cli persists durable state behind a top-level [`Store`](../src/store/index.ts)
+chat-cli persists durable state behind a top-level [`Store`](../apps/cli/src/backend/index.ts)
 facade. The store composes namespaced domain facades —
-[`profile`](../src/store/profile/index.ts) (settings), [`conversation`](../src/store/conversation/index.ts) (transcript, summaries,
-usage), [`memory`](../src/store/memory/index.ts) (pinned memories), and
-[`sources`](../src/store/sources/index.ts) (learned file paths). SQLite is the
+[`profile`](../apps/cli/src/backend/profile/) (settings), [`conversation`](../apps/cli/src/backend/conversation/index.ts) (transcript, summaries,
+usage), [`memory`](../apps/cli/src/backend/memory/) (pinned memories), and
+[`sources`](../apps/cli/src/backend/sources/index.ts) (learned file paths). SQLite is the
 current backend; its schema is documented below.
 
 ## Store (top-level facade)
 
-[`Session`](../src/app/session/session.ts) and the commands depend on `Store`
+[`Session`](../apps/cli/src/session/session.ts) and the commands depend on `Store`
 and its namespaces, never on SQLite directly:
 
 ```ts
@@ -34,18 +34,18 @@ const conversation = await store.conversation
   .executeAndTakeFirst();
 ```
 
-| Type                                                                     | Role                                              |
-| ------------------------------------------------------------------------ | ------------------------------------------------- |
-| [`Store`](../src/store/index.ts)                                         | Top-level facade — `profileId` + `conversationId` |
-| [`LocalStore`](../src/store/store.ts)                                    | SQLite bundle (`open(path)` or `":memory:"`)      |
-| [`ProfileFacade`](../src/store/profile/profile.facade.ts)                | Profile settings (model)                          |
-| [`ConversationFacade`](../src/store/conversation/conversation.facade.ts) | Transcript, summaries, token usage                |
-| [`MemoryFacade`](../src/store/memory/memory.facade.ts)                   | Pinned memories (profile-scoped)                  |
-| [`SourcesFacade`](../src/store/sources/source.facade.ts)                 | Learned source paths (profile-scoped)             |
+| Type                                                                                | Role                                              |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------- |
+| [`Store`](../apps/cli/src/backend/index.ts)                                         | Top-level facade — `profileId` + `conversationId` |
+| [`LocalStore`](../apps/cli/src/backend/store.ts)                                    | SQLite bundle (`open(path)` or `":memory:"`)      |
+| [`ProfileFacade`](../apps/cli/src/backend/profile/profile.facade.ts)                | Profile settings (model)                          |
+| [`ConversationFacade`](../apps/cli/src/backend/conversation/conversation.facade.ts) | Transcript, summaries, token usage                |
+| [`MemoryFacade`](../apps/cli/src/backend/memory/memory.facade.ts)                   | Pinned memories (profile-scoped)                  |
+| [`SourcesFacade`](../apps/cli/src/backend/sources/source.facade.ts)                 | Learned source paths (profile-scoped)             |
 
-Each domain exposes a single public module (`index.ts`) with an abstract facade class
-and a repository holding all SQL. [`src/store/db/`](../src/store/db/) holds schema, migrations,
-and connection; the composition root in [`store.ts`](../src/store/store.ts) wires
+Each domain exposes a facade and a repository holding its SQL.
+[`apps/cli/src/backend/db/`](../apps/cli/src/backend/db/) holds schema, migrations,
+and connection; the composition root in [`store.ts`](../apps/cli/src/backend/store.ts) wires
 facades with constructor injection. Tests run against the same SQLite code via
 `LocalStore.open(":memory:")`, so they exercise the real SQL — there is no
 separate in-memory stand-in to drift from production behaviour.
@@ -295,7 +295,7 @@ returns them all (plus the messages after the last one), and the model reads eve
 
 ## Token usage: `usage_record` table
 
-Each chat-path model call goes through [`Model`](../src/platform/model/index.ts)
+Each chat-path model call goes through [`Model`](../packages/platform/src/model/index.ts)
 (`Model.fromOpenAI` today). The adapter stamps GenAI span attrs and, when a session
 has bound `withUsageRecorder`, appends a normalized `UsageRecord` that is flushed to
 `usage_record` (conversation-scoped). Transcript rows no longer carry token columns.
@@ -338,31 +338,31 @@ memories last, so the cached prefix stays stable.
 ## Migrations
 
 Schema lives in
-[`src/store/db/schema.ts`](../src/store/db/schema.ts).
+[`apps/cli/src/backend/db/schema.ts`](../apps/cli/src/backend/db/schema.ts).
 SQL migrations are generated by drizzle-kit and applied automatically on startup.
 
 ```bash
-just db-generate --name <change>   # regenerate SQL after editing schema.ts
-just db-studio                     # browse the database
+just cli db-generate --name <change>   # regenerate SQL after editing schema.ts
+just cli db-studio                     # browse the database
 ```
 
 Migrations run on every open
-([`src/store/db/db.ts`](../src/store/db/db.ts));
+([`apps/cli/src/backend/db/db.ts`](../apps/cli/src/backend/db/db.ts));
 once the schema is current it is a no-op, so there is no separate setup step.
 
 ## Code map
 
-| File                                                    | Role                                            |
-| ------------------------------------------------------- | ----------------------------------------------- |
-| [`src/store/index.ts`](../src/store/index.ts)           | `Store` facade entry point                      |
-| [`src/store/store.ts`](../src/store/store.ts)           | `LocalStore` composition                        |
-| [`src/store/profile/`](../src/store/profile/)           | `ProfileFacade` + `ProfileRepository`           |
-| [`src/store/conversation/`](../src/store/conversation/) | `ConversationFacade` + `ConversationRepository` |
-| [`src/store/memory/`](../src/store/memory/)             | `MemoryFacade` + `MemoryRepository`             |
-| [`src/store/sources/`](../src/store/sources/)           | `SourcesFacade` + `SourceRepository`            |
-| [`src/store/db/schema.ts`](../src/store/db/schema.ts)   | Drizzle table definitions                       |
-| [`src/store/db/db.ts`](../src/store/db/db.ts)           | Connection, WAL, migrations                     |
-| `src/store/db/migrations/`                              | drizzle-kit generated SQL + journal             |
+| File                                                                          | Role                                            |
+| ----------------------------------------------------------------------------- | ----------------------------------------------- |
+| [`apps/cli/src/backend/index.ts`](../apps/cli/src/backend/index.ts)           | `Store` facade entry point                      |
+| [`apps/cli/src/backend/store.ts`](../apps/cli/src/backend/store.ts)           | `LocalStore` composition                        |
+| [`apps/cli/src/backend/profile/`](../apps/cli/src/backend/profile/)           | `ProfileFacade` + `ProfileRepository`           |
+| [`apps/cli/src/backend/conversation/`](../apps/cli/src/backend/conversation/) | `ConversationFacade` + `ConversationRepository` |
+| [`apps/cli/src/backend/memory/`](../apps/cli/src/backend/memory/)             | `MemoryFacade` + `MemoryRepository`             |
+| [`apps/cli/src/backend/sources/`](../apps/cli/src/backend/sources/)           | `SourcesFacade` + `SourceRepository`            |
+| [`apps/cli/src/backend/db/schema.ts`](../apps/cli/src/backend/db/schema.ts)   | Drizzle table definitions                       |
+| [`apps/cli/src/backend/db/db.ts`](../apps/cli/src/backend/db/db.ts)           | Connection, WAL, migrations                     |
+| `apps/cli/src/backend/db/migrations/`                                         | drizzle-kit generated SQL + journal             |
 
 ## Deliberate non-goals (v1)
 

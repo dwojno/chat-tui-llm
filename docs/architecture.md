@@ -7,45 +7,35 @@ itself is kept comment-light.
 
 ## The layers
 
-The codebase is split into focused layers plus a thin composition root. Everything
-depends inward on `agent/`; the core imports nothing outward.
-
-Imports use the `@/*` alias (→ `src/*`), so an import path mirrors this tree. Three
-core PILLARS (`agent`, `store`, `ui`), one MIDDLE integrator (`app/`), leaf INFRA
-(`platform/`):
+Reusable modules live under `packages/`; the deployable terminal host lives under
+`apps/cli`. Package dependencies point inward toward `@chat/agent`, while the CLI
+composition root wires the package interfaces to its UI and local backend.
 
 ```
-src/
-  agent/         PILLAR / PURE core — the Agent's step()/executeTool() primitives + the
-                 tool/event/HITL contracts. No loop, no filesystem, no Ink, no
-                 persistence, no config globals (all injected).
-  store/         PILLAR — Store facade → domain facades (profile, conversation, memory,
-                 sources) backed by SQLite via drizzle-orm.
-    db/            Schema, migrations, and the SQLite connection (only store imports it).
-  ui/            PILLAR — the Ink TUI. Driven by an EventBus subscription; knows nothing
-                 about the agent's internals or storage.
-  app/           MIDDLE — integrator + configurator that wires the pillars together:
-    runner/        runAgentLoop — the caller-owned model→tool→result loop + reducer.
-    session/       Thin wiring: Session (state + persistence), context switch, usage.
-    tools/         Tool IMPLEMENTATIONS (web-search, disk, rag, ask-user),
-                   delegation/, fork prompts/, and response formatting.
-    commands/      User-intent handlers that bridge input to the agent/session.
-    input/         The REPL input loop (subscribes to the EventBus) + file mentions.
-    context/       Assembles the <user_known_memories> block.
-    tokens/        Rolling-summary summarizer + token estimation.
-    config.ts      App constants (models, temperature, limits). prompts.ts — system prompt.
-  platform/      INFRA (leaf, used everywhere): telemetry/ (OTel spans + pricing),
-                 utils/, cli/ (CLI boot/teardown: args, config, env, shutdown).
-  main.ts        Composition root: builds every dependency once (incl. the EventBus)
-                 and hands them to the REPL, so each layer can be driven with doubles.
+packages/
+  agent/         Pure core: step/executeTool, tool/event/HITL contracts.
+  engine/        Model→tool→result loop, reducer, windowing, scratchpad.
+  tools/         Disk, web, RAG, MCP, and delegation tool implementations.
+  platform/      Model adapter, telemetry, resilience, and shared utilities.
+  store/         Persistence contract and domain value types only.
+apps/cli/src/
+  backend/       SQLite LocalStore, repositories, migrations, and RAG infrastructure.
+  commands/      User-intent handlers.
+  context/       Assembles the <user_known_memories> block.
+  input/         REPL input and file mentions.
+  session/       Session state, context switching, and usage reporting.
+  ui/            Ink TUI.
+  args.ts        CLI argument parsing.
+  config.ts      Unified models, limits, paths, and environment parsing.
+  prompts.ts     CLI system prompt.
+  shutdown.ts    Exit report and cleanup.
+  main.ts        Composition root.
+  cli.ts         Process entry point and telemetry lifecycle.
 ```
 
-Dependency direction is one-way: everything (`ui`, `store`, and the `app/` layer —
-`session`, `runner`, `commands`, `tools`) depends inward on `agent`; `agent` depends
-on nothing above it.
-This is what makes the agent reusable outside the CLI — a web server could construct
-the same `Agent`, drive it with its own loop (or reuse `runAgentLoop`), and forward
-the same `EventBus` stream over SSE.
+The CLI uses `@/*` for its own `src/`; cross-package imports use `@chat/*`. This is
+what makes the agent reusable outside the CLI — another host can construct the same
+`Agent`, reuse `runAgentLoop`, and expose the event stream through its own UI.
 
 **Frameworkless constraint.** The raw `openai` SDK is used directly inside the
 agent (injected, never wrapped). There is deliberately no LLM/SDK abstraction
@@ -65,7 +55,7 @@ The core idea: **the agent is a pure reducer over an owned, serializable event
 log**. A turn is a fold — `reduce(events) → prompt`, ask the model for one decision,
 append the result event, repeat.
 
-The `Agent` ([src/agent/agent.ts](../src/agent/agent.ts)) exposes two **stateless,
+The `Agent` ([packages/agent/src/agent.ts](../packages/agent/src/agent.ts)) exposes two **stateless,
 pure** primitives and owns no loop: `step()` makes one model call (streaming `delta`
 to the injected `EventBus`) and returns `{ outputText, outputParsed, toolCalls,
 usage }`; `executeTool()` dispatches one tool call. Every collaborator and constant is
@@ -73,8 +63,8 @@ injected — the agent imports no config, prompt, or event type, and never touch
 `Store`.
 
 The **loop** lives in the caller: `runAgentLoop`
-([src/app/runner/runner.ts](../src/app/runner/runner.ts)) folds an owned `AgentEvent[]` log
-into one custom-format prompt (the **reducer**, [src/app/runner/thread/](../src/app/runner/thread/)),
+([packages/engine/src/runner.ts](../packages/engine/src/runner.ts)) folds an owned `AgentEvent[]` log
+into one custom-format prompt (the **reducer**, [packages/engine/src/thread/](../packages/engine/src/thread/)),
 calls `step`, runs the approval gate, executes tools with `Promise.all`, appends the
 resulting events, and **returns** `{ answer, events, usage }`. The **`EventBus` is
 UI-only and never persisted**; the durable state is the event log. A few design
@@ -93,9 +83,9 @@ handoff) — live in **[agent-loop.md](./agent-loop.md)**. The rest of this docu
 covers everything the agent deliberately does _not_ own: state, persistence,
 retrieval infrastructure, and the UI.
 
-## The Session (app/session owns state)
+## The Session
 
-`Session` ([src/app/session/session.ts](../src/app/session/session.ts)) owns
+`Session` ([apps/cli/src/session/session.ts](../apps/cli/src/session/session.ts)) owns
 everything the agent does not: pinned memories, indexed sources, token
 accounting, the context window, and persistence. It reads all transcript state
 from the `Store` on each turn — no in-memory `log`. `runTurn`:
@@ -113,8 +103,8 @@ from the `Store` on each turn — no in-memory `log`. `runTurn`:
 5. compacts the window when the unsummarized tail overflows (folds it into a new
    `summary` segment — see [agent-loop.md](./agent-loop.md#windowing)).
 
-Swapping or extending backends is a new `Store` bundle
-([src/store/](../src/store/)); nothing in the agent changes. A future
+Swapping or extending backends is a new `Store` implementation; the CLI's is under
+([apps/cli/src/backend/](../apps/cli/src/backend/)). Nothing in the agent changes. A future
 `CloudStore` might compose API-backed profile/conversation/memory/sources
 namespaces — each as its own sub-client on the facade.
 
@@ -129,11 +119,11 @@ Durable state is split into two scopes:
 - **Conversation** — one transcript thread (`conversation_item` rows) under a
   profile. Windowing and token usage are per-conversation.
 
-The top-level `Store` ([src/store/store.ts](../src/store/store.ts)) exposes
+The top-level `Store` ([apps/cli/src/backend/store.ts](../apps/cli/src/backend/store.ts)) exposes
 `profileId` and `conversationId` via a mutable `StoreContext` that facades
 update on switch. On disk, `.chat-state/active.json` remembers the last profile;
 each open creates or restores a conversation. `/profile` and `/conversation`
-commands open an Ink picker ([src/ui/input/picker-overlay.tsx](../src/ui/input/picker-overlay.tsx))
+commands open an Ink picker ([apps/cli/src/ui/input/picker-overlay.tsx](../apps/cli/src/ui/input/picker-overlay.tsx))
 to switch or create; `applyContextSwitch` rebinds the session, reloads history,
 and refreshes the status bar. `pnpm start --conversation <uuid>` skips the picker
 and resumes a prior thread directly.
@@ -142,7 +132,7 @@ and resumes a prior thread directly.
 
 When the un-summarized tail exceeds `KEEP_LAST_TURNS` (4) user turns, `maintainWindow`
 folds the **whole tail** into one `summary` segment via the pure `summarize` helper
-([src/app/tokens/summarizer.ts](../src/app/tokens/summarizer.ts)) and **appends** it as a new
+([packages/engine/src/tokens/summarizer.ts](../packages/engine/src/tokens/summarizer.ts)) and **appends** it as a new
 `kind = 'summary'` event. Segments are never rewritten; `queryHistory().forModel()`
 returns every segment plus the messages after the last one, so evicted turns are
 represented (never dropped) — see [agent-loop.md](./agent-loop.md#windowing). Windowing
@@ -150,7 +140,7 @@ lives in the Session, not the agent.
 
 ### Prompt caching
 
-The reducer ([src/app/runner/thread/reducer.ts](../src/app/runner/thread/reducer.ts)) packs
+The reducer ([packages/engine/src/thread/reducer.ts](../packages/engine/src/thread/reducer.ts)) packs
 one `user` message ordered **events → memories → next-step framing**, where the event
 list itself leads with the `summary` segments. Segments change only when a new one is
 minted, messages are append-only, and pinned memories go **last** so a `/remember`
@@ -163,7 +153,7 @@ delegation can pass a subset — see [agent-loop.md](./agent-loop.md#memories-in
 
 ### Token accounting
 
-`usage.ts` ([src/app/session/usage.ts](../src/app/session/usage.ts)) tracks real
+`usage.ts` ([apps/cli/src/session/usage.ts](../apps/cli/src/session/usage.ts)) tracks real
 API usage (from the model's `usage` field — never estimated) and a naive
 append-everything baseline (estimated via `estimateTokens`, chars/4). The exit
 report contrasts the two to show the savings from windowing + caching, charging
@@ -171,8 +161,8 @@ the summarizer overhead against the strategy.
 
 ## Knowledge base retrieval
 
-The RAG pipeline lives entirely in the `sources` store domain
-([src/store/sources/](../src/store/sources/)) behind its facade; the agent core
+The RAG pipeline lives entirely in the CLI backend's `sources` domain
+([apps/cli/src/backend/sources/](../apps/cli/src/backend/sources/)) behind its facade; the agent core
 never learns it exists — it reaches the model only as four store-backed tools.
 `/learn @file` runs **ingest** (convert to Markdown → per-profile blob store (local
 disk by default, MinIO/S3 optional) → heading-aware chunking → OpenAI embeddings →
@@ -193,7 +183,7 @@ lives in **[rag.md](./rag.md)**. Multi-hop retrieval is delegated to the
 The agent can use tools exposed by external **MCP** (Model Context Protocol)
 servers — both remote **HTTP** servers and locally-launched **stdio** servers (e.g.
 a scraping or browser-automation server). A single client
-([src/app/tools/mcp/](../src/app/tools/mcp/), built on `@modelcontextprotocol/sdk`)
+([packages/tools/src/mcp/](../packages/tools/src/mcp/), built on `@modelcontextprotocol/sdk`)
 connects to each server at boot, lists its tools, and wraps every one as an ordinary
 local `ToolDefinition` whose `execute` proxies to `client.callTool`. Because the wrap
 produces a plain tool, the runner loop, approval gate, and dispatch registry work on
@@ -214,8 +204,8 @@ the offline test suite spawns nothing (and `run({ disableMcp: true })` skips it 
 
 ## The UI
 
-The Ink TUI ([src/ui/](../src/ui/)) is a thin adapter over the event stream. The
-REPL ([src/app/input/repl.ts](../src/app/input/repl.ts)) subscribes to the `EventBus` and
+The Ink TUI ([apps/cli/src/ui/](../apps/cli/src/ui/)) is a thin adapter over the event stream. The
+REPL ([apps/cli/src/input/repl.ts](../apps/cli/src/input/repl.ts)) subscribes to the `EventBus` and
 maps each event (`delta`/`tool`/`status`/`approval_*`) to a `ChatHandle` call, then
 commits the answer returned by `Session.runTurn`.
 `chat.tsx` holds the root `Chat` component and the imperative `renderChat`
@@ -241,10 +231,10 @@ Notable UI details:
 
 ## Tests and evals
 
-- `tests/` mirrors `src/` and runs offline with the model mocked
-  ([tests/helpers/mock-openai.ts](../tests/helpers/mock-openai.ts)) — fast, no API
+- `apps/cli/tests/` mirrors the CLI app and runs offline with the model mocked
+  ([apps/cli/tests/helpers/mock-openai.ts](../apps/cli/tests/helpers/mock-openai.ts)) — fast, no API
   key. Includes an end-to-end suite that drives the real REPL → agent →
   tools/forks path.
-- `evals/` holds behavioural prompt evals (evalite) run against the live model.
+- `apps/cli/evals/` holds behavioural prompt evals (evalite) run against the live model.
   A frameworkless agent's behaviour is its prompts, so prompts are tested like
   code.

@@ -1,0 +1,21 @@
+{
+  "name": "@chat/engine",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./control-intents": "./src/control-intents.ts",
+    "./format": "./src/format.ts",
+    "./scratchpad": "./src/scratchpad.ts",
+    "./thread/*": "./src/thread/*.ts",
+    "./tokens": "./src/tokens/index.ts",
+    "./tokens/*": "./src/tokens/*.ts"
+  },
+  "dependencies": {
+    "@chat/agent": "workspace:*",
+    "@chat/platform": "workspace:*",
+    "openai": "catalog:",
+    "zod": "catalog:"
+  }
+}

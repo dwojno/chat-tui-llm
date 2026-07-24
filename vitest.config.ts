@@ -1,16 +1,8 @@
-import path from "node:path";
 import { defineConfig } from "vitest/config";
 
+/** Runs every app/package suite in one process (one watcher, one reporter). */
 export default defineConfig({
-  resolve: {
-    alias: {
-      "@tests": path.resolve(__dirname, "tests"),
-      "@": path.resolve(__dirname, "src"),
-    },
-  },
   test: {
-    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
-    environment: "node",
-    setupFiles: ["tests/setup.ts"],
+    projects: ["packages/*/vitest.config.ts", "apps/*/vitest.config.ts"],
   },
 });
